@@ -48,7 +48,10 @@ Shu の生活習慣管理アプリ。食事・栄養・体重・睡眠・日記�
 - `npm run dev` / `npm run build`
 - `npm run check`: lint + typecheck。変更ごとに実行して通すこと(CI も同じ lint → typecheck → build を実行)
 - `npm run lint` / `npm run typecheck`
-- (DB 導入後に追記: db:generate / db:migrate など)
+- `docker compose up -d --wait`: DB(pgvector/pgvector:pg17)を起動。ホスト側ポートは **5433**(5432 は他プロジェクトが使うため)
+- `npm run db:generate`: マイグレーション生成(`drizzle/`)/ `npm run db:migrate`: 適用 / `npm run db:studio`
+- 接続先は `DATABASE_URL`(`.env.example` を `.env.local` にコピーして使う)
+- pgvector の拡張は `drizzle/0001_enable_pgvector.sql` で有効化済み。`drizzle/` は生成物なので手編集しない(この1ファイルだけ例外)
 
 ## 型の方針
 - `strict: true` を前提にする。`any` は使わない

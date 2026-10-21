@@ -38,6 +38,7 @@ fi
 # --- 保護対象ファイルの編集禁止 ---
 if [[ "$tool" =~ ^(Edit|Write|MultiEdit)$ && -n "$rel" ]]; then
   case "$rel" in
+    drizzle/*_enable_pgvector.sql) ;; # 手書きのカスタムマイグレーション(CREATE EXTENSION)だけ許可
     drizzle/*) block "drizzle/ は生成物。スキーマ(src/db/)を直して db:generate で作る" ;;
     package-lock.json) block "package-lock.json は手編集しない(npm コマンド経由で更新する)" ;;
   esac
