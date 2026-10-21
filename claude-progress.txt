@@ -1,0 +1,18 @@
+claude-progress.txt
+最終更新: 2026-10-21
+新しいセッションは、最初にこのファイルと CLAUDE.md を読む。作業の区切り(goal の終わり)ごとに更新する。
+
+## 完了したタスク
+- プロジェクト名を Habit and Health Tracker に変更、GitHub リポジトリに接続
+- Claude Code の設定(settings.json、hooks、evaluator)と CI(lint / typecheck / build)
+
+## 実行中のタスク
+- chore/project-base: プロジェクトのベース作り(PR 前)
+
+## これから
+- DB(Docker + PostgreSQL + pgvector)と Drizzle の導入
+- テスト(Vitest)の導入。入れたら CI にも足す
+- users テーブルと getCurrentUserId()
+
+## 未決事項
+- CLAUDE.md の「未決事項」を参照

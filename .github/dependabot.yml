@@ -1,0 +1,27 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+    ignore:
+      # メジャー更新は破壊的変更が多いので手動で上げる
+      - dependency-name: "*"
+        update-types: [version-update:semver-major]
+      # Next.js / React は AGENTS.md の警告どおり挙動が変わりやすいので手動で上げる
+      - dependency-name: next
+      - dependency-name: eslint-config-next
+      - dependency-name: react
+      - dependency-name: react-dom
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]

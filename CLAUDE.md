@@ -1,3 +1,5 @@
+@AGENTS.md
+
 # Habit and Health Tracker
 
 Shu の生活習慣管理アプリ。食事・栄養・体重・睡眠・日記を記録し、集計とAIフィードバックを得る。
@@ -43,7 +45,48 @@ Shu の生活習慣管理アプリ。食事・栄養・体重・睡眠・日記�
 - API キー等の秘密情報は `.env.local` に置き、コミットしない
 
 ## コマンド
-(プロジェクト作成後に追記: dev / build / lint / db:generate / db:migrate など)
+- `npm run dev` / `npm run build`
+- `npm run check`: lint + typecheck。変更ごとに実行して通すこと(CI も同じ lint → typecheck → build を実行)
+- `npm run lint` / `npm run typecheck`
+- `docker compose up -d --wait`: DB(pgvector/pgvector:pg17)を起動。ホスト側ポートは **5433**(5432 は他プロジェクトが使うため)
+- `npm run db:generate`: マイグレーション生成(`drizzle/`)/ `npm run db:migrate`: 適用 / `npm run db:studio`
+- 接続先は `DATABASE_URL`(`.env.example` を `.env.local` にコピーして使う)
+- pgvector の拡張は `drizzle/0001_enable_pgvector.sql` で有効化済み。`drizzle/` は生成物なので手編集しない(この1ファイルだけ例外)
+
+## 型の方針
+- `strict: true` を前提にする。`any` は使わない
+- 黙らせる回避は使わない: `as unknown as X`、`@ts-ignore`、`@ts-expect-error`、`eslint-disable`
+- 外部から来るデータ(AI のレスポンス、フォーム入力、環境変数)は `unknown` で受け、スキーマで検証してから型を付ける
+- どうしても回避が要るときは、理由を 1 行のコメントで書く。理由のない回避は `evaluator` が指摘する
+
+## 実装後の流れ(生成と評価のループ)
+実装は自分、評価は `evaluator` エージェント(`.claude/agents/evaluator.md`)。
+1. 実装する。tsc・lint・test は hooks(`.claude/settings.json`)が自動で実行する(編集ごとに ESLint、応答終了時に typegen・tsc・lint、test スクリプトがあれば test)。失敗したら差し戻されるので直す。`npm run build` は hooks の対象外
+2. 挙動を変える変更のときは `evaluator` を呼ぶ(ドキュメントやコメントだけの変更では呼ばない)
+3. 「要修正」なら「高」「中」の指摘を直して 2 に戻る。最大 5 周で打ち切る
+4. 「合格」で終了し、結果を報告する。5 周で合格しなければ、止めて残りの指摘をそのまま報告する(無理に通さない)。同じ指摘が再発したら、上限を待たずに止める
+5. 報告には、検証していない範囲と、人間向けの確認手順を必ず書く。人間の返事は待たない
+
+人間の確認(画面の動作確認、最終レビュー)はループの外。
+
+### テストを通すための改ざんは禁止
+やむを得ず変えるときは、理由を報告に書き、人間の確認を待つ。
+- 失敗するテストの削除、`skip` / `only` の追加、`exclude` で外すこと
+- 期待値を実装の出力に合わせて弱めること(仕様が変わった場合を除く)
+- 型や lint を黙らせる回避を足すこと、tsconfig や ESLint のルールを緩めること
+- `evaluator` の指摘を、直さずにコメントや設定で黙らせること
+
+テストが落ちたら、まず実装が間違っていると考える。
+
+## コミットと hooks
+- 人が頼むまでコミットしない
+- 環境変数ファイル(`.env*`)は読まない・編集しない(`.env.example` は可)
+- PreToolUse でブロック(`.claude/hooks/guard-pre.sh`): `.env*` の読み書き、`git clean` / `reset --hard`、`rm -r`、`drizzle-kit push`、`drizzle/` と `package-lock.json` の編集、`@ts-ignore` / `eslint-disable` / `as unknown as` / `any` の追加、テストや設定への `skip` / `only` / `strict:false` / ルール `off` / `exclude`
+- ブロックされたら回避せず、理由を報告して人の指示を待つ
+
+## 進捗ファイル
+- `claude-progress.txt` に、完了・実行中・これからのタスクを書く。新しいセッションは、最初にこのファイルと CLAUDE.md を読む
+- goal が終わるたびに、終了時の報告と一緒に更新する
 
 ## 未決事項
 - embedding モデルの選定(次元数が pgvector のカラム定義に影響する)
