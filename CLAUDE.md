@@ -43,7 +43,14 @@ Shu の生活習慣管理アプリ。食事・栄養・体重・睡眠・日記�
 - API キー等の秘密情報は `.env.local` に置き、コミットしない
 
 ## コマンド
-(プロジェクト作成後に追記: dev / build / lint / db:generate / db:migrate など)
+- `npm run dev` / `npm run build`
+- `npm run check`: lint + typecheck。変更ごとに実行して通すこと(CI も同じ lint → typecheck → build を実行)
+- `npm run lint` / `npm run typecheck`
+- (DB 導入後に追記: db:generate / db:migrate など)
+
+## Claude Code 設定
+- `.claude/settings.json`: 読み取り系コマンドの許可と、環境変数ファイルの Read 拒否
+- `.claude/hooks/`: 環境変数ファイルの編集ブロック、編集した TS/JS への eslint 自動実行
 
 ## 未決事項
 - embedding モデルの選定(次元数が pgvector のカラム定義に影響する)
