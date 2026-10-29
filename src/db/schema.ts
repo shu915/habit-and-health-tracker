@@ -37,6 +37,8 @@ export const profiles = pgTable(
     age: integer("age"),
     heightCm: numeric("height_cm", { precision: 5, scale: 1 }),
     currentWeightKg: numeric("current_weight_kg", { precision: 5, scale: 2 }),
+    // 体重計が出す体脂肪率(%)。任意。測った値だけを入れる(式で見積もった値は入れない)
+    currentBodyFatPercent: numeric("current_body_fat_percent", { precision: 4, scale: 1 }),
     currentWaistCm: numeric("current_waist_cm", { precision: 5, scale: 1 }),
 
     // 以下の 4 項目(活動係数と目標 3 つ)は、ボディデータを保存したあとに「算出」するので、それまでは null。
@@ -65,6 +67,10 @@ export const profiles = pgTable(
     check("profiles_age_range", sql`${table.age} BETWEEN 0 AND 150`),
     check("profiles_height_cm_range", sql`${table.heightCm} > 0 AND ${table.heightCm} <= 300`),
     check("profiles_current_weight_kg_range", sql`${table.currentWeightKg} > 0 AND ${table.currentWeightKg} < 500`),
+    check(
+      "profiles_current_body_fat_percent_range",
+      sql`${table.currentBodyFatPercent} > 0 AND ${table.currentBodyFatPercent} < 100`,
+    ),
     check("profiles_current_waist_cm_range", sql`${table.currentWaistCm} > 0 AND ${table.currentWaistCm} <= 300`),
     check("profiles_activity_level_range", sql`${table.activityLevel} BETWEEN 1 AND 3`),
     check("profiles_target_weight_kg_range", sql`${table.targetWeightKg} > 0 AND ${table.targetWeightKg} < 500`),
@@ -92,6 +98,8 @@ export const days = pgTable(
 
     // 朝の測定
     morningWeightKg: numeric("morning_weight_kg", { precision: 5, scale: 2 }),
+    // 体重計が出す体脂肪率(%)。毎朝同じ条件で測ると傾向が分かる。測った値だけを入れる
+    morningBodyFatPercent: numeric("morning_body_fat_percent", { precision: 4, scale: 1 }),
 
     // 今日の振り返り(夜の振り返り・日記。自由記入で、あとで AI がフィードバックする対象)。AI の返事はここに書かず、別テーブルに置く
     reflection: text("reflection"),
@@ -105,6 +113,10 @@ export const days = pgTable(
     check(
       "days_morning_weight_kg_range",
       sql`${table.morningWeightKg} IS NULL OR (${table.morningWeightKg} > 0 AND ${table.morningWeightKg} < 500)`,
+    ),
+    check(
+      "days_morning_body_fat_percent_range",
+      sql`${table.morningBodyFatPercent} IS NULL OR (${table.morningBodyFatPercent} > 0 AND ${table.morningBodyFatPercent} < 100)`,
     ),
   ],
 );

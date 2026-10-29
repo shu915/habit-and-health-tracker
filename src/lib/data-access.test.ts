@@ -173,6 +173,22 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
       expect(remaining.filter((d) => d.userId === USER_B)).toHaveLength(1);
     });
 
+    it("体脂肪率を保存でき、体重だけの更新では消えない", async () => {
+      currentUser.id = USER_A;
+      await daysModule.saveDay("2026-10-29", { morningWeightKg: "70.00", morningBodyFatPercent: "22.5" });
+      const updated = await daysModule.saveDay("2026-10-29", { morningWeightKg: "69.50" });
+
+      expect(updated.morningWeightKg).toBe("69.50");
+      expect(updated.morningBodyFatPercent).toBe("22.5");
+    });
+
+    it("体脂肪率の範囲外は DB の制約でも拒否される", async () => {
+      currentUser.id = USER_A;
+      await expect(daysModule.saveDay("2026-10-29", { morningBodyFatPercent: "100.0" })).rejects.toThrow();
+      await expect(daysModule.saveDay("2026-10-29", { morningBodyFatPercent: "0.0" })).rejects.toThrow();
+      await expect(daysModule.saveDay("2026-10-29", { morningBodyFatPercent: "99.9" })).resolves.toBeDefined();
+    });
+
     it("体重の範囲外は DB の制約でも拒否される", async () => {
       currentUser.id = USER_A;
       await expect(daysModule.saveDay("2026-10-29", { morningWeightKg: "500.00" })).rejects.toThrow();

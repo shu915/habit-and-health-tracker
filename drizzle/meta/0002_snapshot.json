@@ -1,5 +1,5 @@
 {
-  "id": "e0145d32-6dbb-4c36-9364-a9bf8a39c842",
+  "id": "0a26b7f6-f27d-4f95-82ed-ff5125eab271",
   "prevId": "57496133-ea07-4a3b-9278-f2c85f615365",
   "version": "7",
   "dialect": "postgresql",
@@ -29,6 +29,12 @@
         "morning_weight_kg": {
           "name": "morning_weight_kg",
           "type": "numeric(5, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "morning_body_fat_percent": {
+          "name": "morning_body_fat_percent",
+          "type": "numeric(4, 1)",
           "primaryKey": false,
           "notNull": false
         },
@@ -98,6 +104,10 @@
         "days_morning_weight_kg_range": {
           "name": "days_morning_weight_kg_range",
           "value": "\"days\".\"morning_weight_kg\" IS NULL OR (\"days\".\"morning_weight_kg\" > 0 AND \"days\".\"morning_weight_kg\" < 500)"
+        },
+        "days_morning_body_fat_percent_range": {
+          "name": "days_morning_body_fat_percent_range",
+          "value": "\"days\".\"morning_body_fat_percent\" IS NULL OR (\"days\".\"morning_body_fat_percent\" > 0 AND \"days\".\"morning_body_fat_percent\" < 100)"
         }
       },
       "isRLSEnabled": false
@@ -133,6 +143,12 @@
         "current_weight_kg": {
           "name": "current_weight_kg",
           "type": "numeric(5, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "current_body_fat_percent": {
+          "name": "current_body_fat_percent",
+          "type": "numeric(4, 1)",
           "primaryKey": false,
           "notNull": false
         },
@@ -226,6 +242,10 @@
         "profiles_current_weight_kg_range": {
           "name": "profiles_current_weight_kg_range",
           "value": "\"profiles\".\"current_weight_kg\" > 0 AND \"profiles\".\"current_weight_kg\" < 500"
+        },
+        "profiles_current_body_fat_percent_range": {
+          "name": "profiles_current_body_fat_percent_range",
+          "value": "\"profiles\".\"current_body_fat_percent\" > 0 AND \"profiles\".\"current_body_fat_percent\" < 100"
         },
         "profiles_current_waist_cm_range": {
           "name": "profiles_current_waist_cm_range",

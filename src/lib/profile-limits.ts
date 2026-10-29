@@ -25,6 +25,7 @@ export type LimitedField =
   | "age"
   | "heightCm"
   | "currentWeightKg"
+  | "currentBodyFatPercent"
   | "currentWaistCm"
   | "activityLevel"
   | "targetWeightKg"
@@ -39,6 +40,12 @@ export const PROFILE_LIMITS: Record<LimitedField, Limit> = {
     scale: 2,
     app: { min: 20, max: 300 },
     db: { min: 0, max: 500, minExclusive: true, maxExclusive: true },
+  },
+  // 体脂肪率(%)。app は現実的な範囲(体重計が出す値)、db は 0 より大きく 100 未満
+  currentBodyFatPercent: {
+    scale: 1,
+    app: { min: 3, max: 60 },
+    db: { min: 0, max: 100, minExclusive: true, maxExclusive: true },
   },
   currentWaistCm: { scale: 1, app: { min: 30, max: 250 }, db: { min: 0, max: 300, minExclusive: true } },
   // 活動係数は選択式(profile-options.ts の 5 つ)。app は選択肢の最小〜最大
