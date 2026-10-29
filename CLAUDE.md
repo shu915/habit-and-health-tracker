@@ -24,6 +24,9 @@ Shu の生活習慣管理アプリ。食事・栄養・体重・睡眠・日記�
 - 全テーブルに `user_id` を持たせ、クエリは必ず `user_id` で絞る(他のユーザーの記録が見えないことが最重要)
 - `user_id` の取得は1か所(`getCurrentUserId()`)に集約する。セッションから取り、未ログインなら `/login` へ送る
 - 認証を通っていないページ・Server Action でデータを読み書きしない。API の認可はセッション確認から始める
+- 守りは3段: `src/proxy.ts`(セッション Cookie が無ければ `/login` へ HTTP リダイレクト。Cookie の有無だけ見る入口の確認)→ `(app)/layout.tsx` の `AuthGate` → **データを扱う関数が `getCurrentUserId()` を呼んで検証する(本当の認可はここ)**。レイアウトはページ遷移のたびに再実行されないので、レイアウトのチェックだけに頼らない
+- 新規登録: 今はメールアドレスさえあれば誰でもマジックリンクでユーザーが作れる。公開する前に、招待制・許可リストなどにするか決める
+- 開発中のメールは `src/lib/email.ts` がコンソールに出すだけ。本番では送信方法が未設定のためエラーにしてある
 
 ## 当面の方針
 - まずはローカル環境で開発する。友人が使うためのデプロイ先は未決(下の未決事項)
@@ -64,7 +67,10 @@ Shu の生活習慣管理アプリ。食事・栄養・体重・睡眠・日記�
 - `docker compose up -d --wait`: DB(pgvector/pgvector:pg17)を起動。ホスト側ポートは **5433**(5432 は他プロジェクトが使うため)
 - `npm run db:generate`: マイグレーション生成(`drizzle/`)/ `npm run db:migrate`: 適用 / `npm run db:studio`
 - 接続先は `DATABASE_URL`(`.env.example` を `.env.local` にコピーして使う)
-- pgvector の拡張は `drizzle/0001_enable_pgvector.sql` で有効化済み。`drizzle/` は生成物なので手編集しない(この1ファイルだけ例外)
+- Better Auth のテーブルは `src/db/auth-schema.ts`(生成物・手編集しない)。`src/lib/auth.ts` の設定を変えたら `DATABASE_URL=... npm run db:auth-schema` で再生成し、`db:generate` → `db:migrate` で反映する。アプリ用のテーブルは `src/db/schema.ts`(auth-schema を再エクスポートしている)
+- `drizzle-kit generate` は、テーブルの削除と作成が同時にあると「リネームか?」と対話で聞いてくる(非対話では失敗する)。削除と作成は別のマイグレーションに分ける
+- ログインの確認方法(開発中): `next dev` の端末にマジックリンクが出る。`BETTER_AUTH_URL` は `next dev` のポートと一致させる
+- pgvector の拡張は `drizzle/0000_enable_pgvector.sql` で有効化済み(マイグレーションは 0000 が pgvector、0001 が Better Auth のテーブル。運用前に作り直して、ここから始まる履歴にした)。`drizzle/` は生成物なので手編集しない(この1ファイルだけ例外)
 
 ## 型の方針
 - `strict: true` を前提にする。`any` は使わない

@@ -11,6 +11,11 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
+    env:
+      # ビルドがモジュールを読み込めるようにするダミーの値。本物の秘密情報やサービスは使わない
+      DATABASE_URL: postgres://user:pass@localhost:5432/db
+      BETTER_AUTH_URL: http://localhost:3000
+      BETTER_AUTH_SECRET: ci-only-secret-ci-only-secret-ci-only
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
