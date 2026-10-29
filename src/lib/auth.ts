@@ -29,6 +29,15 @@ export const auth = betterAuth({
       create: {
         // ホワイトリストの外のアドレスでは、どの経路でもユーザーを作らない(false で作成を中止する)
         before: async (user) => isEmailAllowed(user.email),
+        // ユーザーができたら、空のプロフィールも1つ自動で作る(作成機能は無く、本人は編集だけする)。
+        // 失敗してもログインは止めない。getProfile() が行が無ければ作る
+        after: async (user) => {
+          try {
+            await db.insert(schema.profiles).values({ userId: user.id }).onConflictDoNothing();
+          } catch (err) {
+            console.error("[auth] failed to create the profile row", err);
+          }
+        },
       },
     },
   },
