@@ -177,6 +177,111 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
       expect(second.createdAt).toEqual(first.createdAt);
     });
 
+    // 制約ごとに「通る端の値」と「落ちる直外の値」を1組ずつ確かめる(範囲を緩めると、どれかが落ちる)。
+    // 落ちたときは、別のエラー(型の溢れ・接続エラーなど)ではなく、その制約が理由であることも確かめる
+    type ProfileValues = Partial<typeof schema.profiles.$inferInsert>;
+    const constraintCases: { constraint: string; passes: ProfileValues[]; fails: ProfileValues[] }[] = [
+      { constraint: "profiles_age_range", passes: [{ age: 0 }, { age: 150 }], fails: [{ age: -1 }, { age: 151 }] },
+      {
+        constraint: "profiles_height_cm_range",
+        passes: [{ heightCm: "0.1" }, { heightCm: "300.0" }],
+        fails: [{ heightCm: "0.0" }, { heightCm: "300.1" }],
+      },
+      {
+        constraint: "profiles_current_weight_kg_range",
+        passes: [{ currentWeightKg: "0.01" }, { currentWeightKg: "499.99" }],
+        fails: [{ currentWeightKg: "0.00" }, { currentWeightKg: "500.00" }],
+      },
+      {
+        constraint: "profiles_current_waist_cm_range",
+        passes: [{ currentWaistCm: "0.1" }, { currentWaistCm: "300.0" }],
+        fails: [{ currentWaistCm: "0.0" }, { currentWaistCm: "300.1" }],
+      },
+      {
+        constraint: "profiles_activity_level_range",
+        passes: [{ activityLevel: "1.000" }, { activityLevel: "3.000" }],
+        fails: [{ activityLevel: "0.999" }, { activityLevel: "3.001" }],
+      },
+      {
+        constraint: "profiles_target_weight_kg_range",
+        passes: [{ targetWeightKg: "0.01" }, { targetWeightKg: "499.99" }],
+        fails: [{ targetWeightKg: "0.00" }, { targetWeightKg: "500.00" }],
+      },
+      {
+        constraint: "profiles_target_calories_range",
+        passes: [{ targetCalories: 1 }, { targetCalories: 10000 }],
+        fails: [{ targetCalories: 0 }, { targetCalories: 10001 }],
+      },
+      {
+        constraint: "profiles_target_protein_g_range",
+        passes: [{ targetProteinG: "0.0" }, { targetProteinG: "999.9" }],
+        fails: [{ targetProteinG: "-0.1" }, { targetProteinG: "1000.1" }],
+      },
+      {
+        constraint: "profiles_target_sleep_minutes_range",
+        passes: [{ targetSleepMinutes: 1 }, { targetSleepMinutes: 1440 }],
+        fails: [{ targetSleepMinutes: 0 }, { targetSleepMinutes: 1441 }],
+      },
+      {
+        constraint: "profiles_target_sleep_midpoint_format",
+        passes: [{ targetSleepMidpoint: "00:00" }, { targetSleepMidpoint: "23:59" }],
+        fails: [
+          { targetSleepMidpoint: "24:00" },
+          { targetSleepMidpoint: "03:60" },
+          { targetSleepMidpoint: "3:15" },
+          { targetSleepMidpoint: "03:5" },
+          { targetSleepMidpoint: "abc" },
+        ],
+      },
+    ];
+
+    // DB が返したエラーが、指定した制約の違反であることを確かめる(drizzle はエラーを cause に入れる)
+    async function expectViolation(attempt: Promise<unknown>, constraint: string, label: string) {
+      const error = await attempt.then(
+        () => null,
+        (e: unknown) => e,
+      );
+      const cause = error instanceof Error ? error.cause : undefined;
+      const violated = typeof cause === "object" && cause !== null && "constraint" in cause ? cause.constraint : undefined;
+      expect(violated, `${label} は ${constraint} で拒否されるはず`).toBe(constraint);
+    }
+
+    it.each(constraintCases)("$constraint: 端の値は通り、直外の値は拒否される", async ({ constraint, passes, fails }) => {
+      currentUser.id = USER_A;
+      await profilesModule.getProfile();
+      const { eq } = await import("drizzle-orm");
+      const update = (values: ProfileValues) =>
+        dbModule.db.update(schema.profiles).set(values).where(eq(schema.profiles.userId, USER_A));
+
+      for (const values of passes) {
+        await expect(update(values), `${JSON.stringify(values)} は通るはず`).resolves.toBeDefined();
+      }
+      for (const values of fails) {
+        await expectViolation(update(values), constraint, JSON.stringify(values));
+      }
+    });
+
+    it("未入力(null)に戻す更新は、制約に関係なく通る", async () => {
+      currentUser.id = USER_A;
+      await profilesModule.getProfile();
+      const { eq } = await import("drizzle-orm");
+
+      await dbModule.db
+        .update(schema.profiles)
+        .set({ age: 30, heightCm: "170.0", activityLevel: "1.375", targetCalories: 2000 })
+        .where(eq(schema.profiles.userId, USER_A));
+      await dbModule.db
+        .update(schema.profiles)
+        .set({ age: null, heightCm: null, activityLevel: null, targetCalories: null })
+        .where(eq(schema.profiles.userId, USER_A));
+
+      const row = await profilesModule.getProfile();
+      expect(row.age).toBeNull();
+      expect(row.heightCm).toBeNull();
+      expect(row.activityLevel).toBeNull();
+      expect(row.targetCalories).toBeNull();
+    });
+
     it("ユーザーごとに別のプロフィールになる", async () => {
       currentUser.id = USER_A;
       await profilesModule.getProfile();

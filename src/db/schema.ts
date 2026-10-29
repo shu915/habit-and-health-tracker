@@ -25,38 +25,56 @@ export * from "./auth-schema";
 // 下書きの users に相当する。名前とメールは Better Auth の user にあるので持たない。
 // user とは 1 対 1 で、user_id が主キー。ユーザーができた時点(ログイン後の最初の読み込み)で行を作る。
 // その時点では本人が何も入力していないので、個人の値はすべて null。null は「未入力」を意味する
-export const profiles = pgTable("profiles", {
-  userId: text("user_id")
-    .primaryKey()
-    .references(() => user.id, { onDelete: "cascade" }),
+export const profiles = pgTable(
+  "profiles",
+  {
+    userId: text("user_id")
+      .primaryKey()
+      .references(() => user.id, { onDelete: "cascade" }),
 
-  // ボディデータ(本人が入力する)
-  gender: varchar("gender", { length: 20 }),
-  age: integer("age"),
-  heightCm: numeric("height_cm", { precision: 5, scale: 1 }),
-  currentWeightKg: numeric("current_weight_kg", { precision: 5, scale: 2 }),
-  currentWaistCm: numeric("current_waist_cm", { precision: 5, scale: 1 }),
+    // ボディデータ(本人が入力する)
+    gender: varchar("gender", { length: 20 }),
+    age: integer("age"),
+    heightCm: numeric("height_cm", { precision: 5, scale: 1 }),
+    currentWeightKg: numeric("current_weight_kg", { precision: 5, scale: 2 }),
+    currentWaistCm: numeric("current_waist_cm", { precision: 5, scale: 1 }),
 
-  // 以下の 4 項目(活動係数と目標 3 つ)は、ボディデータを保存したあとに「算出」するので、それまでは null。
-  // 人によって違うため DB の既定値は持たない。算出は、身長・体重・年齢・性別と生活のテキストから、
-  // 計算式と AI の提案で出し、本人が確認して保存する(あとから直せる)。null のときは「目標が未設定」として扱う
+    // 以下の 4 項目(活動係数と目標 3 つ)は、ボディデータを保存したあとに「算出」するので、それまでは null。
+    // 人によって違うため DB の既定値は持たない。算出は、身長・体重・年齢・性別と生活のテキストから、
+    // 計算式と AI の提案で出し、本人が確認して保存する(あとから直せる)。null のときは「目標が未設定」として扱う
 
-  // 代謝・活動係数(1.2 座りがち / 1.375 軽い / 1.55 ふつう / 1.725 高い / 1.9 非常に高い)
-  activityLevel: numeric("activity_level", { precision: 4, scale: 3 }),
+    // 代謝・活動係数(1.2 座りがち / 1.375 軽い / 1.55 ふつう / 1.725 高い / 1.9 非常に高い)
+    activityLevel: numeric("activity_level", { precision: 4, scale: 3 }),
 
-  // 目標値(静的ベンチマーク)
-  targetWeightKg: numeric("target_weight_kg", { precision: 5, scale: 2 }),
-  targetCalories: integer("target_calories"),
-  targetProteinG: numeric("target_protein_g", { precision: 5, scale: 1 }),
+    // 目標値(静的ベンチマーク)
+    targetWeightKg: numeric("target_weight_kg", { precision: 5, scale: 2 }),
+    targetCalories: integer("target_calories"),
+    targetProteinG: numeric("target_protein_g", { precision: 5, scale: 1 }),
 
-  // 睡眠の目標設定(分換算 & 基準中央値)。成人の一般的な目安を既定値にする
-  targetSleepMinutes: integer("target_sleep_minutes").default(450).notNull(), // 7.5 時間 = 450 分
-  // 23:30 就寝・7:00 起床の人の中間時刻
-  targetSleepMidpoint: varchar("target_sleep_midpoint", { length: 5 }).default("03:15").notNull(),
+    // 睡眠の目標設定(分換算 & 基準中央値)。成人の一般的な目安を既定値にする
+    targetSleepMinutes: integer("target_sleep_minutes").default(450).notNull(), // 7.5 時間 = 450 分
+    // 23:30 就寝・7:00 起床の人の中間時刻
+    targetSleepMidpoint: varchar("target_sleep_midpoint", { length: 5 }).default("03:15").notNull(),
 
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
-});
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
+  },
+  (table) => [
+    // 値の範囲。「絶対にあり得ない値」だけを止める広めの範囲(画面で見せる現実的な範囲は、アプリ側で別に検証する)。
+    // null(未入力)は CHECK の対象外(式が NULL になると通る)
+    check("profiles_age_range", sql`${table.age} BETWEEN 0 AND 150`),
+    check("profiles_height_cm_range", sql`${table.heightCm} > 0 AND ${table.heightCm} <= 300`),
+    check("profiles_current_weight_kg_range", sql`${table.currentWeightKg} > 0 AND ${table.currentWeightKg} < 500`),
+    check("profiles_current_waist_cm_range", sql`${table.currentWaistCm} > 0 AND ${table.currentWaistCm} <= 300`),
+    check("profiles_activity_level_range", sql`${table.activityLevel} BETWEEN 1 AND 3`),
+    check("profiles_target_weight_kg_range", sql`${table.targetWeightKg} > 0 AND ${table.targetWeightKg} < 500`),
+    check("profiles_target_calories_range", sql`${table.targetCalories} > 0 AND ${table.targetCalories} <= 10000`),
+    check("profiles_target_protein_g_range", sql`${table.targetProteinG} >= 0 AND ${table.targetProteinG} <= 1000`),
+    check("profiles_target_sleep_minutes_range", sql`${table.targetSleepMinutes} > 0 AND ${table.targetSleepMinutes} <= 1440`),
+    // "HH:MM"(00:00〜23:59)
+    check("profiles_target_sleep_midpoint_format", sql`${table.targetSleepMidpoint} ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'`),
+  ],
+);
 
 // ==========================================
 // 2. Days (親アンカー・日次サマリー)
