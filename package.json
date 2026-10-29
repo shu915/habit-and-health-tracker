@@ -11,9 +11,12 @@
     "check": "npm run lint && npm run typecheck",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "db:auth-schema": "auth generate --config src/lib/auth.ts --output src/db/auth-schema.ts -y",
+    "test": "vitest run"
   },
   "dependencies": {
+    "better-auth": "^1.7.14",
     "drizzle-orm": "^0.45.4",
     "next": "16.4.2",
     "pg": "^8.23.1",
@@ -22,14 +25,16 @@
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "^4",
-    "@types/node": "^20",
+    "@types/node": "^22.20.5",
     "@types/pg": "^8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "auth": "1.7.14",
     "drizzle-kit": "^0.31.11",
     "eslint": "^9",
     "eslint-config-next": "16.4.2",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^5.0.5"
   }
 }
