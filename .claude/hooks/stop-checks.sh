@@ -24,7 +24,15 @@ run() { # run <name> <cmd...>
 run typegen npx --no-install next typegen
 run tsc npx --no-install tsc --noEmit
 run lint npm run lint --silent
-# テストを導入したら自動で走る
+# テストを導入したら自動で走る。開発用 DB のコンテナ(ポート 5433)が起動していれば、実 DB を使うテストも動かす。
+# テストは専用のデータベース(habit_health_test)を使う。本物のデータが入った DB は指さないこと
+if [[ -z "${TEST_DATABASE_URL:-}" ]] && (exec 3<>/dev/tcp/127.0.0.1/5433) 2>/dev/null; then
+  # テスト用のデータベースが無ければ作る(docker/initdb は最初にボリュームを作るときしか動かないため)
+  if ! docker compose exec -T db psql -U postgres -tAc "SELECT 1 FROM pg_database WHERE datname='habit_health_test'" 2>/dev/null | grep -q 1; then
+    docker compose exec -T db psql -U postgres -c "CREATE DATABASE habit_health_test" >/dev/null 2>&1
+  fi
+  export TEST_DATABASE_URL="postgres://postgres:postgres@localhost:5433/habit_health_test" # 開発用のダミーの値
+fi
 if jq -e '.scripts.test' package.json >/dev/null 2>&1; then
   run test npm test --silent
 fi
