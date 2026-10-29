@@ -62,6 +62,8 @@ Shu の生活習慣管理アプリ。食事・栄養・体重・睡眠・日記�
 
 ## 開発ルール
 - スキーマ変更は Drizzle のマイグレーションで行う(DBを直接いじらない)
+- **マージ済みのマイグレーション(`drizzle/` の既存ファイル、`meta/_journal.json` の既存の行、既存のスナップショット)は書き換えない。** `when` やスナップショットの ID が変わると、適用済みの DB で再実行されて `db:migrate` が壊れる。作り直してよいのは未マージの分だけで、その場合も、マージ済みの分は `git checkout HEAD -- drizzle` で戻してから、新しい分だけ `db:generate` で作る
+- データを扱う関数(`src/lib/days.ts` など)は、`getCurrentUserId()` を最初に呼んで `user_id` で絞り、日付は関数の中でも検証し、書き込みは入力に「あった項目だけ」にする(`parseDayInput` はキーが無い項目を結果に含めない)。実 DB のテストで守る
 - DB は `docker compose up -d` で起動する
 - API キー等の秘密情報は `.env.local` に置き、コミットしない
 
@@ -70,6 +72,8 @@ Shu の生活習慣管理アプリ。食事・栄養・体重・睡眠・日記�
 - `npm run check`: lint + typecheck。変更ごとに実行して通すこと(CI も同じ lint → typecheck → build を実行)
 - `npm run lint` / `npm run typecheck`
 - `npm test`: Vitest(`src/**/*.test.ts`)。CI でも実行する
+  - 実 DB を使うテスト(`src/lib/data-access.test.ts`。他のユーザーの記録が見えないことなどを守る)は、`TEST_DATABASE_URL` が無いと実行されない(CI は未実行があると失敗にする)。手元では `TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5433/habit_health_test npm test`。Stop フックは DB コンテナが起動していれば自動で渡す
+  - テスト専用のデータベース `habit_health_test` は、コンテナを初めて作るときに `docker/initdb/` が作る。すでにボリュームがある場合は `docker compose exec db psql -U postgres -c "CREATE DATABASE habit_health_test"` で作る。**本物のデータが入った DB を指さない**
 - `.env.local` に `BETTER_AUTH_SECRET` が無いと起動時にエラーになる(`.env.example` を参照)
 - `docker compose up -d --wait`: DB(pgvector/pgvector:pg17)を起動。ホスト側ポートは **5433**(5432 は他プロジェクトが使うため)
 - `npm run db:generate`: マイグレーション生成(`drizzle/`)/ `npm run db:migrate`: 適用 / `npm run db:studio`
@@ -78,6 +82,12 @@ Shu の生活習慣管理アプリ。食事・栄養・体重・睡眠・日記�
 - `drizzle-kit generate` は、テーブルの削除と作成が同時にあると「リネームか?」と対話で聞いてくる(非対話では失敗する)。削除と作成は別のマイグレーションに分ける
 - ログインの確認方法(開発中): `next dev` の端末にマジックリンクが出る。`BETTER_AUTH_URL` は `next dev` のポートと一致させる
 - pgvector の拡張は `drizzle/0000_enable_pgvector.sql` で有効化済み(マイグレーションは 0000 が pgvector、0001 が Better Auth のテーブル。運用前に作り直して、ここから始まる履歴にした)。`drizzle/` は生成物なので手編集しない(この1ファイルだけ例外)
+
+## これから実装するときの宿題
+- プロフィールの編集機能を作るとき: 値の範囲を検証する(年齢・身長・体重・目標カロリー・活動係数・睡眠の中間時刻 `HH:MM` の形式)。入力の検証と合わせて、DB の CHECK 制約も足す。`profiles` も `days` と同様に、入力にあった項目だけを更新する
+- `listDays()` は件数の上限が無い。ダッシュボードで期間やページネーションを入れるときに絞る
+- 同時に 2 つのタブから編集すると、最後の保存が勝つ(今の規模では許容)
+- 健康情報(性別・年齢・身長・体重・日記)は平文で保存している。公開前に、バックアップとログに出る範囲と、ユーザー削除時の cascade の範囲を確認する
 
 ## 型の方針
 - `strict: true` を前提にする。`any` は使わない

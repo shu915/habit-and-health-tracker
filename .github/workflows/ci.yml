@@ -11,7 +11,24 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
+    services:
+      # 実 DB を使うテスト(data-access.test.ts)用。pgvector 入りのイメージ(マイグレーションが拡張を作る)
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     env:
+      # 使い捨ての CI 用 DB(ダミーのパスワード。秘密情報ではない)。テストが自分でテーブルとテスト用ユーザーを作って消す
+      TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/app
       # ビルドがモジュールを読み込めるようにするダミーの値。本物の秘密情報やサービスは使わない
       DATABASE_URL: postgres://user:pass@localhost:5432/db
       BETTER_AUTH_URL: http://localhost:3000
@@ -24,6 +41,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run lint
+      # DB を使うテストは、CI で TEST_DATABASE_URL が無いと自分で失敗する(data-access.test.ts)
       - run: npm test
       - run: npx next typegen
       - run: npx tsc --noEmit

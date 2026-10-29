@@ -10,6 +10,8 @@ services:
       - "127.0.0.1:5433:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
+      # 初回だけ、テスト用のデータベースを作る
+      - ./docker/initdb:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d habit_health"]
       interval: 5s

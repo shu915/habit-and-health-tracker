@@ -1,18 +1,22 @@
 claude-progress.txt
-最終更新: 2026-10-21
+最終更新: 2026-10-29
 新しいセッションは、最初にこのファイルと CLAUDE.md を読む。作業の区切り(goal の終わり)ごとに更新する。
 
 ## 完了したタスク
 - プロジェクト名を Habit and Health Tracker に変更、GitHub リポジトリに接続
-- Claude Code の設定(settings.json、hooks、evaluator)と CI(lint / typecheck / build)
+- Claude Code の設定(settings.json、hooks、evaluator)と CI(lint / test / typecheck / build)
+- Docker(pgvector)と Drizzle、ページの骨組み(ダッシュボード・日の詳細・新規入力)
+- Better Auth のマジックリンクログイン、メールのホワイトリスト(ALLOWED_EMAILS)、DB のレート制限(PR #3)
 
 ## 実行中のタスク
-- chore/project-base: プロジェクトのベース作り(PR 前)
+- feat/profiles-and-days-schema: profiles と days のテーブル(マイグレーション 0002)、入力の検証(parseDayInput)、
+  user_id で絞るデータ操作(days.ts / profiles.ts)、実 DB のテスト(data-access.test.ts)、ユーザー作成時のプロフィール自動作成
 
 ## これから
-- DB(Docker + PostgreSQL + pgvector)と Drizzle の導入
-- テスト(Vitest)の導入。入れたら CI にも足す
-- users テーブルと getCurrentUserId()
+- プロフィールの編集機能(値の範囲検証と CHECK 制約を一緒に。目標値は計算式 + AI の提案を本人が確認して保存)
+- 日の詳細・新規入力・ダッシュボードを days のデータにつなぐ
+- ポジティブ3行日記(別テーブル案: positive_entries)、食事・睡眠・運動のテーブル、AI のフィードバックの保存先(ai_feedbacks)
+- 公開前に決めること: CLAUDE.md の「デプロイ時に決めること」と「宿題」を参照
 
 ## 未決事項
 - CLAUDE.md の「未決事項」を参照
