@@ -106,6 +106,8 @@ Shu の生活習慣管理アプリ。食事・栄養・体重・睡眠・日記�
 
 ## コミットと hooks
 - 人が頼むまでコミットしない
+- コミットメッセージと PR(タイトル・本文)は日本語で書く。コード中のコメントも日本語。末尾の共著者・生成の表記(`Co-Authored-By` など)は定型のまま変えない
+- PR の本文は「概要 / 確認したこと / 未確認・注意」の順にする。確認していないことは、確認したことと分けて書く
 - 環境変数ファイル(`.env*`)は読まない・編集しない(`.env.example` は可)
 - PreToolUse でブロック(`.claude/hooks/guard-pre.sh`): `.env*` の読み書き、`git clean` / `reset --hard`、`rm -r`、`drizzle-kit push`、`drizzle/` と `package-lock.json` の編集、`@ts-ignore` / `eslint-disable` / `as unknown as` / `any` の追加、テストや設定への `skip` / `only` / `strict:false` / ルール `off` / `exclude`
 - ブロックされたら回避せず、理由を報告して人の指示を待つ
