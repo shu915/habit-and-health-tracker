@@ -25,7 +25,12 @@ Shu の生活習慣管理アプリ。食事・栄養・体重・睡眠・日記�
 - `user_id` の取得は1か所(`getCurrentUserId()`)に集約する。セッションから取り、未ログインなら `/login` へ送る
 - 認証を通っていないページ・Server Action でデータを読み書きしない。API の認可はセッション確認から始める
 - 守りは3段: `src/proxy.ts`(セッション Cookie が無ければ `/login` へ HTTP リダイレクト。Cookie の有無だけ見る入口の確認)→ `(app)/layout.tsx` の `AuthGate` → **データを扱う関数が `getCurrentUserId()` を呼んで検証する(本当の認可はここ)**。レイアウトはページ遷移のたびに再実行されないので、レイアウトのチェックだけに頼らない
-- 新規登録: 今はメールアドレスさえあれば誰でもマジックリンクでユーザーが作れる。公開する前に、招待制・許可リストなどにするか決める
+- 新規登録はホワイトリスト制: 環境変数 `ALLOWED_EMAILS`(カンマ区切り)にあるアドレスだけがログインでき、リンク送信とユーザー作成(`databaseHooks`)の両方で確認する(`src/lib/allowlist.ts`)。空のときは開発では全員許可、本番では誰も許可しない。許可外でも応答は同じにして、登録の有無を教えない。人が増えたら DB のテーブルに移し、さらに公開するなら申請 → 承認の流れを足す
+- ホワイトリストの確認はリンク送信とユーザー作成にしかない。**許可リストから外しただけでは、ログイン済みのセッションは期限(既定 7 日)まで残る**。外すときは、該当ユーザーの `session` の行も削除する
+- 開発ではホワイトリストが空だと全員許可になる。`next dev` をトンネルなどで外に公開するときは、先に `ALLOWED_EMAILS` を設定する
+- マジックリンクのトークンは DB にハッシュで保存(`storeToken: "hashed"`)。レート制限は DB に記録(`rate_limit` テーブル)
+- `getCurrentUserId()` は未ログインのとき `redirect()` する(例外を投げる)。`try/catch` で囲まない。Route Handler で使い始めるときは、401 を返す版を別に作る
+- デプロイ時に決めること: プロキシ越しの IP の取り方(`advanced.ipAddress` の `ipAddressHeaders` と `trustedProxies` をセットで決める。偽装できるとレート制限を避けられ、逆に IP が取れないと全員が1つの枠を共有して、1人の連打で全員が 429 になる)、期限切れの `verification` 行の掃除、メールアドレス単位の送信回数の制限、`BETTER_AUTH_URL` は https(Cookie の Secure 属性がこれで決まる)、メールのリンクスキャナでトークンが先に消費される問題(リンク1回限りの仕様)、ログとセッションに残る個人情報(IP・User-Agent)の保持期間
 - 開発中のメールは `src/lib/email.ts` がコンソールに出すだけ。本番では送信方法が未設定のためエラーにしてある
 
 ## 当面の方針
@@ -64,10 +69,12 @@ Shu の生活習慣管理アプリ。食事・栄養・体重・睡眠・日記�
 - `npm run dev` / `npm run build`
 - `npm run check`: lint + typecheck。変更ごとに実行して通すこと(CI も同じ lint → typecheck → build を実行)
 - `npm run lint` / `npm run typecheck`
+- `npm test`: Vitest(`src/**/*.test.ts`)。CI でも実行する
+- `.env.local` に `BETTER_AUTH_SECRET` が無いと起動時にエラーになる(`.env.example` を参照)
 - `docker compose up -d --wait`: DB(pgvector/pgvector:pg17)を起動。ホスト側ポートは **5433**(5432 は他プロジェクトが使うため)
 - `npm run db:generate`: マイグレーション生成(`drizzle/`)/ `npm run db:migrate`: 適用 / `npm run db:studio`
 - 接続先は `DATABASE_URL`(`.env.example` を `.env.local` にコピーして使う)
-- Better Auth のテーブルは `src/db/auth-schema.ts`(生成物・手編集しない)。`src/lib/auth.ts` の設定を変えたら `DATABASE_URL=... npm run db:auth-schema` で再生成し、`db:generate` → `db:migrate` で反映する。アプリ用のテーブルは `src/db/schema.ts`(auth-schema を再エクスポートしている)
+- Better Auth のテーブルは `src/db/auth-schema.ts`(生成物・手編集しない)。`src/lib/auth.ts` の設定を変えたら `DATABASE_URL=... BETTER_AUTH_SECRET=... npm run db:auth-schema`(`auth` CLI は devDependency で版を固定している)で再生成し、`db:generate` → `db:migrate` で反映する。アプリ用のテーブルは `src/db/schema.ts`(auth-schema を再エクスポートしている)
 - `drizzle-kit generate` は、テーブルの削除と作成が同時にあると「リネームか?」と対話で聞いてくる(非対話では失敗する)。削除と作成は別のマイグレーションに分ける
 - ログインの確認方法(開発中): `next dev` の端末にマジックリンクが出る。`BETTER_AUTH_URL` は `next dev` のポートと一致させる
 - pgvector の拡張は `drizzle/0000_enable_pgvector.sql` で有効化済み(マイグレーションは 0000 が pgvector、0001 が Better Auth のテーブル。運用前に作り直して、ここから始まる履歴にした)。`drizzle/` は生成物なので手編集しない(この1ファイルだけ例外)

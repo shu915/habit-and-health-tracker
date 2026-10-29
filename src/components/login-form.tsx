@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { authClient } from "@/lib/auth-client";
 
-type Status = "idle" | "sending" | "sent" | "error";
+type Status = "idle" | "sending" | "sent" | "error" | "rate-limited";
 
 export function LoginForm() {
   const [email, setEmail] = useState("");
@@ -14,7 +14,8 @@ export function LoginForm() {
     setStatus("sending");
     try {
       const { error } = await authClient.signIn.magicLink({ email, callbackURL: "/" });
-      setStatus(error ? "error" : "sent");
+      if (!error) setStatus("sent");
+      else setStatus(error.status === 429 ? "rate-limited" : "error");
     } catch {
       // ネットワーク断など。ボタンが押せないままにならないよう、エラー表示に戻す
       setStatus("error");
@@ -45,6 +46,11 @@ export function LoginForm() {
       {status === "sent" && (
         <p className="text-sm text-zinc-500">
           メールを送りました。届いたリンクを開いてください。
+        </p>
+      )}
+      {status === "rate-limited" && (
+        <p className="text-sm text-red-600">
+          短い間に何度も送信しました。しばらく待ってからもう一度試してください。
         </p>
       )}
       {status === "error" && (

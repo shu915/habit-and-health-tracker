@@ -5,14 +5,14 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1793241353980,
+      "when": 1793242117408,
       "tag": "0000_enable_pgvector",
       "breakpoints": true
     },
     {
       "idx": 1,
       "version": "7",
-      "when": 1793241359678,
+      "when": 1793242126944,
       "tag": "0001_better_auth",
       "breakpoints": true
     }
