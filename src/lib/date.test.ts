@@ -21,4 +21,12 @@ describe("isValidDateString", () => {
     expect(isValidDateString("2026-10-21T00:00:00Z")).toBe(false);
     expect(isValidDateString(" 2026-10-21")).toBe(false);
   });
+
+  it("1900〜2100 年の外を拒否する(PostgreSQL が受け付けない 0000 年を含む)", () => {
+    expect(isValidDateString("0000-01-01")).toBe(false);
+    expect(isValidDateString("1899-12-31")).toBe(false);
+    expect(isValidDateString("1900-01-01")).toBe(true);
+    expect(isValidDateString("2100-12-31")).toBe(true);
+    expect(isValidDateString("2101-01-01")).toBe(false);
+  });
 });
