@@ -7,13 +7,13 @@ claude-progress.txt
 - Claude Code の設定(settings.json、hooks、evaluator)と CI(lint / test / typecheck / build)
 - Docker(pgvector)と Drizzle、ページの骨組み(ダッシュボード・日の詳細・新規入力)
 - Better Auth のマジックリンクログイン、メールのホワイトリスト(ALLOWED_EMAILS)、DB のレート制限(PR #3)
+- profiles と days のテーブル、入力検証、user_id で絞るデータ操作、実 DB のテスト、プロフィールの CHECK 制約、main のブランチ保護(PR #4)
 
 ## 実行中のタスク
-- feat/profiles-and-days-schema: profiles と days のテーブル(マイグレーション 0002)、入力の検証(parseDayInput)、
-  user_id で絞るデータ操作(days.ts / profiles.ts)、実 DB のテスト(data-access.test.ts)、ユーザー作成時のプロフィール自動作成
+- feat/profile-form: ダッシュボードと /profile にプロフィールを表示し、手入力の編集フォームで保存できるようにする(zod で検証)
 
 ## これから
-- プロフィールの編集機能(値の範囲検証と CHECK 制約を一緒に。目標値は計算式 + AI の提案を本人が確認して保存)
+- プロフィールの目標値を AI に提案させる(各項目の横のチェック + 提案ボタン。まず計算式、あとから AI)
 - 日の詳細・新規入力・ダッシュボードを days のデータにつなぐ
 - ポジティブ3行日記(別テーブル案: positive_entries)、食事・睡眠・運動のテーブル、AI のフィードバックの保存先(ai_feedbacks)
 - 公開前に決めること: CLAUDE.md の「デプロイ時に決めること」と「宿題」を参照
