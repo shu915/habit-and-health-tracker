@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { DAY_LIMITS, REFLECTION_MAX_LENGTH, type DayLimitedField } from "@/lib/day-limits";
-import { decimalField, parseForm, textField, type FormResult, type Range } from "@/lib/form-fields";
+import { decimalField, parseForm, textField, timeOfDayField, type FormResult, type Range } from "@/lib/form-fields";
 
 // 日の記録(編集フォーム)の検証。プロフィールの profile-schema.ts と同じ作り:
 //   - 値は文字列で届く。空欄は null(その項目を空にする)。10 進数だけを受け付け(0x10・1e2 は拒否)、列の桁数に丸める
@@ -13,6 +13,9 @@ function limitOf(field: DayLimitedField): Range {
 }
 
 const fields = z.object({
+  // 睡眠(起きた日の朝に記録する)。空欄は null(記録しない)。画面では「時」「分」で入力し、"HH:MM" に直して送る
+  sleepBedtime: timeOfDayField("就寝時刻"),
+  sleepWakeTime: timeOfDayField("起床時刻"),
   morningWeightKg: decimalField("朝の体重(kg)", limitOf("morningWeightKg")),
   morningBodyFatPercent: decimalField("朝の体脂肪率(%)", limitOf("morningBodyFatPercent")),
   reflection: textField("夜の振り返り", REFLECTION_MAX_LENGTH),

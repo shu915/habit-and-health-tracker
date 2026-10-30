@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { isRecordableDate } from "@/lib/date";
 import { getDay } from "@/lib/days";
+import { formatDuration, formatTimeOfDay } from "@/lib/duration";
+import { sleepMinutes } from "@/lib/sleep";
 
 // 特定の日の詳細(閲覧)。編集は /days/[date]/edit。まだ記録が無い日は、記録を始めるリンクを出す
 // params は Suspense の内側で読む(cacheComponents で静的シェルを残すため)
@@ -45,6 +47,12 @@ async function DayContent({ params }: Pick<PageProps<"/days/[date]">, "params">)
         <p className="text-zinc-500">この日の記録はまだありません。</p>
       ) : (
         <dl className="grid grid-cols-[9rem_1fr] gap-x-4 gap-y-3 text-sm">
+          <dt className="text-zinc-500">就寝(前の夜)</dt>
+          <dd>{formatTimeOfDay(day.sleepBedtime) ?? unset}</dd>
+          <dt className="text-zinc-500">起床</dt>
+          <dd>{formatTimeOfDay(day.sleepWakeTime) ?? unset}</dd>
+          <dt className="text-zinc-500">睡眠時間</dt>
+          <dd>{formatDuration(sleepMinutes(day.sleepBedtime, day.sleepWakeTime)) ?? unset}</dd>
           <dt className="text-zinc-500">朝の体重</dt>
           <dd>{day.morningWeightKg === null ? unset : `${day.morningWeightKg} kg`}</dd>
           <dt className="text-zinc-500">朝の体脂肪率</dt>

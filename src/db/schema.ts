@@ -103,6 +103,11 @@ export const days = pgTable(
     // 体重計が出す体脂肪率(%)。毎朝同じ条件で測ると傾向が分かる。測った値だけを入れる
     morningBodyFatPercent: numeric("morning_body_fat_percent", { precision: 4, scale: 1 }),
 
+    // 睡眠: 起きた日の朝に記録する(前の夜の就寝時刻と、今朝の起床時刻。"HH:MM")。空は「記録しない」。
+    // 睡眠時間などは、この 2 つから計算する(列には保存しない)
+    sleepBedtime: varchar("sleep_bedtime", { length: 5 }),
+    sleepWakeTime: varchar("sleep_wake_time", { length: 5 }),
+
     // 今日の振り返り(夜の振り返り・日記。自由記入で、あとで AI がフィードバックする対象)。AI の返事はここに書かず、別テーブルに置く
     reflection: text("reflection"),
 
@@ -120,5 +125,7 @@ export const days = pgTable(
       "days_morning_body_fat_percent_range",
       sql`${table.morningBodyFatPercent} IS NULL OR (${table.morningBodyFatPercent} > 0 AND ${table.morningBodyFatPercent} < 100)`,
     ),
+    check("days_sleep_bedtime_format", sql`${table.sleepBedtime} ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'`),
+    check("days_sleep_wake_time_format", sql`${table.sleepWakeTime} ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'`),
   ],
 );

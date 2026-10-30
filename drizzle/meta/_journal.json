@@ -22,6 +22,13 @@
       "when": 1793320166819,
       "tag": "0002_profiles_and_days",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793326594686,
+      "tag": "0003_sleep_columns",
+      "breakpoints": true
     }
   ]
 }
