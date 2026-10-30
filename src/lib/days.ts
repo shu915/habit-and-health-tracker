@@ -39,6 +39,7 @@ export async function saveDay(date: string, input: DayInput) {
 
   const changes: DayInput = {};
   if (input.morningWeightKg !== undefined) changes.morningWeightKg = input.morningWeightKg;
+  if (input.morningBodyFatPercent !== undefined) changes.morningBodyFatPercent = input.morningBodyFatPercent;
   if (input.reflection !== undefined) changes.reflection = input.reflection;
 
   const [row] = await db

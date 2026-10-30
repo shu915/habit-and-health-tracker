@@ -63,6 +63,7 @@ const fields = z.object({
   age: integer("年齢", "age"),
   heightCm: decimal("身長(cm)", "heightCm"),
   currentWeightKg: decimal("現在の体重(kg)", "currentWeightKg"),
+  currentBodyFatPercent: decimal("体脂肪率(%)", "currentBodyFatPercent"),
   currentWaistCm: decimal("ウエスト(cm)", "currentWaistCm"),
   activityLevel: choice(
     ACTIVITY_LEVEL_OPTIONS.map((option) => option.value),

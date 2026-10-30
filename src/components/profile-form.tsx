@@ -23,6 +23,7 @@ const BODY_FIELDS: FieldDef[] = [
   { name: "age", label: "年齢", kind: "text", unit: "歳", inputMode: "numeric", range: formatRange("age"), description: "基礎代謝の計算に使います。" },
   { name: "heightCm", label: "身長", kind: "text", unit: "cm", inputMode: "decimal", range: formatRange("heightCm"), description: "基礎代謝の計算に使います。" },
   { name: "currentWeightKg", label: "現在の体重", kind: "text", unit: "kg", inputMode: "decimal", range: formatRange("currentWeightKg"), description: "今の目安の体重です。" },
+  { name: "currentBodyFatPercent", label: "体脂肪率", kind: "text", unit: "%", inputMode: "decimal", range: formatRange("currentBodyFatPercent"), description: "体重計の値。毎朝同じ条件で測ります(任意)。" },
   { name: "currentWaistCm", label: "ウエスト", kind: "text", unit: "cm", inputMode: "decimal", range: formatRange("currentWaistCm"), description: "おへその高さで測ります(任意)。" },
 ];
 

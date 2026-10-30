@@ -61,6 +61,21 @@ describe("parseDayInput", () => {
     expect(parseDayInput({ reflection: "a\u0000b" }).ok).toBe(false);
   });
 
+  it("体脂肪率は小数 1 桁の文字列にそろえ、0 以下・100 以上・数値でない値を拒否する", () => {
+    expect(parseDayInput({ morningBodyFatPercent: "22.46" })).toEqual({
+      ok: true,
+      value: { morningBodyFatPercent: "22.5" },
+    });
+    expect(parseDayInput({ morningBodyFatPercent: "" })).toEqual({ ok: true, value: { morningBodyFatPercent: null } });
+    for (const morningBodyFatPercent of [0, -1, 100, 150, "abc", "0x10", "1e1", Number.NaN, true]) {
+      expect(parseDayInput({ morningBodyFatPercent }).ok, String(morningBodyFatPercent)).toBe(false);
+    }
+    // 丸めたあとに範囲外になる値(99.96 → "100.0"、0.04 → "0.0")
+    expect(parseDayInput({ morningBodyFatPercent: 99.96 }).ok).toBe(false);
+    expect(parseDayInput({ morningBodyFatPercent: 0.04 }).ok).toBe(false);
+    expect(parseDayInput({ morningBodyFatPercent: 99.94 }).ok).toBe(true);
+  });
+
   it("文字列でない値や、オブジェクトでない入力を拒否する", () => {
     expect(parseDayInput({ reflection: 123 }).ok).toBe(false);
     expect(parseDayInput(null).ok).toBe(false);

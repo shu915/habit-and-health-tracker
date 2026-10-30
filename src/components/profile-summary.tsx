@@ -14,6 +14,7 @@ export async function ProfileSummary() {
     { label: "年齢", value: profile.age, unit: "歳" },
     { label: "身長", value: profile.heightCm, unit: "cm" },
     { label: "現在の体重", value: profile.currentWeightKg, unit: "kg" },
+    { label: "体脂肪率", value: profile.currentBodyFatPercent, unit: "%" },
     { label: "ウエスト", value: profile.currentWaistCm, unit: "cm" },
   ];
   const goals: Row[] = [

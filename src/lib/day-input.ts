@@ -7,6 +7,7 @@
 
 export type DayInput = {
   morningWeightKg?: string | null; // numeric 列に入れる文字列(小数 2 桁)
+  morningBodyFatPercent?: string | null; // numeric 列に入れる文字列(小数 1 桁)
   reflection?: string | null;
 };
 
@@ -31,9 +32,13 @@ function parseText(value: unknown, max: number, label: string): Field<string | n
   return { ok: true, value: trimmed };
 }
 
-// 小数 2 桁に丸めたあとの値で範囲を確認する(499.996 → "500.00" や 0.001 → "0.00" が DB の制約で落ちないように)
-function parseWeight(value: unknown): Field<string | null> {
-  const error = "体重は 0 より大きく 500 未満の数値で入力してください";
+// 10 進数の数字だけを受け付け、scale 桁に丸めた文字列にする。
+// 丸めたあとの値で範囲を確認する(499.996 → "500.00" や 0.001 → "0.00" が DB の制約で落ちないように)
+function parseDecimal(
+  value: unknown,
+  options: { error: string; min: number; max: number; scale: number },
+): Field<string | null> {
+  const { error, min, max, scale } = options;
   if (value === null) return { ok: true, value: null };
 
   let num: number;
@@ -50,8 +55,8 @@ function parseWeight(value: unknown): Field<string | null> {
   }
 
   if (!Number.isFinite(num)) return { ok: false, error };
-  const fixed = num.toFixed(2);
-  if (Number(fixed) <= 0 || Number(fixed) >= 500) return { ok: false, error };
+  const fixed = num.toFixed(scale);
+  if (Number(fixed) < min || Number(fixed) > max) return { ok: false, error };
   return { ok: true, value: fixed };
 }
 
@@ -61,9 +66,27 @@ export function parseDayInput(raw: unknown): ParseResult {
   const value: DayInput = {};
 
   if (raw.morningWeightKg !== undefined) {
-    const weight = parseWeight(raw.morningWeightKg);
+    // 0 より大きく 500 未満(小数 2 桁に丸めて 0.01〜499.99)
+    const weight = parseDecimal(raw.morningWeightKg, {
+      error: "体重は 0 より大きく 500 未満の数値で入力してください",
+      min: 0.01,
+      max: 499.99,
+      scale: 2,
+    });
     if (!weight.ok) return weight;
     value.morningWeightKg = weight.value;
+  }
+
+  if (raw.morningBodyFatPercent !== undefined) {
+    // 0 より大きく 100 未満(小数 1 桁に丸めて 0.1〜99.9)。現実的な範囲(3〜60)は、日の記録の画面を作るときに絞る
+    const bodyFat = parseDecimal(raw.morningBodyFatPercent, {
+      error: "体脂肪率は 0 より大きく 100 未満の数値で入力してください",
+      min: 0.1,
+      max: 99.9,
+      scale: 1,
+    });
+    if (!bodyFat.ok) return bodyFat;
+    value.morningBodyFatPercent = bodyFat.value;
   }
 
   if (raw.reflection !== undefined) {

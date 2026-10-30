@@ -3,10 +3,12 @@ CREATE TABLE "days" (
 	"user_id" text NOT NULL,
 	"date" date NOT NULL,
 	"morning_weight_kg" numeric(5, 2),
+	"morning_body_fat_percent" numeric(4, 1),
 	"reflection" text,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL,
-	CONSTRAINT "days_morning_weight_kg_range" CHECK ("days"."morning_weight_kg" IS NULL OR ("days"."morning_weight_kg" > 0 AND "days"."morning_weight_kg" < 500))
+	CONSTRAINT "days_morning_weight_kg_range" CHECK ("days"."morning_weight_kg" IS NULL OR ("days"."morning_weight_kg" > 0 AND "days"."morning_weight_kg" < 500)),
+	CONSTRAINT "days_morning_body_fat_percent_range" CHECK ("days"."morning_body_fat_percent" IS NULL OR ("days"."morning_body_fat_percent" > 0 AND "days"."morning_body_fat_percent" < 100))
 );
 --> statement-breakpoint
 CREATE TABLE "profiles" (
@@ -15,6 +17,7 @@ CREATE TABLE "profiles" (
 	"age" integer,
 	"height_cm" numeric(5, 1),
 	"current_weight_kg" numeric(5, 2),
+	"current_body_fat_percent" numeric(4, 1),
 	"current_waist_cm" numeric(5, 1),
 	"activity_level" numeric(4, 3),
 	"target_weight_kg" numeric(5, 2),
@@ -27,6 +30,7 @@ CREATE TABLE "profiles" (
 	CONSTRAINT "profiles_age_range" CHECK ("profiles"."age" BETWEEN 0 AND 150),
 	CONSTRAINT "profiles_height_cm_range" CHECK ("profiles"."height_cm" > 0 AND "profiles"."height_cm" <= 300),
 	CONSTRAINT "profiles_current_weight_kg_range" CHECK ("profiles"."current_weight_kg" > 0 AND "profiles"."current_weight_kg" < 500),
+	CONSTRAINT "profiles_current_body_fat_percent_range" CHECK ("profiles"."current_body_fat_percent" > 0 AND "profiles"."current_body_fat_percent" < 100),
 	CONSTRAINT "profiles_current_waist_cm_range" CHECK ("profiles"."current_waist_cm" > 0 AND "profiles"."current_waist_cm" <= 300),
 	CONSTRAINT "profiles_activity_level_range" CHECK ("profiles"."activity_level" BETWEEN 1 AND 3),
 	CONSTRAINT "profiles_target_weight_kg_range" CHECK ("profiles"."target_weight_kg" > 0 AND "profiles"."target_weight_kg" < 500),
