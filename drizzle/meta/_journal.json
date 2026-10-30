@@ -29,6 +29,13 @@
       "when": 1793326594686,
       "tag": "0003_sleep_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793329879337,
+      "tag": "0004_meals",
+      "breakpoints": true
     }
   ]
 }
