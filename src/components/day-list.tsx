@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { DayJumpForm } from "@/components/day-jump-form";
 import { listDays } from "@/lib/days";
+import { formatDuration } from "@/lib/duration";
+import { sleepMinutes } from "@/lib/sleep";
 
 // ダッシュボードの日付ごとの一覧(新しい日が上)。行のどこをクリックしても、その日の詳細へ移動する。
-// 全期間を出す(期間の絞り込みは、記録が増えてから)。睡眠・食事・運動の列は、それぞれの記録を作るときに足す
-const COLUMNS = ["日付", "朝の体重", "朝の体脂肪率", "夜の振り返り"];
+// 全期間を出す(期間の絞り込みは、記録が増えてから)。食事・運動の列は、それぞれの記録を作るときに足す
+const COLUMNS = ["日付", "睡眠時間", "朝の体重", "朝の体脂肪率", "夜の振り返り"];
 
 export async function DayList() {
   const days = await listDays();
@@ -47,6 +49,9 @@ export async function DayList() {
                     <Link href={`/days/${day.date}`} className="font-medium after:absolute after:inset-0">
                       {day.date}
                     </Link>
+                  </td>
+                  <td className="px-4 py-2 tabular-nums">
+                    {formatDuration(sleepMinutes(day.sleepBedtime, day.sleepWakeTime)) ?? "-"}
                   </td>
                   <td className="px-4 py-2 tabular-nums">{day.morningWeightKg === null ? "-" : `${day.morningWeightKg} kg`}</td>
                   <td className="px-4 py-2 tabular-nums">

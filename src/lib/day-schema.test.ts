@@ -15,6 +15,26 @@ function expectError(raw: Record<string, unknown>, field: string) {
 }
 
 describe("parseDayForm", () => {
+  it("就寝・起床は \"HH:MM\" だけを受け付け、空欄は null", () => {
+    expect(expectOk({ sleepBedtime: "23:30", sleepWakeTime: "06:05" })).toEqual({
+      sleepBedtime: "23:30",
+      sleepWakeTime: "06:05",
+    });
+    expect(expectOk({ sleepBedtime: "00:00", sleepWakeTime: "23:59" })).toEqual({
+      sleepBedtime: "00:00",
+      sleepWakeTime: "23:59",
+    });
+    expect(expectOk({ sleepBedtime: "", sleepWakeTime: " " })).toEqual({ sleepBedtime: null, sleepWakeTime: null });
+  });
+
+  it.each(["24:00", "23:60", "3:15", "03:5", "abc", "0x:10", "1e2:00", "23:30:00"])(
+    "就寝・起床の不正な値 %s は欄ごとのエラーになる",
+    (value) => {
+      expectError({ sleepBedtime: value }, "sleepBedtime");
+      expectError({ sleepWakeTime: value }, "sleepWakeTime");
+    },
+  );
+
   it("キーが無い項目は結果に含めない(保存しても変更されない)", () => {
     expect(expectOk({})).toEqual({});
     expect(expectOk({ morningWeightKg: "60" })).toEqual({ morningWeightKg: "60.00" });
@@ -95,6 +115,6 @@ describe("parseDayForm", () => {
   it("余計なキー(user_id など)は無視し、結果に含めない", () => {
     const values = expectOk({ userId: "other", user_id: "other", id: "5", date: "2000-01-01", reflection: "a" });
     expect(Object.keys(values)).toEqual(["reflection"]);
-    expect(DAY_FIELDS).toEqual(["morningWeightKg", "morningBodyFatPercent", "reflection"]);
+    expect(DAY_FIELDS).toEqual(["sleepBedtime", "sleepWakeTime", "morningWeightKg", "morningBodyFatPercent", "reflection"]);
   });
 });

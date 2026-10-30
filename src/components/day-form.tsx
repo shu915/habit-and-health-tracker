@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { useActionState } from "react";
 import type { DayFormState } from "@/app/(app)/days/[date]/edit/actions";
+import { PairInput, timeParts } from "@/components/pair-input";
 import { formatDayRange } from "@/lib/day-limits";
+import { joinTimeOfDay } from "@/lib/duration";
 // zod を含む day-schema.ts は、ブラウザ側のコードに入れないよう、型だけを読む
 import type { DayField } from "@/lib/day-schema";
 
@@ -12,9 +14,22 @@ export type DayFormInitial = Record<DayField, string>;
 
 type FieldDef =
   | { name: DayField; label: string; kind: "text"; unit: string; inputMode: "decimal"; range: string; description: string }
+  | { name: DayField; label: string; kind: "time"; description: string }
   | { name: DayField; label: string; kind: "textarea"; description: string };
 
 const FIELDS: FieldDef[] = [
+  {
+    name: "sleepBedtime",
+    label: "就寝(前の夜)",
+    kind: "time",
+    description: "昨夜寝た時刻。睡眠を記録しないときは空のままで構いません。",
+  },
+  {
+    name: "sleepWakeTime",
+    label: "起床",
+    kind: "time",
+    description: "今朝起きた時刻。",
+  },
   {
     name: "morningWeightKg",
     label: "朝の体重",
@@ -104,6 +119,20 @@ function Field({ field, value, error }: { field: FieldDef; value: string; error:
           <div className="flex items-center gap-2">
             <input {...common} type="text" inputMode={field.inputMode} autoComplete="off" className={`${common.className} w-28`} />
             <span className="text-zinc-500">{field.unit}</span>
+          </div>
+        )}
+        {field.kind === "time" && (
+          <div className="flex items-center gap-2">
+            <PairInput
+              id={id}
+              name={field.name}
+              label={field.label}
+              units={["時", "分"]}
+              initial={timeParts(value)}
+              join={joinTimeOfDay}
+              error={error}
+              errorId={errorId}
+            />
           </div>
         )}
         {field.kind === "textarea" && <textarea {...common} rows={8} className={`${common.className} w-full max-w-xl`} />}

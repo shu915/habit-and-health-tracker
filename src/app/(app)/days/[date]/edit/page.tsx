@@ -25,6 +25,8 @@ async function DayEditContent({ params }: Pick<PageProps<"/days/[date]/edit">, "
   const day = await getDay(date);
   // DB の値(numeric は文字列、null は空欄)を、フォームの初期値(文字列)にする
   const initial: DayFormInitial = {
+    sleepBedtime: day?.sleepBedtime ?? "",
+    sleepWakeTime: day?.sleepWakeTime ?? "",
     morningWeightKg: day?.morningWeightKg ?? "",
     morningBodyFatPercent: day?.morningBodyFatPercent ?? "",
     reflection: day?.reflection ?? "",

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { choiceField, decimalField, emptyToNull, integerField, parseForm, type FormResult, type Range } from "@/lib/form-fields";
+import { choiceField, decimalField, integerField, parseForm, timeOfDayField, type FormResult, type Range } from "@/lib/form-fields";
 import { PROFILE_LIMITS, type LimitedField } from "@/lib/profile-limits";
 import { ACTIVITY_LEVEL_OPTIONS, GENDER_OPTIONS } from "@/lib/profile-options";
 
@@ -44,14 +44,7 @@ const fields = z.object({
     "targetSleepMinutes",
     "睡眠時間の目標は 2 時間から 18 時間のあいだで入力してください",
   ),
-  targetSleepMidpoint: z.preprocess(
-    emptyToNull,
-    z
-      .string({ error: "睡眠の中間時刻は、時を 0〜23、分を 0〜59 で入力してください" })
-      .trim()
-      .regex(/^([01][0-9]|2[0-3]):[0-5][0-9]$/, "睡眠の中間時刻は、時を 0〜23、分を 0〜59 で入力してください")
-      .nullable(),
-  ),
+  targetSleepMidpoint: timeOfDayField("睡眠の中間時刻"),
 });
 
 // 検証を通った値(DB に保存する形)

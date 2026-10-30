@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useActionState, useRef, useState } from "react";
 import { saveProfileAction, type ProfileFormState } from "@/app/(app)/profile/actions";
-import { joinMinutes, joinTimeOfDay, splitMinutes, splitTimeOfDay } from "@/lib/duration";
+import { PairInput, durationParts, timeParts } from "@/components/pair-input";
+import { joinMinutes, joinTimeOfDay } from "@/lib/duration";
 import { formatRange } from "@/lib/profile-limits";
 import { ACTIVITY_LEVEL_OPTIONS, GENDER_OPTIONS } from "@/lib/profile-options";
 import {
@@ -445,79 +446,5 @@ function RadioRow({
         <span className="text-zinc-500">未選択</span>
       </label>
     </div>
-  );
-}
-
-type Pair = { first: string; second: string };
-
-// DB の分(文字列)を、「時間」「分」の欄の初期値にする。空・読めない値は空欄
-function durationParts(value: string): Pair {
-  if (!/^\d+$/.test(value)) return { first: "", second: "" };
-  const { hours, minutes } = splitMinutes(Number(value));
-  return { first: String(hours), second: String(minutes) };
-}
-
-// DB の "HH:MM" を、「時」「分」の欄の初期値にする。空・読めない値は空欄
-function timeParts(value: string): Pair {
-  const parts = splitTimeOfDay(value);
-  return parts ? { first: String(parts.hours), second: String(parts.minutes) } : { first: "", second: "" };
-}
-
-// 「7 時間 30 分」「3 時 15 分」のように、2 つの小さな欄で入力する部品(睡眠時間・睡眠の中間時刻で共通)。
-// 送るのは DB の形(分 / "HH:MM")に変換した値(裏の hidden の入力)で、見えている 2 つの欄は送らない(name を付けない)
-function PairInput({
-  id,
-  name,
-  label,
-  units,
-  initial,
-  join,
-  error,
-  errorId,
-}: {
-  id: string;
-  name: ProfileField;
-  label: string;
-  units: readonly [string, string];
-  initial: Pair;
-  join: (first: string, second: string) => string;
-  error: string | undefined;
-  errorId: string;
-}) {
-  const [first, setFirst] = useState(initial.first);
-  const [second, setSecond] = useState(initial.second);
-  const inputClass = "w-16 rounded-md border border-zinc-300 bg-transparent px-3 py-1.5 dark:border-zinc-700";
-  const invalid = error ? true : undefined;
-  const describedBy = error ? errorId : undefined;
-
-  return (
-    <>
-      <input
-        id={id}
-        type="text"
-        inputMode="numeric"
-        autoComplete="off"
-        value={first}
-        onChange={(event) => setFirst(event.target.value)}
-        aria-label={`${label}（${units[0]}）`}
-        aria-invalid={invalid}
-        aria-describedby={describedBy}
-        className={inputClass}
-      />
-      <span className="text-zinc-500">{units[0]}</span>
-      <input
-        type="text"
-        inputMode="numeric"
-        autoComplete="off"
-        value={second}
-        onChange={(event) => setSecond(event.target.value)}
-        aria-label={`${label}（${units[1]}）`}
-        aria-invalid={invalid}
-        aria-describedby={describedBy}
-        className={inputClass}
-      />
-      <span className="text-zinc-500">{units[1]}</span>
-      <input type="hidden" name={name} value={join(first, second)} />
-    </>
   );
 }

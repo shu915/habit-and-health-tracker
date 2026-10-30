@@ -501,6 +501,34 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
     });
   });
 
+  describe("days の睡眠の列", () => {
+    it.each([
+      { constraint: "days_sleep_bedtime_format", field: "sleepBedtime" },
+      { constraint: "days_sleep_wake_time_format", field: "sleepWakeTime" },
+    ])("$constraint: \"HH:MM\" の端は通り、不正な形は拒否される", async ({ constraint, field }) => {
+      currentUser.id = USER_A;
+      let index = 0;
+      const save = (value: string) => daysModule.saveDay(`2026-02-${String(++index).padStart(2, "0")}`, { [field]: value });
+
+      for (const value of ["00:00", "23:59"]) await expect(save(value), `${value} は通るはず`).resolves.toBeDefined();
+      for (const value of ["24:00", "23:60", "3:15", "03:5", "abc"]) await expectViolation(save(value), constraint, value);
+    });
+
+    it("就寝・起床を保存して読み戻せる。他の項目だけ保存しても変わらず、空にすれば null", async () => {
+      currentUser.id = USER_A;
+      await daysModule.saveDay("2026-03-01", { sleepBedtime: "23:30", sleepWakeTime: "06:05" });
+      await daysModule.saveDay("2026-03-01", { morningWeightKg: "70.00" });
+      const kept = await daysModule.getDay("2026-03-01");
+      expect(kept?.sleepBedtime).toBe("23:30");
+      expect(kept?.sleepWakeTime).toBe("06:05");
+
+      await daysModule.saveDay("2026-03-01", { sleepBedtime: null });
+      const cleared = await daysModule.getDay("2026-03-01");
+      expect(cleared?.sleepBedtime).toBeNull();
+      expect(cleared?.sleepWakeTime).toBe("06:05");
+    });
+  });
+
   describe("saveDayAction", () => {
     const DATE = "2026-10-30";
     const formOf = (fields: Record<string, string>) => {
