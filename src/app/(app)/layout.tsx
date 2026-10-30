@@ -3,7 +3,7 @@ import Link from "next/link";
 import { SignOutButton } from "@/components/sign-out-button";
 import { getCurrentUserId } from "@/lib/current-user";
 
-// ログイン必須のページ(ダッシュボード・日の詳細・新規入力)の共通レイアウト
+// ログイン必須のページ(ダッシュボード・日の詳細・編集)の共通レイアウト
 export default function AppLayout({ children }: LayoutProps<"/">) {
   return (
     <>
@@ -12,15 +12,7 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
           <Link href="/" className="font-semibold">
             Habit and Health Tracker
           </Link>
-          <div className="flex items-center gap-4">
-            <Link
-              href="/new"
-              className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm text-white dark:bg-zinc-100 dark:text-zinc-900"
-            >
-              新規入力
-            </Link>
-            <SignOutButton />
-          </div>
+          <SignOutButton />
         </nav>
       </header>
       <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-8">

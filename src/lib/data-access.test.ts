@@ -1,6 +1,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { DAY_LIMITS, type DayLimitedField } from "./day-limits";
 import { PROFILE_LIMITS, type LimitedField } from "./profile-limits";
 
 // 実際の PostgreSQL を使うテスト。TEST_DATABASE_URL が無いと実行されない(CI では未実行を失敗として扱う)。
@@ -28,8 +29,22 @@ vi.mock("next/navigation", () => ({
   redirect: vi.fn((url: string) => {
     throw new Error(`NEXT_REDIRECT:${url}`);
   }),
+  notFound: vi.fn(() => {
+    throw new Error("NEXT_NOT_FOUND");
+  }),
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+
+// DB が返したエラーが、指定した制約の違反であることを確かめる(drizzle はエラーを cause に入れる)
+async function expectViolation(attempt: Promise<unknown>, constraint: string, label: string) {
+  const error = await attempt.then(
+    () => null,
+    (e: unknown) => e,
+  );
+  const cause = error instanceof Error ? error.cause : undefined;
+  const violated = typeof cause === "object" && cause !== null && "constraint" in cause ? cause.constraint : undefined;
+  expect(violated, `${label} は ${constraint} で拒否されるはず`).toBe(constraint);
+}
 
 const USER_A = "test-user-a";
 const USER_B = "test-user-b";
@@ -40,6 +55,7 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
   let daysModule: typeof import("@/lib/days");
   let profilesModule: typeof import("@/lib/profiles");
   let actionsModule: typeof import("@/app/(app)/profile/actions");
+  let dayActionsModule: typeof import("@/app/(app)/days/[date]/edit/actions");
 
   beforeAll(async () => {
     // 開発用の DB を取り違えて、テスト用のユーザーを作ったりマイグレーションを流したりしないための確認。
@@ -58,6 +74,7 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
     daysModule = await import("@/lib/days");
     profilesModule = await import("@/lib/profiles");
     actionsModule = await import("@/app/(app)/profile/actions");
+    dayActionsModule = await import("@/app/(app)/days/[date]/edit/actions");
   });
 
   beforeEach(async () => {
@@ -243,17 +260,6 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
         ],
       },
     ];
-
-    // DB が返したエラーが、指定した制約の違反であることを確かめる(drizzle はエラーを cause に入れる)
-    async function expectViolation(attempt: Promise<unknown>, constraint: string, label: string) {
-      const error = await attempt.then(
-        () => null,
-        (e: unknown) => e,
-      );
-      const cause = error instanceof Error ? error.cause : undefined;
-      const violated = typeof cause === "object" && cause !== null && "constraint" in cause ? cause.constraint : undefined;
-      expect(violated, `${label} は ${constraint} で拒否されるはず`).toBe(constraint);
-    }
 
     it.each(constraintCases)("$constraint: 端の値は通り、直外の値は拒否される", async ({ constraint, passes, fails }) => {
       currentUser.id = USER_A;
@@ -467,6 +473,138 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
       expect(vi.mocked(revalidatePath)).not.toHaveBeenCalled();
       currentUser.id = USER_A;
       expect((await profilesModule.getProfile()).age).toBeNull();
+    });
+  });
+  describe("days の CHECK 制約", () => {
+    // 端の値は day-limits.ts の db の範囲から作る。定数と実際の DB(マイグレーション)が食い違うと落ちる
+    const cases = (Object.keys(DAY_LIMITS) as DayLimitedField[]).map((field) => {
+      const { db, scale } = DAY_LIMITS[field];
+      const step = 10 ** -scale;
+      const lowestOk = db.minExclusive ? db.min + step : db.min;
+      const highestOk = db.maxExclusive ? db.max - step : db.max;
+      const value = (n: number) => ({ [field]: n.toFixed(scale) });
+      return {
+        constraint: `days_${field.replace(/[A-Z]/g, (m) => `_${m.toLowerCase()}`)}_range`,
+        passes: [value(lowestOk), value(highestOk)],
+        fails: [value(lowestOk - step), value(highestOk + step)],
+      };
+    });
+
+    it.each(cases)("$constraint: 端の値は通り、直外の値は拒否される", async ({ constraint, passes, fails }) => {
+      currentUser.id = USER_A;
+      let index = 0;
+      const save = (values: Record<string, string>) =>
+        daysModule.saveDay(`2026-01-${String(++index).padStart(2, "0")}`, values);
+
+      for (const values of passes) await expect(save(values), `${JSON.stringify(values)} は通るはず`).resolves.toBeDefined();
+      for (const values of fails) await expectViolation(save(values), constraint, JSON.stringify(values));
+    });
+  });
+
+  describe("saveDayAction", () => {
+    const DATE = "2026-10-30";
+    const formOf = (fields: Record<string, string>) => {
+      const formData = new FormData();
+      for (const [name, value] of Object.entries(fields)) formData.set(name, value);
+      return formData;
+    };
+    const expectRedirectTo = (promise: Promise<unknown>, url: string) =>
+      expect(promise).rejects.toThrow(`NEXT_REDIRECT:${url}`);
+
+    it("正しい値を送ると保存され、画面の再取得を依頼して、その日の詳細へ移動する", async () => {
+      currentUser.id = USER_A;
+      await expectRedirectTo(
+        dayActionsModule.saveDayAction(
+          DATE,
+          null,
+          formOf({ morningWeightKg: "98.3", morningBodyFatPercent: "32", reflection: "良い一日だった" }),
+        ),
+        `/days/${DATE}`,
+      );
+
+      expect(await daysModule.getDay(DATE)).toMatchObject({
+        morningWeightKg: "98.30",
+        morningBodyFatPercent: "32.0",
+        reflection: "良い一日だった",
+      });
+      expect(vi.mocked(revalidatePath).mock.calls.map(([path]) => path)).toEqual(["/", `/days/${DATE}`]);
+    });
+
+    it("検証に失敗すると、エラーと入力値を返し、何も保存せず、移動もしない", async () => {
+      currentUser.id = USER_A;
+      const state = await dayActionsModule.saveDayAction(
+        DATE,
+        null,
+        formOf({ morningWeightKg: "abc", morningBodyFatPercent: "200", reflection: "残す文章" }),
+      );
+
+      expect(state?.errors.morningWeightKg).toBeDefined();
+      expect(state?.errors.morningBodyFatPercent).toBeDefined();
+      expect(state?.values).toMatchObject({ morningWeightKg: "abc", reflection: "残す文章" }); // フォームに残す値
+      expect(await daysModule.getDay(DATE)).toBeNull(); // 何も保存していない(日も作られない)
+      expect(vi.mocked(redirect)).not.toHaveBeenCalled();
+      expect(vi.mocked(revalidatePath)).not.toHaveBeenCalled();
+    });
+
+    it("フォームに無かった項目は変更しない(空欄で送った項目は空にする)", async () => {
+      currentUser.id = USER_A;
+      await daysModule.saveDay(DATE, { morningWeightKg: "70.00", reflection: "書いた日記" });
+
+      await expectRedirectTo(
+        dayActionsModule.saveDayAction(DATE, null, formOf({ morningWeightKg: "69.5", morningBodyFatPercent: "" })),
+        `/days/${DATE}`,
+      );
+
+      const day = await daysModule.getDay(DATE);
+      expect(day?.morningWeightKg).toBe("69.50");
+      expect(day?.reflection).toBe("書いた日記"); // 送られなかったので変わらない
+      expect(day?.morningBodyFatPercent).toBeNull(); // 空欄で送ったので空
+    });
+
+    it("同じ日を二重に作らず、2 回目は更新になる", async () => {
+      currentUser.id = USER_A;
+      for (const weight of ["70", "69"]) {
+        await expectRedirectTo(dayActionsModule.saveDayAction(DATE, null, formOf({ morningWeightKg: weight })), `/days/${DATE}`);
+      }
+      expect(await daysModule.listDays()).toHaveLength(1);
+      expect((await daysModule.getDay(DATE))?.morningWeightKg).toBe("69.00");
+    });
+
+    it("user_id や日付などの余計な項目は無視し、ログイン中のユーザーのその日だけを書く", async () => {
+      currentUser.id = USER_A;
+      await expectRedirectTo(
+        dayActionsModule.saveDayAction(
+          DATE,
+          null,
+          formOf({ reflection: "A の日記", userId: USER_B, user_id: USER_B, date: "2000-01-01", id: "999" }),
+        ),
+        `/days/${DATE}`,
+      );
+
+      expect((await daysModule.getDay(DATE))?.reflection).toBe("A の日記");
+      expect(await daysModule.getDay("2000-01-01")).toBeNull();
+      currentUser.id = USER_B;
+      expect(await daysModule.listDays()).toEqual([]);
+    });
+
+    it("不正な日付と、翌日より先の日付は 404 にして、何も保存しない", async () => {
+      currentUser.id = USER_A;
+      for (const bad of ["2026-02-30", "abc", "0000-01-01", "2100-12-31"]) {
+        await expect(dayActionsModule.saveDayAction(bad, null, formOf({ reflection: "x" }))).rejects.toThrow("NEXT_NOT_FOUND");
+      }
+      expect(await daysModule.listDays()).toEqual([]);
+    });
+
+    it("未ログインなら /login へ送られ、検証にも保存にも進まない(不正な入力でも、先に認証で止まる)", async () => {
+      currentUser.id = "";
+      await expect(dayActionsModule.saveDayAction(DATE, null, formOf({ reflection: "x" }))).rejects.toThrow("NEXT_REDIRECT:/login");
+      await expect(dayActionsModule.saveDayAction(DATE, null, formOf({ morningWeightKg: "abc" }))).rejects.toThrow(
+        "NEXT_REDIRECT:/login",
+      );
+
+      expect(vi.mocked(revalidatePath)).not.toHaveBeenCalled();
+      currentUser.id = USER_A;
+      expect(await daysModule.getDay(DATE)).toBeNull();
     });
   });
 });

@@ -1,27 +1,28 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { isValidDateString } from "@/lib/date";
+import { connection } from "next/server";
+import { isRecordableDate } from "@/lib/date";
+import { getDay } from "@/lib/days";
 
-// 特定の日の詳細。デフォルトは閲覧モードで、?mode=edit で編集モードになる
-// params / searchParams は Suspense の内側で読む(cacheComponents で静的シェルを残すため)
-export default function DayPage({ params, searchParams }: PageProps<"/days/[date]">) {
+// 特定の日の詳細(閲覧)。編集は /days/[date]/edit。まだ記録が無い日は、記録を始めるリンクを出す
+// params は Suspense の内側で読む(cacheComponents で静的シェルを残すため)
+export default function DayPage({ params }: PageProps<"/days/[date]">) {
   return (
     <Suspense fallback={<p className="text-zinc-500">読み込み中...</p>}>
-      <DayContent params={params} searchParams={searchParams} />
+      <DayContent params={params} />
     </Suspense>
   );
 }
 
-async function DayContent({
-  params,
-  searchParams,
-}: Pick<PageProps<"/days/[date]">, "params" | "searchParams">) {
-  const { date } = await params;
-  if (!isValidDateString(date)) notFound();
+const unset = <span className="text-zinc-400">未入力</span>;
 
-  const { mode } = await searchParams;
-  const isEditing = mode === "edit";
+async function DayContent({ params }: Pick<PageProps<"/days/[date]">, "params">) {
+  const { date } = await params;
+  await connection(); // 「今日」(new Date())を使うので、事前描画ではなくリクエスト時に実行する
+  if (!isRecordableDate(date)) notFound();
+
+  const day = await getDay(date);
 
   return (
     <div className="flex flex-col gap-6">
@@ -32,34 +33,27 @@ async function DayContent({
           </Link>
           <h1 className="text-2xl font-semibold">{date}</h1>
         </div>
-        {isEditing ? (
-          <div className="flex gap-2">
-            <Link
-              href={`/days/${date}`}
-              className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-700"
-            >
-              キャンセル
-            </Link>
-            <button
-              type="button"
-              disabled
-              className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm text-white opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
-            >
-              保存(未実装)
-            </button>
-          </div>
-        ) : (
-          <Link
-            href={`/days/${date}?mode=edit`}
-            className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-700"
-          >
-            編集
-          </Link>
-        )}
+        <Link
+          href={`/days/${date}/edit`}
+          className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-700"
+        >
+          {day ? "編集" : "記録する"}
+        </Link>
       </div>
-      <p className="text-zinc-500">
-        {isEditing ? "編集モード" : "閲覧モード"}: この日の記録の表示はこれから実装します。
-      </p>
+
+      {!day ? (
+        <p className="text-zinc-500">この日の記録はまだありません。</p>
+      ) : (
+        <dl className="grid grid-cols-[9rem_1fr] gap-x-4 gap-y-3 text-sm">
+          <dt className="text-zinc-500">朝の体重</dt>
+          <dd>{day.morningWeightKg === null ? unset : `${day.morningWeightKg} kg`}</dd>
+          <dt className="text-zinc-500">朝の体脂肪率</dt>
+          <dd>{day.morningBodyFatPercent === null ? unset : `${day.morningBodyFatPercent} %`}</dd>
+          <dt className="text-zinc-500">夜の振り返り</dt>
+          {/* 改行をそのまま見せる */}
+          <dd className="max-w-xl whitespace-pre-wrap">{day.reflection === null ? unset : day.reflection}</dd>
+        </dl>
+      )}
     </div>
   );
 }
