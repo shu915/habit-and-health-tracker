@@ -135,8 +135,8 @@ export const days = pgTable(
 // ==========================================
 // 3. Meals (食事ログ)
 // ==========================================
-// 1 食 = 1 行。1 日の数は決めない(可変長)。days には紐づけず、user_id と date で持つ
-// (その日の記録が無くても追加でき、空の日の行が作られない)
+// 1 食 = 1 行。1 日の数は決めない(可変長)。days の行に紐づける(その日の食事が、その日の記録に属する)。
+// 食事を保存するときは、その日の days の行が無ければ空で作る。user_id は days の持ち主と同じにする(保存する側で守る)
 export const meals = pgTable(
   "meals",
   {
@@ -144,8 +144,10 @@ export const meals = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
-    // 「その日」の日付。深夜 3 時までの食事は前の日に入れる(だから時刻は 26:59 まで書ける)
-    date: date("date", { mode: "string" }).notNull(),
+    // 「その日」の days の行。深夜 3 時までの食事は前の日に入れる(だから時刻は 26:59 まで書ける)。日が消えたら食事も消える
+    dayId: integer("day_id")
+      .notNull()
+      .references(() => days.id, { onDelete: "cascade" }),
     // 食べた時刻 "HH:MM"(00:00〜26:59。24:00 以降は、翌日の 0:00 以降の深夜)。朝・昼・晩のラベルは保存せず、時刻から計算する
     eatenTime: varchar("eaten_time", { length: 5 }).notNull(),
 
@@ -175,7 +177,7 @@ export const meals = pgTable(
   },
   (table) => [
     // その日の食事の一覧を引く
-    index("meals_user_date_idx").on(table.userId, table.date),
+    index("meals_user_day_idx").on(table.userId, table.dayId),
     // 値の範囲。「絶対にあり得ない値」だけを止める広い範囲(現実的な範囲は meal-limits.ts の app で検証する)
     check("meals_eaten_time_format", sql`${table.eatenTime} ~ '^([01][0-9]|2[0-6]):[0-5][0-9]$'`),
     check("meals_kcal_range", sql`${table.kcal} >= 0 AND ${table.kcal} <= 20000`),

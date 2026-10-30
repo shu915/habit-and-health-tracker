@@ -1,7 +1,7 @@
 CREATE TABLE "meals" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"user_id" text NOT NULL,
-	"date" date NOT NULL,
+	"day_id" integer NOT NULL,
 	"eaten_time" varchar(5) NOT NULL,
 	"dish_name" varchar(100) NOT NULL,
 	"alias" varchar(100),
@@ -25,4 +25,5 @@ CREATE TABLE "meals" (
 );
 --> statement-breakpoint
 ALTER TABLE "meals" ADD CONSTRAINT "meals_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX "meals_user_date_idx" ON "meals" USING btree ("user_id","date");
+ALTER TABLE "meals" ADD CONSTRAINT "meals_day_id_days_id_fk" FOREIGN KEY ("day_id") REFERENCES "public"."days"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "meals_user_day_idx" ON "meals" USING btree ("user_id","day_id");

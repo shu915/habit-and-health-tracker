@@ -1,5 +1,5 @@
 {
-  "id": "d79aa432-4473-4ad5-b87b-2f41e302d646",
+  "id": "89b78cf1-2ff9-4dc5-a8d5-a86d093fa967",
   "prevId": "f6aaf5fb-3f2a-4aa6-8485-0d8b59c70c38",
   "version": "7",
   "dialect": "postgresql",
@@ -148,9 +148,9 @@
           "primaryKey": false,
           "notNull": true
         },
-        "date": {
-          "name": "date",
-          "type": "date",
+        "day_id": {
+          "name": "day_id",
+          "type": "integer",
           "primaryKey": false,
           "notNull": true
         },
@@ -236,8 +236,8 @@
         }
       },
       "indexes": {
-        "meals_user_date_idx": {
-          "name": "meals_user_date_idx",
+        "meals_user_day_idx": {
+          "name": "meals_user_day_idx",
           "columns": [
             {
               "expression": "user_id",
@@ -246,7 +246,7 @@
               "nulls": "last"
             },
             {
-              "expression": "date",
+              "expression": "day_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -265,6 +265,19 @@
           "tableTo": "user",
           "columnsFrom": [
             "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "meals_day_id_days_id_fk": {
+          "name": "meals_day_id_days_id_fk",
+          "tableFrom": "meals",
+          "tableTo": "days",
+          "columnsFrom": [
+            "day_id"
           ],
           "columnsTo": [
             "id"
