@@ -33,7 +33,7 @@ export async function ProfileSummary() {
       <EnergyCard profile={profile} />
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">プロフィール</h2>
-        <Link href="/profile?mode=edit" className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-700">
+        <Link href="/profile/edit" className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-700">
           編集
         </Link>
       </div>
