@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { buttonClass } from "@/components/button";
 import { authClient } from "@/lib/auth-client";
 
 type Status = "idle" | "sending" | "sent" | "error" | "rate-limited";
@@ -39,7 +40,7 @@ export function LoginForm() {
       <button
         type="submit"
         disabled={status === "sending"}
-        className="rounded-md bg-zinc-900 px-3 py-2 text-sm text-white disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
+        className={buttonClass()}
       >
         ログインリンクを送る
       </button>

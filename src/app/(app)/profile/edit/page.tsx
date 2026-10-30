@@ -3,7 +3,7 @@ import { ProfileForm, type ProfileFormInitial } from "@/components/profile-form"
 import { getProfile } from "@/lib/profiles";
 import { PROFILE_FIELDS } from "@/lib/profile-schema";
 
-// プロフィールの編集。保存は profile/actions.ts(成功すると /profile へ移動する)
+// プロフィールの編集。保存は profile/actions.ts(成功すると / (ダッシュボード)へ移動する)
 export default function ProfileEditPage() {
   return (
     <Suspense fallback={<p className="text-zinc-500">読み込み中...</p>}>

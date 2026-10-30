@@ -30,6 +30,5 @@ export async function saveProfileAction(_previous: ProfileFormState, formData: F
   await updateProfile(result.values);
 
   revalidatePath("/");
-  revalidatePath("/profile");
-  redirect("/profile");
+  redirect("/");
 }

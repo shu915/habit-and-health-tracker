@@ -404,20 +404,20 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
       for (const [name, value] of Object.entries(fields)) formData.set(name, value);
       return formData;
     };
-    // redirect は例外を投げるので、成功時は「/profile への移動」の例外になる
+    // redirect は例外を投げるので、成功時は「/ への移動」の例外になる
     const expectRedirectTo = (promise: Promise<unknown>, url: string) =>
       expect(promise).rejects.toThrow(`NEXT_REDIRECT:${url}`);
 
-    it("正しい値を送ると保存され、画面の再取得を依頼して /profile へ移動する", async () => {
+    it("正しい値を送ると保存され、画面の再取得を依頼して / へ移動する", async () => {
       currentUser.id = USER_A;
       await expectRedirectTo(
         actionsModule.saveProfileAction(null, formOf({ ...sleep, gender: "male", age: "35", heightCm: "175" })),
-        "/profile",
+        "/",
       );
 
       expect(await profilesModule.getProfile()).toMatchObject({ gender: "male", age: 35, heightCm: "175.0" });
-      expect(vi.mocked(revalidatePath).mock.calls.map(([path]) => path)).toEqual(["/", "/profile"]);
-      expect(vi.mocked(redirect)).toHaveBeenCalledWith("/profile");
+      expect(vi.mocked(revalidatePath).mock.calls.map(([path]) => path)).toEqual(["/"]);
+      expect(vi.mocked(redirect)).toHaveBeenCalledWith("/");
     });
 
     it("検証に失敗すると、エラーと入力値を返し、何も保存せず、移動もしない", async () => {
@@ -438,7 +438,7 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
 
       await expectRedirectTo(
         actionsModule.saveProfileAction(null, formOf({ age: "31", currentWaistCm: "" })),
-        "/profile",
+        "/",
       );
 
       const row = await profilesModule.getProfile();
@@ -451,7 +451,7 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
       currentUser.id = USER_A;
       await expectRedirectTo(
         actionsModule.saveProfileAction(null, formOf({ age: "33", userId: USER_B, user_id: USER_B, createdAt: "2000-01-01" })),
-        "/profile",
+        "/",
       );
 
       expect((await profilesModule.getProfile()).age).toBe(33);

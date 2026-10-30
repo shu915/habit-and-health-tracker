@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { buttonClass } from "@/components/button";
 import { EnergyCard } from "@/components/energy-card";
 import { formatDuration, formatTimeOfDay } from "@/lib/duration";
 import { activityLevelParts, genderLabel } from "@/lib/profile-options";
@@ -18,12 +19,15 @@ export async function ProfileSummary() {
     { label: "現在の体重", value: profile.currentWeightKg, unit: "kg" },
     { label: "体脂肪率", value: profile.currentBodyFatPercent, unit: "%" },
     { label: "ウエスト", value: profile.currentWaistCm, unit: "cm" },
+    // 活動係数は目標ではなく本人の状態
+    activityLevelRow(profile.activityLevel),
   ];
   const goals: Row[] = [
-    activityLevelRow(profile.activityLevel),
     { label: "目標体重", value: profile.targetWeightKg, unit: "kg" },
     { label: "目標カロリー", value: profile.targetCalories, unit: "kcal" },
     { label: "目標タンパク質", value: profile.targetProteinG, unit: "g" },
+  ];
+  const sleep: Row[] = [
     { label: "睡眠時間の目標", value: formatDuration(profile.targetSleepMinutes) },
     { label: "睡眠の中間時刻", value: formatTimeOfDay(profile.targetSleepMidpoint) },
   ];
@@ -33,13 +37,13 @@ export async function ProfileSummary() {
       <EnergyCard profile={profile} />
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">プロフィール</h2>
-        <Link href="/profile/edit" className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-700">
+        <Link href="/profile/edit" className={buttonClass()}>
           編集
         </Link>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
         <RowList title="ボディデータ" rows={body} />
-        <RowList title="目標値" rows={goals} />
+        <RowList title="目標値" rows={goals} moreRows={sleep} />
       </div>
     </section>
   );
@@ -56,15 +60,23 @@ function activityLevelRow(value: string | null): Row {
   };
 }
 
-function RowList({ title, rows }: { title: string; rows: Row[] }) {
+// moreRows は、同じ枠の中で、少し間を空けて続ける項目
+function RowList({ title, rows, moreRows }: { title: string; rows: Row[]; moreRows?: Row[] }) {
   return (
     <div className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
-      <h3 className="mb-2 text-sm font-medium text-zinc-500">{title}</h3>
+      <h3 className="mb-2 text-sm font-bold text-zinc-500">{title}</h3>
       <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
         {rows.map((row) => (
           <Item key={row.label} row={row} />
         ))}
       </dl>
+      {moreRows && (
+        <dl className="mt-6 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+          {moreRows.map((row) => (
+            <Item key={row.label} row={row} />
+          ))}
+        </dl>
+      )}
     </div>
   );
 }

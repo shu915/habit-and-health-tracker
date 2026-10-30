@@ -74,11 +74,13 @@ describe("suggestTargets", () => {
   it("3 つとも提案する(目標体重 → カロリー → タンパク質の順に、前の結果を使う)", () => {
     const result = suggestTargets(full, SUGGESTABLE_FIELDS);
     expect(result.errors).toEqual({});
-    expect(result.values).toEqual({ targetWeightKg: "93.4", targetCalories: "2120", targetProteinG: "131" });
+    expect(result.values).toEqual({ targetWeightKg: "93.5", targetCalories: "2400", targetProteinG: "131" });
     expect(result.notes.targetWeightKg).toContain("5% 減");
-    expect(result.notes.targetCalories).toContain("基礎代謝 1814 × 1.375");
-    expect(result.notes.targetCalories).toContain("15% 減");
-    expect(result.notes.targetProteinG).toContain("93.4kg × 1.4 g/kg");
+    // 目標体重 93.5kg・体脂肪率 32% → 除脂肪体重 63.58kg → 基礎代謝 1743 × 1.375 = 2397 → 2400
+    expect(result.notes.targetCalories).toContain("目標体重 93.5kg で釣り合うカロリー（基礎代謝 1743 × 1.375 = 2397 kcal）");
+    expect(result.notes.targetProteinG).toContain("93.5kg × 1.4 g/kg");
+    // 現在の体重での消費 2494 kcal との差(2494 − 2400)
+    expect(result.notes.targetCalories).toContain("現在の体重での消費 2494 kcal より、94 kcal 少ない量です");
   });
 
   it("選んだ項目だけを提案する(選ばなかった項目は触らない)", () => {
@@ -90,20 +92,52 @@ describe("suggestTargets", () => {
   it("本人が入れた目標体重を使う(チェックを外した項目は上書きしない)", () => {
     // 目標体重 85kg を自分で入れて、カロリーとタンパク質だけ提案
     const result = suggestTargets({ ...full, targetWeightKg: "85" }, ["targetCalories", "targetProteinG"]);
-    expect(result.values).toEqual({ targetCalories: "2120", targetProteinG: "119" }); // 85 × 1.4 = 119
+    expect(result.values).toEqual({ targetCalories: "2250", targetProteinG: "119" }); // 85 × 1.4 = 119。カロリーは 85kg の基礎代謝 1618 × 1.375 = 2225 → 2250
     expect(result.notes.targetProteinG).toBe("目標体重 85kg × 1.4 g/kg");
   });
 
   it("目標体重が空のまま、カロリーだけを提案するときは、5% 減の目標体重を仮定して、そう表示する", () => {
     const result = suggestTargets(full, ["targetCalories"]);
-    expect(result.values.targetCalories).toBe("2120");
-    expect(result.notes.targetCalories).toContain("目標体重が空なので、93.4kg を仮定");
+    expect(result.values.targetCalories).toBe("2400");
+    expect(result.notes.targetCalories).toContain("目標体重が空なので、93.5kg を仮定");
   });
 
-  it("目標体重が現在以上なら、カロリーは消費と同じ(維持)", () => {
+  it("目標体重が現在と同じなら、カロリーは今の消費と同じ(維持)", () => {
     const result = suggestTargets({ ...full, targetWeightKg: "98.3" }, ["targetCalories"]);
-    expect(result.values.targetCalories).toBe("2490");
-    expect(result.notes.targetCalories).toContain("体重を維持");
+    expect(result.values.targetCalories).toBe("2500");
+    expect(result.notes.targetCalories).toContain("基礎代謝 1814 × 1.375 = 2494 kcal");
+    expect(result.notes.targetCalories).toContain("現在の体重での消費 2494 kcal とほぼ同じ量です"); // 50 kcal 単位に丸めて 2500(差は 6 kcal)
+  });
+
+  it("目標体重が現在より重くても、目標体重で釣り合うカロリーを出す(増量の目標)", () => {
+    // 目標体重 105kg・体脂肪率 32% → 除脂肪体重 71.4kg → 基礎代謝 1912 × 1.375 = 2629 → 2650
+    const result = suggestTargets({ ...full, targetWeightKg: "105" }, ["targetCalories"]);
+    expect(result.values.targetCalories).toBe("2650");
+    expect(result.notes.targetCalories).toContain("目標体重 105kg で釣り合うカロリー（基礎代謝 1912 × 1.375 = 2629 kcal）");
+    expect(result.notes.targetCalories).toContain("現在の体重での消費 2494 kcal より、156 kcal 多い量です");
+  });
+
+  it("体脂肪率が無いと Mifflin-St Jeor 式で、目標体重での基礎代謝を出す", () => {
+    // 10 × 93.5 + 6.25 × 176 − 5 × 39 + 5 = 1845 → × 1.375 = 2537 → 2550
+    const result = suggestTargets({ ...full, currentBodyFatPercent: "" }, ["targetCalories"]);
+    expect(result.values.targetCalories).toBe("2550");
+    expect(result.notes.targetCalories).toContain("基礎代謝 1845 × 1.375 = 2537 kcal");
+  });
+
+  it("目標体重での消費が 1200 kcal を下回るときは、1200 kcal に合わせて、そう表示する", () => {
+    // 60 歳・女性・150cm・40kg・活動係数 1.2: 基礎代謝 877 × 1.2 = 1052 → 下限の 1200
+    const small: FormValues = {
+      gender: "female",
+      age: "60",
+      heightCm: "150",
+      currentWeightKg: "40",
+      currentBodyFatPercent: "",
+      activityLevel: "1.2",
+      targetWeightKg: "40",
+    };
+    const result = suggestTargets(small, ["targetCalories"]);
+    expect(result.values.targetCalories).toBe("1200");
+    expect(result.notes.targetCalories).toContain("下限を下回るため、1200 kcal に合わせています");
   });
 
   it("BMI 25 未満なら、目標体重は現在の体重を維持", () => {
@@ -122,7 +156,7 @@ describe("suggestTargets", () => {
   it("活動係数が未選択なら、カロリーだけが提案できない(体重とタンパク質は提案できる)", () => {
     const result = suggestTargets({ ...full, activityLevel: "" }, SUGGESTABLE_FIELDS);
     expect(result.errors.targetCalories).toContain("活動係数");
-    expect(result.values).toEqual({ targetWeightKg: "93.4", targetProteinG: "131" });
+    expect(result.values).toEqual({ targetWeightKg: "93.5", targetProteinG: "131" });
   });
 
   it("基礎代謝に必要な項目が足りないときは、足りない項目名を理由に出す", () => {
@@ -154,7 +188,7 @@ describe("年齢の確認(目標値の提案は 18 歳以上だけ)", () => {
   });
 
   it("ちょうど 18 歳なら提案する", () => {
-    expect(suggestTargets({ ...full, age: "18" }, ["targetWeightKg"]).values.targetWeightKg).toBe("93.4");
+    expect(suggestTargets({ ...full, age: "18" }, ["targetWeightKg"]).values.targetWeightKg).toBe("93.5");
   });
 
   it("年齢が空(または読めない・範囲外)なら、提案せず、年齢の入力を求める", () => {

@@ -14,8 +14,9 @@ export type BodyData = {
 export const WEIGHT_LOSS_RATE = 0.05; // 目標体重: BMI 25 以上のとき、現在の体重の 5% 減を最初の目標にする
 export const OVERWEIGHT_BMI = 25; // 日本の基準で肥満(1度)とされる BMI
 export const STANDARD_BMI = 22; // 標準体重の BMI(参考として表示する)
-export const CALORIE_DEFICIT_RATE = 0.15; // 目標カロリー: 体重を減らすとき、消費カロリーから 15% 減
-export const MIN_CALORIES = 1200; // 目標カロリーの絶対的な下限(基礎代謝がこれより低い人のため)
+export const MIN_CALORIES = 1200; // 目標カロリーの絶対的な下限(目標体重の消費がこれより低い人のため)
+export const WEIGHT_STEP_KG = 0.5; // 提案する目標体重は、きりのいい数字(0.5kg 単位)に丸める
+export const CALORIE_STEP = 50; // 提案する目標カロリーは、きりのいい数字(50 kcal 単位)に丸める
 export const PROTEIN_G_PER_KG = 1.4; // 目標タンパク質: 目標体重 1kg あたり
 
 export type BmrMethod = "katch-mcardle" | "mifflin-st-jeor";
@@ -66,42 +67,29 @@ export function standardWeightKg(heightCm: number): number {
   return meters * meters * STANDARD_BMI;
 }
 
-const roundTo = (value: number, digits: number) => Math.round(value * 10 ** digits) / 10 ** digits;
+const roundToStep = (value: number, step: number) => Math.round(value / step) * step;
 
 export type TargetWeight = { kg: number; reason: "reduce" | "maintain" };
 
-// 目標体重。BMI 25 未満なら現在の体重を維持、25 以上なら現在の 5% 減を最初の目標にする。
+// 目標体重。BMI 25 未満なら現在の体重を維持、25 以上なら現在の 5% 減を最初の目標にする。0.5kg 単位に丸める。
 // (BMI 25 の人を 5% 減らしても BMI 23.75 で標準体重の 22 より高いので、「標準体重を下回らない」ための下限は要らない)
 export function suggestTargetWeight(weightKg: number, heightCm: number): TargetWeight {
-  if (bmi(weightKg, heightCm) < OVERWEIGHT_BMI) return { kg: roundTo(weightKg, 1), reason: "maintain" };
-  return { kg: roundTo(weightKg * (1 - WEIGHT_LOSS_RATE), 1), reason: "reduce" };
+  if (bmi(weightKg, heightCm) < OVERWEIGHT_BMI) return { kg: roundToStep(weightKg, WEIGHT_STEP_KG), reason: "maintain" };
+  return { kg: roundToStep(weightKg * (1 - WEIGHT_LOSS_RATE), WEIGHT_STEP_KG), reason: "reduce" };
 }
 
 export type TargetCalories = {
   kcal: number;
-  reason: "maintain" | "deficit" | "floor-bmr" | "floor-min"; // 維持 / 15% 減 / 基礎代謝を下回らないよう引き上げ / 絶対的な下限
+  reason: "balance" | "floor-min"; // 目標体重で釣り合う量 / 絶対的な下限に引き上げ
 };
 
-// 目標カロリー(1 日に食べる量)。目標体重が現在以上なら消費と同じ(維持)、減らすなら 15% 減。
-// 基礎代謝と絶対的な下限(1200 kcal)を下回らない。10 kcal 単位に丸める
-export function suggestTargetCalories(input: {
-  bmrKcal: number;
-  tdeeKcal: number;
-  weightKg: number;
-  targetWeightKg: number;
-}): TargetCalories {
-  const { bmrKcal, tdeeKcal, weightKg, targetWeightKg } = input;
-  const round10 = (value: number) => Math.round(value / 10) * 10;
-  const ceil10 = (value: number) => Math.ceil(value / 10) * 10; // 下限は切り上げる(四捨五入だと、基礎代謝を数 kcal 下回ることがある)
-
-  if (targetWeightKg >= weightKg) return { kcal: round10(tdeeKcal), reason: "maintain" };
-
-  const deficit = round10(tdeeKcal * (1 - CALORIE_DEFICIT_RATE));
-  const floor = Math.max(bmrKcal, MIN_CALORIES);
-  if (deficit < floor) {
-    return { kcal: ceil10(floor), reason: bmrKcal >= MIN_CALORIES ? "floor-bmr" : "floor-min" };
-  }
-  return { kcal: deficit, reason: "deficit" };
+// 目標カロリー(1 日に食べる量) = 目標体重で釣り合うカロリー(目標体重での消費カロリー)。
+// 今の体重より軽い目標なら、今の消費より少なくなり、その差で体重が減る。絶対的な下限(1200 kcal)を下回らない。
+// 50 kcal 単位に丸める
+export function suggestTargetCalories(input: { tdeeAtTargetKcal: number }): TargetCalories {
+  const kcal = roundToStep(input.tdeeAtTargetKcal, CALORIE_STEP);
+  if (kcal < MIN_CALORIES) return { kcal: MIN_CALORIES, reason: "floor-min" };
+  return { kcal, reason: "balance" };
 }
 
 // 目標タンパク質(g)。目標体重 1kg あたり 1.4g。整数に丸める

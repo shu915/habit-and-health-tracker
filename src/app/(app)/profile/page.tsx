@@ -1,11 +1,6 @@
-import { Suspense } from "react";
-import { ProfileSummary } from "@/components/profile-summary";
+import { redirect } from "next/navigation";
 
-// プロフィールの閲覧。編集は /profile/edit
+// プロフィールの閲覧はダッシュボードにあるので、/profile はそこへ移す(編集は /profile/edit)
 export default function ProfilePage() {
-  return (
-    <Suspense fallback={<p className="text-zinc-500">読み込み中...</p>}>
-      <ProfileSummary />
-    </Suspense>
-  );
+  redirect("/");
 }

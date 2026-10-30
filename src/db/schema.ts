@@ -2,7 +2,9 @@ import { sql } from "drizzle-orm";
 import {
   check,
   date,
+  index,
   integer,
+  jsonb,
   numeric,
   pgTable,
   serial,
@@ -127,5 +129,62 @@ export const days = pgTable(
     ),
     check("days_sleep_bedtime_format", sql`${table.sleepBedtime} ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'`),
     check("days_sleep_wake_time_format", sql`${table.sleepWakeTime} ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'`),
+  ],
+);
+
+// ==========================================
+// 3. Meals (食事ログ)
+// ==========================================
+// 1 食 = 1 行。1 日の数は決めない(可変長)。days の行に紐づける(その日の食事が、その日の記録に属する)。
+// 食事を保存するときは、その日の days の行が無ければ空で作る。user_id は days の持ち主と同じにする(保存する側で守る)
+export const meals = pgTable(
+  "meals",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    // 「その日」の days の行。深夜 3 時までの食事は前の日に入れる(だから時刻は 26:59 まで書ける)。日が消えたら食事も消える
+    dayId: integer("day_id")
+      .notNull()
+      .references(() => days.id, { onDelete: "cascade" }),
+    // 食べた時刻 "HH:MM"(00:00〜26:59。24:00 以降は、翌日の 0:00 以降の深夜)。朝・昼・晩のラベルは保存せず、時刻から計算する
+    eatenTime: varchar("eaten_time", { length: 5 }).notNull(),
+
+    // AI が付けた料理名(グルーピングの鍵)。表記ゆれは、過去の dish_name の一覧を AI に渡して揃える。人は直さない
+    dishName: varchar("dish_name", { length: 100 }).notNull(),
+    // 人が付ける別名(表示用。あれば dish_name より優先して出す)。AI に渡す名前の一覧には入れない
+    alias: varchar("alias", { length: 100 }),
+    // 入力した説明文、または写真から AI が書いた説明文(写真そのものは保存しない)。再推定の入力にもなる
+    description: text("description"),
+
+    // 1 食の合計。すべての食事は AI の推定で、数字は直接直せない(直すときは説明を直して再推定する)。
+    // 集計はこの列だけを使い、合計は AI ではなくコードで品目を足して出す
+    kcal: integer("kcal").notNull(),
+    proteinG: numeric("protein_g", { precision: 5, scale: 1 }).notNull(),
+    fatG: numeric("fat_g", { precision: 5, scale: 1 }).notNull(),
+    // 糖質 = 炭水化物 − 食物繊維(コードで計算して入れる)
+    netCarbG: numeric("net_carb_g", { precision: 5, scale: 1 }).notNull(),
+    // 食物繊維と食塩相当量(g)。分からないときは null
+    fiberG: numeric("fiber_g", { precision: 4, scale: 1 }),
+    saltG: numeric("salt_g", { precision: 4, scale: 1 }),
+
+    // AI が返した品目ごとの内訳(参考用。集計には使わない)。zod で検証してから保存し、読むときも検証し直す
+    items: jsonb("items").notNull(),
+
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
+  },
+  (table) => [
+    // その日の食事の一覧を引く
+    index("meals_user_day_idx").on(table.userId, table.dayId),
+    // 値の範囲。「絶対にあり得ない値」だけを止める広い範囲(現実的な範囲は meal-limits.ts の app で検証する)
+    check("meals_eaten_time_format", sql`${table.eatenTime} ~ '^([01][0-9]|2[0-6]):[0-5][0-9]$'`),
+    check("meals_kcal_range", sql`${table.kcal} >= 0 AND ${table.kcal} <= 20000`),
+    check("meals_protein_g_range", sql`${table.proteinG} >= 0 AND ${table.proteinG} <= 1000`),
+    check("meals_fat_g_range", sql`${table.fatG} >= 0 AND ${table.fatG} <= 1000`),
+    check("meals_net_carb_g_range", sql`${table.netCarbG} >= 0 AND ${table.netCarbG} <= 2000`),
+    check("meals_fiber_g_range", sql`${table.fiberG} IS NULL OR (${table.fiberG} >= 0 AND ${table.fiberG} <= 500)`),
+    check("meals_salt_g_range", sql`${table.saltG} IS NULL OR (${table.saltG} >= 0 AND ${table.saltG} <= 100)`),
   ],
 );
