@@ -10,7 +10,7 @@ function matches(path: string): boolean {
 describe("proxy matcher", () => {
   it("ログイン後のページは対象にする", () => {
     expect(matches("/")).toBe(true);
-    expect(matches("/new")).toBe(true);
+    expect(matches("/profile/edit")).toBe(true);
     expect(matches("/days/2026-10-21")).toBe(true);
   });
 

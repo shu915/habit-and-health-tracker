@@ -10,7 +10,7 @@ export function EnergyCard({ profile }: { profile: ProfileEnergyInput }) {
   const overview = energyOverview(profile);
   const card = "flex flex-col gap-1 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800";
   const editLink = (
-    <Link href="/profile?mode=edit" className="underline">
+    <Link href="/profile/edit" className="underline">
       プロフィールを編集
     </Link>
   );
