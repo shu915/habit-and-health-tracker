@@ -54,9 +54,11 @@ export const profiles = pgTable(
     targetProteinG: numeric("target_protein_g", { precision: 5, scale: 1 }),
 
     // 睡眠の目標設定(分換算 & 基準中央値)。成人の一般的な目安を既定値にする
-    targetSleepMinutes: integer("target_sleep_minutes").default(450).notNull(), // 7.5 時間 = 450 分
+    // 空(null)にもできる。null は「睡眠の機能を使わない」で、睡眠の目標との比較を飛ばす。
+    // 新しいユーザーには、一般的な値(450 分 / 03:15)が最初から入る
+    targetSleepMinutes: integer("target_sleep_minutes").default(450), // 7.5 時間 = 450 分
     // 23:30 就寝・7:00 起床の人の中間時刻
-    targetSleepMidpoint: varchar("target_sleep_midpoint", { length: 5 }).default("03:15").notNull(),
+    targetSleepMidpoint: varchar("target_sleep_midpoint", { length: 5 }).default("03:15"),
 
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),

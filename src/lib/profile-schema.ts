@@ -29,11 +29,11 @@ function decimalBase(label: string, field: LimitedField) {
 }
 
 // 整数(integer 列用)
-function integerBase(label: string, field: LimitedField, nullMessage?: string) {
+function integerBase(label: string, field: LimitedField, customMessage?: string) {
   const { min, max } = limitOf(field);
-  const message = `${label}は ${min} 以上 ${max} 以下の整数で入力してください`;
+  const message = customMessage ?? `${label}は ${min} 以上 ${max} 以下の整数で入力してください`;
   return z
-    .string({ error: nullMessage ?? message })
+    .string({ error: message })
     .trim()
     .regex(/^\d+$/, message)
     .transform(Number)
@@ -42,7 +42,8 @@ function integerBase(label: string, field: LimitedField, nullMessage?: string) {
 
 // 任意の項目: 空欄は null(その項目を空にする)
 const decimal = (label: string, field: LimitedField) => z.preprocess(emptyToNull, decimalBase(label, field).nullable());
-const integer = (label: string, field: LimitedField) => z.preprocess(emptyToNull, integerBase(label, field).nullable());
+const integer = (label: string, field: LimitedField, customMessage?: string) =>
+  z.preprocess(emptyToNull, integerBase(label, field, customMessage).nullable());
 
 // 選択式の項目: 空欄(選ばない)は null
 function choice(values: readonly string[], message: string) {
@@ -72,17 +73,20 @@ const fields = z.object({
   targetWeightKg: decimal("目標体重(kg)", "targetWeightKg"),
   targetCalories: integer("目標カロリー(kcal)", "targetCalories"),
   targetProteinG: decimal("目標タンパク質(g)", "targetProteinG"),
-  // 睡眠の目標 2 つは DB が NOT NULL なので、空欄にできない
-  targetSleepMinutes: z.preprocess(
-    emptyToNull,
-    integerBase("睡眠の目標(分)", "targetSleepMinutes", "睡眠の目標(分)は空にできません"),
+  // 睡眠の目標。空欄は null(睡眠の機能を使わない)。新しいユーザーには、DB の既定値(450 分 / 03:15)が入る
+  // 画面では「時間」「分」で入力する(裏で分に変換して送る)ので、メッセージも時間で書く
+  targetSleepMinutes: integer(
+    "睡眠時間の目標",
+    "targetSleepMinutes",
+    "睡眠時間の目標は 2 時間から 18 時間のあいだで入力してください",
   ),
   targetSleepMidpoint: z.preprocess(
     emptyToNull,
     z
-      .string({ error: "睡眠の中間時刻は空にできません" })
+      .string({ error: "睡眠の中間時刻は、時を 0〜23、分を 0〜59 で入力してください" })
       .trim()
-      .regex(/^([01][0-9]|2[0-3]):[0-5][0-9]$/, "睡眠の中間時刻は HH:MM の形式(00:00〜23:59)で入力してください"),
+      .regex(/^([01][0-9]|2[0-3]):[0-5][0-9]$/, "睡眠の中間時刻は、時を 0〜23、分を 0〜59 で入力してください")
+      .nullable(),
   ),
 });
 
@@ -94,7 +98,7 @@ export type ProfileField = keyof ProfileValues;
 export const PROFILE_FIELDS = Object.keys(fields.shape) as ProfileField[];
 
 // 入力に「キーがあった項目」だけを検証する(キーが無い項目は検証せず、結果にも含めない = 保存しても変更されない)。
-// キーがあって空欄なら null(その項目を空にする)。ただし睡眠の目標 2 つは空欄にできない
+// キーがあって空欄なら null(その項目を空にする)
 const partialSchema = fields.partial();
 
 export type ProfileFormResult =

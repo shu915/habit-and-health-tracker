@@ -329,6 +329,20 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
       expect(cleared.age).toBe(36);
     });
 
+    it("睡眠の目標は、空(null)にでき、使わない人の行を作っても既定値が入る", async () => {
+      currentUser.id = USER_A;
+      const fresh = await profilesModule.getProfile();
+      expect(fresh.targetSleepMinutes).toBe(450); // 新しい行には一般的な値が最初から入る
+      expect(fresh.targetSleepMidpoint).toBe("03:15");
+
+      const cleared = await profilesModule.updateProfile({ targetSleepMinutes: null, targetSleepMidpoint: null });
+      expect(cleared.targetSleepMinutes).toBeNull();
+      expect(cleared.targetSleepMidpoint).toBeNull();
+      // 空にしたあとで、ほかの項目だけを更新しても、空のまま
+      const after = await profilesModule.updateProfile({ age: 40 });
+      expect(after.targetSleepMinutes).toBeNull();
+    });
+
     it("updateProfile: 他のユーザーのプロフィールは変わらない", async () => {
       currentUser.id = USER_B;
       await profilesModule.updateProfile({ age: 50 });
