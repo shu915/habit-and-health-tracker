@@ -1,10 +1,12 @@
 import Link from "next/link";
-import { activityLevelLabel, genderLabel } from "@/lib/profile-options";
+import { EnergyCard } from "@/components/energy-card";
+import { formatDuration, formatTimeOfDay } from "@/lib/duration";
+import { activityLevelParts, genderLabel } from "@/lib/profile-options";
 import { getProfile } from "@/lib/profiles";
 
 // プロフィールの一覧(ダッシュボードと /profile で使う。見た目はとりあえず)。
 // null は「未入力」(本人がまだ入力・算出していない)
-type Row = { label: string; value: string | number | null; unit?: string };
+type Row = { label: string; value: string | number | null; unit?: string; detail?: string | null };
 
 export async function ProfileSummary() {
   const profile = await getProfile();
@@ -18,16 +20,17 @@ export async function ProfileSummary() {
     { label: "ウエスト", value: profile.currentWaistCm, unit: "cm" },
   ];
   const goals: Row[] = [
-    { label: "活動係数", value: activityLevelLabel(profile.activityLevel) },
+    activityLevelRow(profile.activityLevel),
     { label: "目標体重", value: profile.targetWeightKg, unit: "kg" },
     { label: "目標カロリー", value: profile.targetCalories, unit: "kcal" },
     { label: "目標タンパク質", value: profile.targetProteinG, unit: "g" },
-    { label: "睡眠の目標", value: profile.targetSleepMinutes, unit: "分" },
-    { label: "睡眠の中間時刻", value: profile.targetSleepMidpoint },
+    { label: "睡眠時間の目標", value: formatDuration(profile.targetSleepMinutes) },
+    { label: "睡眠の中間時刻", value: formatTimeOfDay(profile.targetSleepMidpoint) },
   ];
 
   return (
     <section className="flex flex-col gap-3">
+      <EnergyCard profile={profile} />
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">プロフィール</h2>
         <Link href="/profile?mode=edit" className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-700">
@@ -40,6 +43,17 @@ export async function ProfileSummary() {
       </div>
     </section>
   );
+}
+
+// 活動係数: 名前と掛ける数字を目立たせ、説明を小さく添える("軽い ×1.375" / "週1〜3回の軽い運動")
+function activityLevelRow(value: string | null): Row {
+  const parts = activityLevelParts(value);
+  if (!parts) return { label: "活動係数", value: null };
+  return {
+    label: "活動係数",
+    value: parts.name ? `${parts.name} ×${parts.multiplier}` : `×${parts.multiplier}`,
+    detail: parts.detail ?? "選択肢にない値です(編集で選び直してください)",
+  };
 }
 
 function RowList({ title, rows }: { title: string; rows: Row[] }) {
@@ -66,6 +80,7 @@ function Item({ row }: { row: Row }) {
           <>
             {row.value}
             {row.unit ? ` ${row.unit}` : ""}
+            {row.detail && <span className="block text-xs text-zinc-400">{row.detail}</span>}
           </>
         )}
       </dd>

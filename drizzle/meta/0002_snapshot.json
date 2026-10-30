@@ -1,5 +1,5 @@
 {
-  "id": "0a26b7f6-f27d-4f95-82ed-ff5125eab271",
+  "id": "19bdd670-380e-4c87-b60c-1aacb7f5918c",
   "prevId": "57496133-ea07-4a3b-9278-f2c85f615365",
   "version": "7",
   "dialect": "postgresql",
@@ -186,14 +186,14 @@
           "name": "target_sleep_minutes",
           "type": "integer",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "default": 450
         },
         "target_sleep_midpoint": {
           "name": "target_sleep_midpoint",
           "type": "varchar(5)",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "default": "'03:15'"
         },
         "created_at": {

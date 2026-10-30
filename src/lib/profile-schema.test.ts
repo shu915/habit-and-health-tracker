@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { PROFILE_LIMITS } from "./profile-limits";
 import { parseProfileForm, PROFILE_FIELDS } from "./profile-schema";
 
-// 睡眠の目標 2 つ以外は空欄でよい。必須の 2 つだけ入れた最小のフォーム
+// 睡眠の目標 2 つだけを入れた最小のフォーム(どの項目も空欄でよい。他の項目のテストの土台に使う)
 const base = { targetSleepMinutes: "450", targetSleepMidpoint: "03:15" };
 
 function expectOk(raw: Record<string, unknown>) {
@@ -121,11 +121,12 @@ describe("parseProfileForm", () => {
     expectError({ activityLevel: "2" }, "activityLevel");
   });
 
-  it("睡眠の目標 2 つは空欄にできない", () => {
-    expectError({ targetSleepMinutes: "" }, "targetSleepMinutes");
-    expectError({ targetSleepMidpoint: "" }, "targetSleepMidpoint");
-    // キーが無い(送られていない)なら、変更しないだけでエラーではない
-    expect(parseProfileForm({}).ok).toBe(true);
+  it("睡眠の目標 2 つは、空欄にすると null になる(睡眠の機能を使わない)", () => {
+    const values = expectOk({ targetSleepMinutes: "", targetSleepMidpoint: "" });
+    expect(values.targetSleepMinutes).toBeNull();
+    expect(values.targetSleepMidpoint).toBeNull();
+    // キーが無い(送られていない)なら、変更しないだけ
+    expect(expectOk({})).toEqual({});
   });
 
   it("複数の欄が誤りなら、欄ごとにエラーを返す", () => {

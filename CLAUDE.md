@@ -2,142 +2,78 @@
 
 # Habit and Health Tracker
 
-Shu の生活習慣管理アプリ。食事・栄養・体重・睡眠・日記を記録し、集計とAIフィードバックを得る。
+Shu の生活習慣管理アプリ(友人にも使ってもらう)。食事・栄養・体重・睡眠・日記を記録し、集計と AI フィードバックを得る。
 
 ## 技術スタック
-- Next.js(App Router, TypeScript)
-- PostgreSQL + pgvector(Docker でローカル運用)
-- ORM: Drizzle
-- 認証: Better Auth(マジックリンク)
-- AI: OpenRouter(食事の栄養推定、フィードバック)
-  - OpenAI 互換 API として呼び出す。モデル名は環境変数で切り替えられるようにする
-  - 写真入力には画像対応(vision)モデルを使う
-  - 採用モデル: Gemini 3.8 Flash(`google/gemini-3.8-flash`)。速さ・安さ・軽い推論を重視
-    - thinking は低めに設定し、出力トークン(thinking 含む)のコストを抑える
-    - 2027-01 から価格が倍になる予定。精度や JSON の安定性に不満があれば Sonnet 5.5 と比較する
-
-## 認証
-- Better Auth でマジックリンクログインを実装する(友人にも使ってもらうため、複数ユーザー前提)
-  - パスワードは使わない。ログインはマジックリンクが root で、Google などの OAuth は後から連結する任意の手段(おいおい検討。今は作らない)
-  - Better Auth の Drizzle 連携で `user` / `session` / `account` / `verification` テーブルを使う。独自の `users` テーブルは作らず、Better Auth の `user` を使う(今ある `src/db/schema.ts` の `users` は置き換える)
-  - Better Auth の ID は文字列。各テーブルの `user_id` は `user.id` への外部キー(型は `text`)にする
-- 全テーブルに `user_id` を持たせ、クエリは必ず `user_id` で絞る(他のユーザーの記録が見えないことが最重要)
-- `user_id` の取得は1か所(`getCurrentUserId()`)に集約する。セッションから取り、未ログインなら `/login` へ送る
-- 認証を通っていないページ・Server Action でデータを読み書きしない。API の認可はセッション確認から始める
-- 守りは3段: `src/proxy.ts`(セッション Cookie が無ければ `/login` へ HTTP リダイレクト。Cookie の有無だけ見る入口の確認)→ `(app)/layout.tsx` の `AuthGate` → **データを扱う関数が `getCurrentUserId()` を呼んで検証する(本当の認可はここ)**。レイアウトはページ遷移のたびに再実行されないので、レイアウトのチェックだけに頼らない
-- 新規登録はホワイトリスト制: 環境変数 `ALLOWED_EMAILS`(カンマ区切り)にあるアドレスだけがログインでき、リンク送信とユーザー作成(`databaseHooks`)の両方で確認する(`src/lib/allowlist.ts`)。空のときは開発では全員許可、本番では誰も許可しない。許可外でも応答は同じにして、登録の有無を教えない。人が増えたら DB のテーブルに移し、さらに公開するなら申請 → 承認の流れを足す
-- ホワイトリストの確認はリンク送信とユーザー作成にしかない。**許可リストから外しただけでは、ログイン済みのセッションは期限(既定 7 日)まで残る**。外すときは、該当ユーザーの `session` の行も削除する
-- 開発ではホワイトリストが空だと全員許可になる。`next dev` をトンネルなどで外に公開するときは、先に `ALLOWED_EMAILS` を設定する
-- マジックリンクのトークンは DB にハッシュで保存(`storeToken: "hashed"`)。レート制限は DB に記録(`rate_limit` テーブル)
-- `getCurrentUserId()` は未ログインのとき `redirect()` する(例外を投げる)。`try/catch` で囲まない。Route Handler で使い始めるときは、401 を返す版を別に作る
-- デプロイ時に決めること: プロキシ越しの IP の取り方(`advanced.ipAddress` の `ipAddressHeaders` と `trustedProxies` をセットで決める。偽装できるとレート制限を避けられ、逆に IP が取れないと全員が1つの枠を共有して、1人の連打で全員が 429 になる)、期限切れの `verification` 行の掃除、メールアドレス単位の送信回数の制限、`BETTER_AUTH_URL` は https(Cookie の Secure 属性がこれで決まる)、メールのリンクスキャナでトークンが先に消費される問題(リンク1回限りの仕様)、ログとセッションに残る個人情報(IP・User-Agent)の保持期間
-- 開発中のメールは `src/lib/email.ts` がコンソールに出すだけ。本番では送信方法が未設定のためエラーにしてある
-
-## 当面の方針
-- まずはローカル環境で開発する。友人が使うためのデプロイ先は未決(下の未決事項)
-
-## 機能要件
-1. **食事記録**: 食事内容(テキスト/写真)、カロリー・PFC などの栄養素
-2. **体重記録**
-3. **睡眠記録**: 集計と分析
-4. **AIフィードバック**: 記録データをもとにした助言
-5. **ダッシュボード**: 食事・栄養・体重・睡眠の集計表示
-6. **ポジティブ3行日記**: 1日3行のポジティブな出来事の記録
+- Next.js(App Router, TypeScript)/ PostgreSQL + pgvector(Docker)/ Drizzle / Better Auth / zod / Vitest
+- AI: OpenRouter(OpenAI 互換 API)。モデル名は環境変数で切り替える。写真は vision モデルへ
+  - 採用: Gemini 3.8 Flash(`google/gemini-3.8-flash`)。thinking は低めにして出力コストを抑える。2027-01 に価格が倍になる予定。精度や JSON の安定性に不満があれば Sonnet 5.5 と比較する
+  - 写真は保存しない(AI への入力として使い捨て)。AI が返す JSON(料理の説明文を含む)を保存する
 
 ## ページ構成
-- `/login` ログイン: メールアドレスを入力してマジックリンクを送る。他のページは未ログインなら `/login` へ送る
-- `/` ダッシュボード: 日付ごとに1行(日付・体重・睡眠・カロリー・日記など)。行をクリックで詳細へ。期間の絞り込み・ページネーション(月単位/過去30日)は後回しで、今は全期間
-- `/profile` プロフィール: デフォルトは閲覧モードで、「編集」(`?mode=edit`)で手入力のフォームになる。ダッシュボードにも同じ一覧を出す。保存は Server Action(`profile/actions.ts`)→ zod で検証(`lib/profile-schema.ts`)→ `updateProfile()`。ボディデータは本人が入力し、目標値は手入力でも直せる。**AI に目標値を提案させる機能は次のブランチ**(各項目の横のチェックで「AI に提案させる項目」を選び、提案ボタンで入力欄を埋め、本人が確認して保存する。まず計算式、あとから AI)
-- `/days/[date]` 日の詳細: デフォルトは閲覧モード。「編集」ボタン(`?mode=edit`)で編集モードに入る。日付は `YYYY-MM-DD`(不正な日付は 404)
-- `/new` 新規入力: 1ページに全項目(デフォルトの3食、追加の食事、運動量、ポジティブ3行日記、自由記入欄)を記入する。中身は順次実装
+- `/login`: メールアドレスを入れてマジックリンクを送る。他のページは未ログインなら `/login` へ
+- `/` ダッシュボード: 1日の消費カロリーの目安(基礎代謝 × 活動係数、目標カロリーとの差)、プロフィール、日付ごとの一覧(全期間。期間の絞り込みは後回し)
+- `/profile`: 閲覧モードと、`?mode=edit` の編集フォーム。`/days/[date]`(日の詳細)も同じ形
+- `/new`: 1ページに全項目(3食、追加の食事、運動量、ポジティブ3行日記、自由記入)を記入する。中身は順次実装
+- プロフィールの目標値(体重・カロリー・タンパク質)は、各欄の「提案」ボタンで入力欄を埋める。**保存はしない**(本人が確認して「保存」)
+  - 計算は AI なしの式(`lib/nutrition.ts`。方針の定数もここ)。フォームの値から作るのは `lib/profile-suggest.ts`
+  - **18 歳以上だけが対象**(大人の基準で減量を出すため)。画面に「医療上の指示ではない」と出す
+  - AI を使うのは、生活の文章から**活動係数を選ぶ**部分だけ(まだ未実装)。数値の計算には使わない
 
-## 食事の栄養推定フロー
-1. ユーザーが食事のテキスト・写真を入力
-2. AI に送り、栄養素を推論させ **JSON で返却**させる(スキーマは固定し、検証してから保存)
-3. 保存した値で日次/週次の集計を行う
-- 推定値であることを前提とし、ユーザーが後から修正できるようにする
+## 認証とデータの分離
+- Better Auth のマジックリンクが root。Google などは、後から任意で連結する(今は作らない)。`user` は Better Auth のものを使い、独自の users は作らない
+- 全テーブルに `user_id`(`user.id` への外部キー、型は `text`、cascade)を持たせ、**クエリは必ず `user_id` で絞る**
+- `user_id` は `getCurrentUserId()` に集約する。未ログインなら `/login` へ `redirect()`(例外を投げる)ので `try/catch` で囲まない。Route Handler で使うときは 401 を返す版を別に作る
+- 守りは3段: `proxy.ts`(Cookie が無ければリダイレクト)→ `(app)/layout.tsx` の `AuthGate` → **データを扱う関数が `getCurrentUserId()` を呼ぶ(本当の認可はここ)**。レイアウトはページ遷移のたびに再実行されないので、レイアウトだけに頼らない
+- 新規登録は `ALLOWED_EMAILS`(カンマ区切り)のホワイトリスト制。空のとき、開発は全員許可・本番は誰も許可しない。許可外でも応答は同じにして、登録の有無を教えない。外した人の `session` の行も消す(消さないとセッションが7日残る)。`next dev` を外に公開するときは先に設定する
+- 開発中のメールは `lib/email.ts` がコンソールに出す。本番は送信方法が未設定なのでエラー
 
-## pgvector の用途
-- 「名もなき自炊料理」(定型名のない家庭料理)の類似するものをまとめる
-- 料理の説明文などを embedding 化して保存し、類似検索でグルーピング・過去の栄養推定の再利用に使う
+## データの規則
+- 値の範囲は `lib/profile-limits.ts` に集約する(`app` = zod とフォームの現実的な範囲、`db` = CHECK 制約の広い範囲)。**app は db の内側**(テストで守る)。CHECK の SQL は定数から生成せず `schema.ts` に直接書くので、db の範囲を変えるときは定数・`schema.ts`・マイグレーションを一緒に直す
+- 保存は「入力に**あった項目だけ**を更新」する(キーが無い項目は変更せず、空欄は null で空にする)。フォームに項目を足したら、`profile-schema.ts` と `profile-form.tsx` の両方に足す
+- 個人の値は null が「未入力」。使う側で null を「未設定」として扱う(睡眠の2項目は空にでき、空は「睡眠の機能を使わない」)
+- 活動係数は5つの選択肢だけ。**AI の提案は5つのどれかに丸めて保存する**
+- フォームの検証は zod。数値は文字列の正規表現で先に絞る(zod の変換は `0x10` や `1e2` を通すため)。**zod をブラウザ側のコードに入れない**(`profile-form.tsx` は `profile-schema` を type import だけで読む)
+- 睡眠時間・中間時刻は「時間/時」「分」の2欄で入力し、DB の形(分 / `HH:MM`)に変換して送る(`lib/duration.ts`)
+- 日の記録の検証(`day-input.ts`)は手書きのまま。日の記録のフォームを作るときに zod へ移し、体脂肪率・体重の現実的な範囲(3〜60% など)を `app` として決める
+- 測定値(体重・体脂肪率)の列には、測った値だけを入れる。式で見積もった値は入れない
+
+## 食事の栄養推定フロー(予定)
+1. テキスト・写真を AI に送り、栄養素を **JSON で返却**させる(スキーマは固定し、zod で検証してから保存)
+2. 推定値としてフォームに出し、本人が直してから保存。保存した値で日次/週次の集計をする
+- pgvector: 「名もなき自炊料理」の説明文を embedding 化して保存し、類似検索でグルーピング・過去の推定の再利用に使う
 
 ## 開発ルール
-- スキーマ変更は Drizzle のマイグレーションで行う(DBを直接いじらない)
-- **マージ済みのマイグレーション(`drizzle/` の既存ファイル、`meta/_journal.json` の既存の行、既存のスナップショット)は書き換えない。** `when` やスナップショットの ID が変わると、適用済みの DB で再実行されて `db:migrate` が壊れる。作り直してよいのは未マージの分だけで、その場合も、マージ済みの分は `git checkout HEAD -- drizzle` で戻してから、新しい分だけ `db:generate` で作る
-  - **例外(デプロイ前だけ)**: 人が「開発中は継ぎ足さず、1本できれいに書き直したい」と指示したときに限り、マージ済みの**最新のマイグレーション(0002 など)**を書き直してよい。それより前のもの(0000 / 0001 など)は変えない。やり方: 書き直す分のファイルとスナップショットを消し、`meta/_journal.json` を、書き直す分の1つ前の版(`git checkout <マージのコミット> -- drizzle/meta/_journal.json`)に戻し、`docker compose down -v` で開発用・テスト用の DB を作り直して(**中のデータは消える**。先に何が入っているか確認して伝える)、`db:migrate` で 1 つ前までを適用してから `db:generate` で書き直す分を作る。デプロイしたあとは、この例外を使わない(新しいマイグレーションを足す)
-- データを扱う関数(`src/lib/days.ts` など)は、`getCurrentUserId()` を最初に呼んで `user_id` で絞り、日付は関数の中でも検証し、書き込みは入力に「あった項目だけ」にする(`parseDayInput` はキーが無い項目を結果に含めない)。実 DB のテストで守る
-- DB は `docker compose up -d` で起動する
-- API キー等の秘密情報は `.env.local` に置き、コミットしない
+- スキーマ変更は Drizzle のマイグレーションで行う(DB を直接いじらない)。`drizzle/` と `src/db/auth-schema.ts` は生成物で手編集しない(`0000_enable_pgvector.sql` だけ手書き。`guard-pre.sh` が例外にしている)
+- **マージ済みのマイグレーションは書き換えない**(`when` や snapshot の ID が変わると、適用済みの DB で再実行されて壊れる)。未マージの分は作り直してよい。そのときも、マージ済みの分は `git checkout <コミット> -- drizzle/meta/_journal.json` などで戻してから、新しい分だけ `db:generate` で作る
+  - **例外(デプロイ前だけ)**: 人が「1本に書き直したい」と指示したときに限り、最新の1本(今は `0002`)を書き直してよい。その分のファイルと snapshot を消し、journal を1つ前に戻し、`db:migrate` で1つ前まで適用してから `db:generate`。**開発用・テスト用 DB の作り直し(`down -v`)でデータが消える**ので、先に中身を確認して伝え、残したいデータは `pg_dump --data-only` で退避して戻す。デプロイ後は使わない
+- データを扱う関数は、`getCurrentUserId()` を最初に呼んで `user_id` で絞り、日付は関数の中でも検証する。実 DB のテストで守る
+- 秘密情報は `.env.local` に置き、コミットしない。`.env*` は読まない・編集しない(`.env.example` は可)
 
 ## コマンド
-- `npm run dev` / `npm run build`
-- `npm run check`: lint + typecheck。変更ごとに実行して通すこと(CI も同じ lint → typecheck → build を実行)
-- `npm run lint` / `npm run typecheck`
-- `npm test`: Vitest(`src/**/*.test.ts`)。CI でも実行する
-  - 実 DB を使うテスト(`src/lib/data-access.test.ts`。他のユーザーの記録が見えないことなどを守る)は、`TEST_DATABASE_URL` が無いと実行されない(CI は未実行があると失敗にする)。手元では `TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5433/habit_health_test npm test`。Stop フックは DB コンテナが起動していれば自動で渡す
-  - テスト専用のデータベース `habit_health_test` は、コンテナを初めて作るときに `docker/initdb/` が作る。すでにボリュームがある場合は `docker compose exec db psql -U postgres -c "CREATE DATABASE habit_health_test"` で作る。**本物のデータが入った DB を指さない**
-- `.env.local` に `BETTER_AUTH_SECRET` が無いと起動時にエラーになる(`.env.example` を参照)
-- `docker compose up -d --wait`: DB(pgvector/pgvector:pg17)を起動。ホスト側ポートは **5433**(5432 は他プロジェクトが使うため)
-- `npm run db:generate`: マイグレーション生成(`drizzle/`)/ `npm run db:migrate`: 適用 / `npm run db:studio`
-- 接続先は `DATABASE_URL`(`.env.example` を `.env.local` にコピーして使う)
-- Better Auth のテーブルは `src/db/auth-schema.ts`(生成物・手編集しない)。`src/lib/auth.ts` の設定を変えたら `DATABASE_URL=... BETTER_AUTH_SECRET=... npm run db:auth-schema`(`auth` CLI は devDependency で版を固定している)で再生成し、`db:generate` → `db:migrate` で反映する。アプリ用のテーブルは `src/db/schema.ts`(auth-schema を再エクスポートしている)
-- `drizzle-kit generate` は、テーブルの削除と作成が同時にあると「リネームか?」と対話で聞いてくる(非対話では失敗する)。削除と作成は別のマイグレーションに分ける
-- ログインの確認方法(開発中): `next dev` の端末にマジックリンクが出る。`BETTER_AUTH_URL` は `next dev` のポートと一致させる
-- pgvector の拡張は `drizzle/0000_enable_pgvector.sql` で有効化済み(マイグレーションは 0000 が pgvector、0001 が Better Auth のテーブル。運用前に作り直して、ここから始まる履歴にした)。`drizzle/` は生成物なので手編集しない(この1ファイルだけ例外)
+- `npm run dev` / `build` / `check`(lint + typecheck。**テストは含まない**)/ `test`
+- DB: `docker compose up -d --wait`(ホストのポートは **5433**)、`npm run db:generate` / `db:migrate` / `db:studio`
+- Better Auth の設定(`lib/auth.ts`)を変えたら、`DATABASE_URL=... BETTER_AUTH_SECRET=... npm run db:auth-schema` で `auth-schema.ts` を再生成する
+- `drizzle-kit generate` は、テーブルの削除と作成が同時にあると対話で聞いてくる(非対話では失敗する)。別のマイグレーションに分ける
+- `.env.local` に `BETTER_AUTH_SECRET` が無いと起動時にエラー。開発中のマジックリンクは `next dev` の端末に出る
+- `package.json` を変えて `npm install` すると、macOS の npm が lock から `@rolldown/binding-*` を落とす(`grep -c '"node_modules/@rolldown/binding-' package-lock.json` が 15 でなければ異常)。`package.json` だけを空のフォルダにコピーして `npm install --package-lock-only` した lock を取り込み、`npm ci` する
 
-## これから実装するときの宿題
-- フォームの検証は zod で書く(`profile-schema.ts`)。`days` の `parseDayInput` は手書きのまま残っているので、日の記録のフォームを作るときに zod へ移す。zod の数値変換は `0x10` や `1e2` を通すので、文字列の正規表現で先に絞っている(同じ作りにする)
-- プロフィールの値の範囲は `src/lib/profile-limits.ts` に集約している(項目ごとに `app` = zod とフォームが使う現実的な範囲、`db` = CHECK 制約が止める広い範囲)。**app は db の内側にあること**(テストで守る)。CHECK の SQL は定数から生成せず `schema.ts` に直接書いてある(マイグレーションが増えるのを避けるため)ので、`db` の範囲を変えるときは、定数・`schema.ts`・マイグレーションを一緒に直す。実 DB のテストが、定数と実際の DB の食い違いを検出する
-- プロフィールの保存は「フォームに**あった項目だけ**を更新」する(送られなかった項目は変わらず、空欄で送ると null で空になる。睡眠の目標 2 つだけは空にできない)。フォームに項目を足したら、`profile-schema.ts` と `profile-form.tsx` の両方に足す
-- 活動係数は 5 つの選択肢(1.2 / 1.375 / 1.55 / 1.725 / 1.9)だけを受け付ける。AI などが選択肢にない値(1.45 など)を保存すると、編集フォームには「現在の値」として出るが、そのままでは保存できず選び直しになる。**AI の提案は、5 つの選択肢のどれかに丸めて保存する**
-- プロフィールのフォームは、JavaScript なしで送信した場合の画面にはエラーが出ない(`useActionState` の仕様。保存自体は動く)。ブラウザで普通に使う分には問題ない
-- DB の CHECK 制約は `profiles` に入れ済み(年齢 0〜150、身長 0 超〜300、体重 0 超〜500 未満、活動係数 1〜3、目標カロリー 0 超〜10000、睡眠 0 超〜1440 分、中間時刻は `HH:MM` など)。「絶対にあり得ない値」だけを止める広い範囲で、画面で見せる現実的な範囲(年齢 5〜120 など)はアプリ側の検証で別に決める。実 DB のテストで境界値を守っている
-- 日の記録(`day-input.ts`)の体重と体脂肪率は、DB の範囲(体重 0 超〜500 未満、体脂肪率 0 超〜100 未満)までしか絞っていない。**日の記録のフォームを作るときに、現実的な範囲(体脂肪率 3〜60% など。プロフィールの `PROFILE_LIMITS` と同じ app / db の形)を決めて、zod へ移す**
-- `listDays()` は件数の上限が無い。ダッシュボードで期間やページネーションを入れるときに絞る
-- 同時に 2 つのタブから編集すると、最後の保存が勝つ(今の規模では許容)
-- 健康情報(性別・年齢・身長・体重・日記)は平文で保存している。公開前に、バックアップとログに出る範囲と、ユーザー削除時の cascade の範囲を確認する
+## テスト
+- Vitest(`src/**/*.test.{ts,tsx}`)。フォームは jsdom + Testing Library(ファイル先頭に `// @vitest-environment jsdom`)
+- 実 DB のテスト(`data-access.test.ts`)は `TEST_DATABASE_URL` が無いと実行されない(CI は無いと失敗)。手元は `TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5433/habit_health_test npm test`。専用 DB `habit_health_test` は `docker/initdb/` が作る(Stop フックも無ければ作る)。**本物のデータが入った DB を指さない**
+- テストが落ちたら、まず実装が間違っていると考える。**テストを通すための改ざんは禁止**: テストの削除・`skip`・`only`・`exclude`、期待値を実装に合わせて弱める、型や lint を黙らせる、tsconfig や ESLint を緩める、`evaluator` の指摘をコメントや設定で黙らせる。やむを得ないときは理由を報告して人の確認を待つ
 
-## 型の方針
-- `strict: true` を前提にする。`any` は使わない
-- 黙らせる回避は使わない: `as unknown as X`、`@ts-ignore`、`@ts-expect-error`、`eslint-disable`
-- 外部から来るデータ(AI のレスポンス、フォーム入力、環境変数)は `unknown` で受け、スキーマで検証してから型を付ける
-- どうしても回避が要るときは、理由を 1 行のコメントで書く。理由のない回避は `evaluator` が指摘する
-
-## 実装後の流れ(生成と評価のループ)
-実装は自分、評価は `evaluator` エージェント(`.claude/agents/evaluator.md`)。
-1. 実装する。tsc・lint・test は hooks(`.claude/settings.json`)が自動で実行する(編集ごとに ESLint、応答終了時に typegen・tsc・lint、test スクリプトがあれば test)。失敗したら差し戻されるので直す。`npm run build` は hooks の対象外
-2. 挙動を変える変更のときは `evaluator` を呼ぶ(ドキュメントやコメントだけの変更では呼ばない)
-3. 「要修正」なら「高」「中」の指摘を直して 2 に戻る。最大 5 周で打ち切る
-4. 「合格」で終了し、結果を報告する。5 周で合格しなければ、止めて残りの指摘をそのまま報告する(無理に通さない)。同じ指摘が再発したら、上限を待たずに止める
-5. 報告には、検証していない範囲と、人間向けの確認手順を必ず書く。人間の返事は待たない
-
-人間の確認(画面の動作確認、最終レビュー)はループの外。
-
-### テストを通すための改ざんは禁止
-やむを得ず変えるときは、理由を報告に書き、人間の確認を待つ。
-- 失敗するテストの削除、`skip` / `only` の追加、`exclude` で外すこと
-- 期待値を実装の出力に合わせて弱めること(仕様が変わった場合を除く)
-- 型や lint を黙らせる回避を足すこと、tsconfig や ESLint のルールを緩めること
-- `evaluator` の指摘を、直さずにコメントや設定で黙らせること
-
-テストが落ちたら、まず実装が間違っていると考える。
+## 型と評価
+- `strict: true`。`any`、`as unknown as`、`@ts-ignore`、`@ts-expect-error`、`eslint-disable` は使わない(必要なら理由を1行のコメントで書く)。外から来るデータは `unknown` で受け、スキーマで検証してから型を付ける
+- 実装後は hooks が tsc・lint・test を自動で実行する(`build` は対象外)。**挙動を変えたら `evaluator` を呼ぶ**(最大5周。同じ指摘が再発したら止める)。報告には、検証していない範囲と、人間向けの確認手順を書く
 
 ## コミットと hooks
-- 人が頼むまでコミットしない
-- コミットメッセージと PR(タイトル・本文)は日本語で書く。コード中のコメントも日本語。末尾の共著者・生成の表記(`Co-Authored-By` など)は定型のまま変えない
-- PR の本文は「概要 / 確認したこと / 未確認・注意」の順にする。確認していないことは、確認したことと分けて書く
-- 環境変数ファイル(`.env*`)は読まない・編集しない(`.env.example` は可)
-- PreToolUse でブロック(`.claude/hooks/guard-pre.sh`): `.env*` の読み書き、`git clean` / `reset --hard`、`rm -r`、`drizzle-kit push`、`drizzle/` と `package-lock.json` の編集、`@ts-ignore` / `eslint-disable` / `as unknown as` / `any` の追加、テストや設定への `skip` / `only` / `strict:false` / ルール `off` / `exclude`
-- ブロックされたら回避せず、理由を報告して人の指示を待つ
+- 人が頼むまでコミットしない。コミットメッセージと PR(タイトル・本文)・コード中のコメントは日本語。PR の本文は「概要 / 確認したこと / 未確認・注意」の順で、確認していないことは分けて書く
+- `guard-pre.sh` がブロックする: `.env*` の読み書き、`git clean` / `reset --hard`、`rm -r`、`drizzle-kit push`、`drizzle/` と `package-lock.json` の編集、型や lint を黙らせる記述、テストや設定を弱める変更。ブロックされたら回避せず、理由を報告して指示を待つ
+- `claude-progress.txt` に完了・実行中・これからを書く。新しいセッションは、最初にこのファイルと CLAUDE.md を読む
 
-## 進捗ファイル
-- `claude-progress.txt` に、完了・実行中・これからのタスクを書く。新しいセッションは、最初にこのファイルと CLAUDE.md を読む
-- goal が終わるたびに、終了時の報告と一緒に更新する
-
-## 未決事項
-- マジックリンクのメール送信方法(開発中はコンソール出力、友人に使わせる段階で Resend などを選ぶ)
-- 友人が使うためのデプロイ先(そのときに DB の置き場所、秘密情報、`BETTER_AUTH_URL` も決める)
-- Google ログインの連結(後回し)
-- embedding モデルの選定(次元数が pgvector のカラム定義に影響する)
-- 写真の保存先(ローカルファイル or DB)
-- 睡眠データの入力方法(手入力 or 他アプリからのインポート)
+## 未決事項・公開前に決めること
+- マジックリンクのメール送信方法(Resend など)/ 友人が使うためのデプロイ先(DB の置き場所、秘密情報、`BETTER_AUTH_URL` を https に)/ embedding モデル(次元数が列定義に影響。インデックスは2000次元まで)/ 睡眠データの入力方法(手入力かインポートか)
+- デプロイ時: プロキシ越しの IP の取り方(`advanced.ipAddress` の `ipAddressHeaders` と `trustedProxies`)、メールアドレス単位の送信回数の制限、期限切れの `verification` 行の掃除、リンクスキャナにトークンが先に消費される問題、IP・User-Agent の保持期間
+- 健康情報は平文で保存している。公開前に、バックアップとログに出る範囲、退会時の cascade の範囲を確認する
+- 今は許容: `listDays()` の件数に上限がない(期間の絞り込みを入れるときに付ける)/ 同時編集は最後の保存が勝つ

@@ -44,9 +44,13 @@ export function LoginForm() {
         ログインリンクを送る
       </button>
       {status === "sent" && (
-        <p className="text-sm text-zinc-500">
-          メールを送りました。届いたリンクを開いてください。
-        </p>
+        // 登録の有無は教えないため、どのアドレスでも同じ文言を出す(auth.ts の sendMagicLink を参照)
+        <div className="flex flex-col gap-1 text-sm text-zinc-500">
+          <p>メールを送りました。届いたリンクを開いてください。</p>
+          <p className="text-xs">
+            届かない場合は、アドレスが間違っているか、登録されていない可能性があります。迷惑メールのフォルダも確認し、それでも届かなければ、管理者(このアプリを作った人)に連絡してください。
+          </p>
+        </div>
       )}
       {status === "rate-limited" && (
         <p className="text-sm text-red-600">
