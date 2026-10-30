@@ -1,7 +1,7 @@
 import {
   basalMetabolicRate,
   bmi,
-  CALORIE_DEFICIT_RATE,
+  CALORIE_STEP,
   dailyEnergy,
   MIN_CALORIES,
   PROTEIN_G_PER_KG,
@@ -87,7 +87,7 @@ export type SuggestResult = {
 
 const percent = (rate: number) => `${Math.round(rate * 100)}%`;
 
-// 目標値の提案は、大人の基準(BMI 25 以上は減らす、消費の 15% 減など)で作るので、18 歳以上だけを対象にする。
+// 目標値の提案は、大人の基準(BMI 25 以上は 5% 減を目標にする、など)で作るので、18 歳以上だけを対象にする。
 // 成長期の人に、減量や減カロリーを提案しない
 export const MIN_SUGGEST_AGE = 18;
 
@@ -147,20 +147,35 @@ export function suggestTargets(values: FormValues, selected: readonly Suggestabl
       result.errors.targetCalories = `目標カロリーの提案には、基礎代謝の計算に必要な項目（${bmr.missing.join("・")}）の入力が必要です。`;
     } else if (activityLevel === null) {
       result.errors.targetCalories = "目標カロリーの提案には、活動係数を選ぶ必要があります。";
-    } else if (targetWeightKg === null || body.weightKg === null) {
+    } else if (targetWeightKg === null) {
       result.errors.targetCalories = "目標カロリーの提案には、現在の体重と身長（または目標体重）が必要です。";
     } else {
-      const tdeeKcal = dailyEnergy(bmr.kcal, activityLevel);
-      const calories = suggestTargetCalories({ bmrKcal: bmr.kcal, tdeeKcal, weightKg: body.weightKg, targetWeightKg });
-      const basis = `消費 ${tdeeKcal} kcal（基礎代謝 ${bmr.kcal} × ${activityLevel}）`;
-      const reason = {
-        maintain: `${basis}と同じ（体重を維持）`,
-        deficit: `${basis}から ${percent(CALORIE_DEFICIT_RATE)} 減`,
-        "floor-bmr": `${basis}から ${percent(CALORIE_DEFICIT_RATE)} 減だと基礎代謝を下回るため、基礎代謝に合わせています`,
-        "floor-min": `${basis}から ${percent(CALORIE_DEFICIT_RATE)} 減だと下限を下回るため、${MIN_CALORIES} kcal に合わせています`,
-      }[calories.reason];
-      result.values.targetCalories = String(calories.kcal);
-      result.notes.targetCalories = `${reason}${assumption}`;
+      // 目標体重での基礎代謝。体脂肪率が入っているときは、目標体重でも同じ割合とみなす
+      const atTarget = basalMetabolicRate({ ...body, weightKg: targetWeightKg });
+      // 型を通すための分岐(手前の bmr.ok の確認で、必要な項目はそろっている)。消さずに残す
+      if (!atTarget.ok) {
+        result.errors.targetCalories = `目標カロリーの提案には、基礎代謝の計算に必要な項目（${atTarget.missing.join("・")}）の入力が必要です。`;
+      } else {
+        const tdeeAtTarget = dailyEnergy(atTarget.kcal, activityLevel);
+        const calories = suggestTargetCalories({ tdeeAtTargetKcal: tdeeAtTarget });
+        const basis = `目標体重 ${targetWeightKg}kg で釣り合うカロリー（基礎代謝 ${atTarget.kcal} × ${activityLevel} = ${tdeeAtTarget} kcal）`;
+        const reason = {
+          balance: basis,
+          "floor-min": `${basis}が下限を下回るため、${MIN_CALORIES} kcal に合わせています`,
+        }[calories.reason];
+        result.values.targetCalories = String(calories.kcal);
+        // 現在の体重での消費との差。予測(何 kg 減るか)は言わず、提案の根拠として差だけを示す
+        const tdeeNow = dailyEnergy(bmr.kcal, activityLevel);
+        const diff = tdeeNow - calories.kcal;
+        // 丸めの幅の半分以内の差は「ほぼ同じ」とする(目標体重が現在と同じでも、丸めで数 kcal ずれるため)
+        const nearlySame = Math.abs(diff) <= CALORIE_STEP / 2;
+        const comparison = nearlySame
+          ? `現在の体重での消費 ${tdeeNow} kcal とほぼ同じ量です`
+          : diff > 0
+            ? `現在の体重での消費 ${tdeeNow} kcal より、${diff} kcal 少ない量です`
+            : `現在の体重での消費 ${tdeeNow} kcal より、${-diff} kcal 多い量です`;
+        result.notes.targetCalories = `${reason}${assumption}。${comparison}`;
+      }
     }
   }
 

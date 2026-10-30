@@ -71,8 +71,8 @@ describe("bmi / standardWeightKg", () => {
 });
 
 describe("suggestTargetWeight", () => {
-  it("BMI 25 以上なら、現在の 5% 減(小数 1 桁)", () => {
-    expect(suggestTargetWeight(98.3, 176)).toEqual({ kg: 93.4, reason: "reduce" }); // 98.3 × 0.95 = 93.385
+  it("BMI 25 以上なら、現在の 5% 減(0.5kg 単位に丸める)", () => {
+    expect(suggestTargetWeight(98.3, 176)).toEqual({ kg: 93.5, reason: "reduce" }); // 98.3 × 0.95 = 93.385
     expect(suggestTargetWeight(100, 170)).toEqual({ kg: 95, reason: "reduce" });
   });
 
@@ -97,49 +97,22 @@ describe("suggestTargetWeight", () => {
 });
 
 describe("suggestTargetCalories", () => {
-  it("減らす目標なら、消費カロリーから 15% 減(10 kcal 単位)", () => {
-    // 2494 × 0.85 = 2119.9 → 2120。基礎代謝 1814 より上
-    expect(suggestTargetCalories({ bmrKcal: 1814, tdeeKcal: 2494, weightKg: 98.3, targetWeightKg: 93.4 })).toEqual({
-      kcal: 2120,
-      reason: "deficit",
-    });
+  it("目標体重で釣り合うカロリー(目標体重での消費)を、50 kcal 単位に丸める", () => {
+    expect(suggestTargetCalories({ tdeeAtTargetKcal: 2494 })).toEqual({ kcal: 2500, reason: "balance" }); // 49.88 → 50 単位
+    expect(suggestTargetCalories({ tdeeAtTargetKcal: 2374 })).toEqual({ kcal: 2350, reason: "balance" }); // 47.48 → 47 単位
+    expect(suggestTargetCalories({ tdeeAtTargetKcal: 2025 })).toEqual({ kcal: 2050, reason: "balance" }); // 丸めの境界(四捨五入)
+    expect(suggestTargetCalories({ tdeeAtTargetKcal: 2024 })).toEqual({ kcal: 2000, reason: "balance" });
   });
 
-  it("目標体重が現在以上なら、消費カロリーと同じ(維持)", () => {
-    expect(suggestTargetCalories({ bmrKcal: 1814, tdeeKcal: 2494, weightKg: 70, targetWeightKg: 70 })).toEqual({
-      kcal: 2490,
-      reason: "maintain",
-    });
-    expect(suggestTargetCalories({ bmrKcal: 1814, tdeeKcal: 2494, weightKg: 70, targetWeightKg: 75 }).reason).toBe("maintain");
-  });
-
-  it("基礎代謝を下回らない(下回る場合は基礎代謝まで引き上げる)", () => {
-    // 1800 × 0.85 = 1530 < 基礎代謝 1600
-    expect(suggestTargetCalories({ bmrKcal: 1600, tdeeKcal: 1800, weightKg: 80, targetWeightKg: 76 })).toEqual({
-      kcal: 1600,
-      reason: "floor-bmr",
-    });
-  });
-
-  it("下限に合わせるときは切り上げる(基礎代謝を下回らない)", () => {
-    // 基礎代謝 1604 → 四捨五入だと 1600 で下回る。切り上げて 1610
-    const result = suggestTargetCalories({ bmrKcal: 1604, tdeeKcal: 1800, weightKg: 80, targetWeightKg: 76 });
-    expect(result).toEqual({ kcal: 1610, reason: "floor-bmr" });
-    expect(result.kcal).toBeGreaterThanOrEqual(1604);
-  });
-
-  it("基礎代謝が低い人でも、絶対的な下限(1200 kcal)を下回らない", () => {
-    // 1300 × 0.85 = 1105 < 1200。基礎代謝 1000 も 1200 より低い
-    expect(suggestTargetCalories({ bmrKcal: 1000, tdeeKcal: 1300, weightKg: 55, targetWeightKg: 52 })).toEqual({
-      kcal: MIN_CALORIES,
-      reason: "floor-min",
-    });
+  it("絶対的な下限(1200 kcal)を下回らない", () => {
+    expect(suggestTargetCalories({ tdeeAtTargetKcal: 1105 })).toEqual({ kcal: MIN_CALORIES, reason: "floor-min" });
+    expect(suggestTargetCalories({ tdeeAtTargetKcal: 1200 })).toEqual({ kcal: 1200, reason: "balance" });
   });
 });
 
 describe("suggestTargetProtein", () => {
   it("目標体重 × 1.4 g/kg を整数に丸める", () => {
-    expect(suggestTargetProtein(93.4)).toBe(131); // 130.76
+    expect(suggestTargetProtein(93.5)).toBe(131); // 130.76
     expect(suggestTargetProtein(70)).toBe(98);
   });
 });

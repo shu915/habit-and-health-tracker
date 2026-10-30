@@ -156,7 +156,7 @@ describe("ProfileForm: 目標値の提案(各欄の「提案」ボタン)", () =
 
     await user.click(suggestButton("目標体重"));
 
-    expect(valueOf("目標体重")).toBe("93.4");
+    expect(valueOf("目標体重")).toBe("93.5");
     expect(screen.getByText(/現在の体重 98.3kg の 5% 減/)).toBeTruthy();
     expect(valueOf("目標カロリー")).toBe(""); // 押していない欄は空のまま
     expect(valueOf("目標タンパク質")).toBe("");
@@ -171,11 +171,11 @@ describe("ProfileForm: 目標値の提案(各欄の「提案」ボタン)", () =
     await user.click(suggestButton("目標カロリー"));
     await user.click(suggestButton("目標タンパク質"));
 
-    expect(valueOf("目標体重")).toBe("93.4");
-    expect(valueOf("目標カロリー")).toBe("2120");
+    expect(valueOf("目標体重")).toBe("93.5");
+    expect(valueOf("目標カロリー")).toBe("2400");
     expect(valueOf("目標タンパク質")).toBe("131");
     expect(screen.getAllByText(/提案の根拠:/)).toHaveLength(3); // 先に押した欄の根拠も残る
-    expect(screen.getByText(/基礎代謝 1814 × 1.375/)).toBeTruthy();
+    expect(screen.getByText(/基礎代謝 1743 × 1.375/)).toBeTruthy();
   });
 
   it("目標体重が空のまま目標カロリーを押すと、5% 減の目標体重を仮定して、そう表示する(目標体重の欄は埋めない)", async () => {
@@ -184,8 +184,8 @@ describe("ProfileForm: 目標値の提案(各欄の「提案」ボタン)", () =
 
     await user.click(suggestButton("目標カロリー"));
 
-    expect(valueOf("目標カロリー")).toBe("2120");
-    expect(screen.getByText(/目標体重が空なので、93.4kg を仮定/)).toBeTruthy();
+    expect(valueOf("目標カロリー")).toBe("2400");
+    expect(screen.getByText(/目標体重が空なので、93.5kg を仮定/)).toBeTruthy();
     expect(valueOf("目標体重")).toBe("");
   });
 
@@ -233,7 +233,7 @@ describe("ProfileForm: 目標値の提案(各欄の「提案」ボタン)", () =
 
     await user.click(screen.getByLabelText(/×1.375\s*軽い/));
     await user.click(suggestButton("目標カロリー"));
-    expect(valueOf("目標カロリー")).toBe("2120");
+    expect(valueOf("目標カロリー")).toBe("2400");
     expect(screen.queryByText(/活動係数を選ぶ必要があります/)).toBeNull();
   });
 
@@ -259,11 +259,11 @@ describe("ProfileForm: 目標値の提案(各欄の「提案」ボタン)", () =
     render(<ProfileForm initial={initial} />);
 
     await user.click(suggestButton("目標カロリー"));
-    expect(valueOf("目標カロリー")).toBe("2120");
+    expect(valueOf("目標カロリー")).toBe("2400");
 
     await user.click(screen.getByLabelText(/×1.2\s*座りがち/));
     await user.click(suggestButton("目標カロリー"));
-    expect(valueOf("目標カロリー")).toBe("1850"); // 1814 × 1.2 = 2177 → 15% 減で 1850
+    expect(valueOf("目標カロリー")).toBe("2100"); // 目標体重 93.5kg の基礎代謝 1743 × 1.2 = 2092 → 2100
   });
 
   it("提案した値を自分で直すと、その欄の「提案の根拠」の表示は消える(ほかの欄の根拠は残る)", async () => {
