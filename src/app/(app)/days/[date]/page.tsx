@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
+import { buttonClass } from "@/components/button";
 import { isRecordableDate } from "@/lib/date";
 import { getDay } from "@/lib/days";
 import { formatDuration, formatTimeOfDay } from "@/lib/duration";
@@ -35,10 +36,7 @@ async function DayContent({ params }: Pick<PageProps<"/days/[date]">, "params">)
           </Link>
           <h1 className="text-2xl font-semibold">{date}</h1>
         </div>
-        <Link
-          href={`/days/${date}/edit`}
-          className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-700"
-        >
+        <Link href={`/days/${date}/edit`} className={buttonClass()}>
           {day ? "編集" : "記録する"}
         </Link>
       </div>

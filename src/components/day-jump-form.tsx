@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useSyncExternalStore } from "react";
+import { buttonClass } from "@/components/button";
 import { isValidDateString, todayString } from "@/lib/date";
 
 // ダッシュボードの「日付を選んで編集」: 日を選んで、その日の編集ページへ移動する(初期値は今日)。
@@ -49,10 +50,7 @@ export function DayJumpForm() {
           aria-describedby={error ? "day-jump-date-error" : undefined}
           className="rounded-md border border-zinc-300 bg-transparent px-3 py-1.5 text-sm dark:border-zinc-700"
         />
-        <button
-          type="submit"
-          className="rounded-md bg-zinc-900 px-4 py-2 text-sm text-white dark:bg-zinc-100 dark:text-zinc-900"
-        >
+        <button type="submit" className={buttonClass()}>
           編集
         </button>
       </div>

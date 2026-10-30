@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useActionState, useRef, useState } from "react";
+import { buttonClass } from "@/components/button";
 import { saveProfileAction, type ProfileFormState } from "@/app/(app)/profile/actions";
 import { PairInput, durationParts, timeParts } from "@/components/pair-input";
 import { joinMinutes, joinTimeOfDay } from "@/lib/duration";
@@ -38,19 +39,23 @@ const BODY_FIELDS: FieldDef[] = [
   { name: "currentWeightKg", label: "現在の体重", kind: "text", unit: "kg", inputMode: "decimal", range: formatRange("currentWeightKg"), description: "今の目安の体重です。" },
   { name: "currentBodyFatPercent", label: "体脂肪率", kind: "text", unit: "%", inputMode: "decimal", range: formatRange("currentBodyFatPercent"), description: "体重計の値。毎朝同じ条件で測ります(任意)。" },
   { name: "currentWaistCm", label: "ウエスト", kind: "text", unit: "cm", inputMode: "decimal", range: formatRange("currentWaistCm"), description: "おへその高さで測ります(任意)。" },
+  // 活動係数は目標ではなく本人の状態(基礎代謝に掛けて消費カロリーを出す)
+  { name: "activityLevel", label: "活動係数", kind: "activity", description: "迷ったら「軽い」。1日の消費カロリーは、基礎代謝にこの数字を掛けて見積もります。" },
 ];
 
 const GOAL_FIELDS: FieldDef[] = [
-  { name: "activityLevel", label: "活動係数", kind: "activity", description: "迷ったら「軽い」。1日の消費カロリーは、基礎代謝にこの数字を掛けて見積もります。" },
   { name: "targetWeightKg", label: "目標体重", kind: "text", unit: "kg", inputMode: "decimal", range: formatRange("targetWeightKg"), description: "達成したい体重です。" },
   { name: "targetCalories", label: "目標カロリー", kind: "text", unit: "kcal", inputMode: "numeric", range: formatRange("targetCalories"), description: "1日に食べる量の目標です。" },
   { name: "targetProteinG", label: "目標タンパク質", kind: "text", unit: "g", inputMode: "decimal", range: formatRange("targetProteinG"), description: "1日に摂る量。目安は体重1kgあたり1〜1.6g。" },
+];
+
+const SLEEP_FIELDS: FieldDef[] = [
   { name: "targetSleepMinutes", label: "睡眠時間の目標", kind: "duration", range: "2〜18時間", description: "1晩に寝たい長さ。空にすると、睡眠の機能を使いません。" },
   { name: "targetSleepMidpoint", label: "睡眠の中間時刻", kind: "time", description: "寝た時刻と起きた時刻の真ん中。23時30分に寝て 7時に起きるなら 3時15分。" },
 ];
 
 // フォームの全項目の名前(zod を読み込まないよう、項目の定義から作る)
-const ALL_FIELDS: ProfileField[] = [...BODY_FIELDS, ...GOAL_FIELDS].map((field) => field.name);
+const ALL_FIELDS: ProfileField[] = [...BODY_FIELDS, ...GOAL_FIELDS, ...SLEEP_FIELDS].map((field) => field.name);
 
 // フォームに今入力されている値を、項目名 → 文字列で読む
 function readValues(data: FormData): FormValues {
@@ -130,7 +135,8 @@ export function ProfileForm({ initial }: { initial: ProfileFormInitial }) {
       <Group title="ボディデータ" fields={BODY_FIELDS} valueOf={valueOf} errors={state?.errors} live={live} />
       <Group
         title="目標値"
-        fields={GOAL_FIELDS}
+        fields={[...GOAL_FIELDS, ...SLEEP_FIELDS]}
+        gapBefore="targetSleepMinutes"
         valueOf={valueOf}
         errors={state?.errors}
         live={live}
@@ -149,11 +155,11 @@ export function ProfileForm({ initial }: { initial: ProfileFormInitial }) {
         <button
           type="submit"
           disabled={isPending}
-          className="rounded-md bg-zinc-900 px-4 py-2 text-sm text-white disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
+          className={buttonClass()}
         >
           {isPending ? "保存中..." : "保存"}
         </button>
-        <Link href="/profile" className="rounded-md border border-zinc-300 px-4 py-2 text-sm dark:border-zinc-700">
+        <Link href="/" className={buttonClass({ variant: "secondary" })}>
           キャンセル
         </Link>
       </div>
@@ -164,6 +170,7 @@ export function ProfileForm({ initial }: { initial: ProfileFormInitial }) {
 function Group({
   title,
   fields,
+  gapBefore,
   valueOf,
   errors,
   live,
@@ -173,6 +180,7 @@ function Group({
 }: {
   title: string;
   fields: FieldDef[];
+  gapBefore?: ProfileField; // この項目の前に、少し間を空ける
   valueOf: (name: ProfileField) => string;
   errors: Partial<Record<ProfileField, string>> | undefined;
   live: FormValues;
@@ -182,26 +190,27 @@ function Group({
 }) {
   return (
     <fieldset className="flex flex-col gap-3 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
-      <legend className="px-1 text-sm font-medium text-zinc-500">{title}</legend>
+      <legend className="px-1 text-sm font-bold text-zinc-500">{title}</legend>
       {fields.map((field) => {
         const suggestable = SUGGESTABLE_FIELDS.find((name) => name === field.name);
         return (
-          <Field
-            key={field.name}
-            field={field}
-            value={valueOf(field.name)}
-            error={errors?.[field.name]}
-            live={live}
-            suggestion={
-              suggestable && onSuggest
-                ? {
-                    note: draft?.notes[suggestable],
-                    error: draft?.errors[suggestable],
-                    onSuggest: () => onSuggest(suggestable),
-                  }
-                : undefined
-            }
-          />
+          <div key={field.name} className={field.name === gapBefore ? "mt-6" : undefined}>
+            <Field
+              field={field}
+              value={valueOf(field.name)}
+              error={errors?.[field.name]}
+              live={live}
+              suggestion={
+                suggestable && onSuggest
+                  ? {
+                      note: draft?.notes[suggestable],
+                      error: draft?.errors[suggestable],
+                      onSuggest: () => onSuggest(suggestable),
+                    }
+                  : undefined
+              }
+            />
+          </div>
         );
       })}
       {footer}
@@ -257,7 +266,7 @@ function Field({
                   type="button"
                   onClick={suggestion.onSuggest}
                   aria-label={`${field.label}を提案`}
-                  className="ml-2 rounded-md border border-zinc-300 px-2.5 py-1 text-xs dark:border-zinc-700"
+                  className={`ml-2 ${buttonClass({ variant: "secondary", size: "sm" })}`}
                 >
                   提案
                 </button>
