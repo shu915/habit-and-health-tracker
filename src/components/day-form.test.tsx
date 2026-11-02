@@ -119,7 +119,8 @@ describe("DayForm", () => {
 
     await user.click(screen.getByRole("button", { name: "保存" }));
 
-    expect(screen.getByText(/朝の体重\(kg\)は 20 以上 300 以下/)).toBeTruthy();
+    // Server Action の結果は非同期で反映される(押した直後は、まだ出ていないことがある)ので、出るまで待つ
+    expect(await screen.findByText(/朝の体重\(kg\)は 20 以上 300 以下/)).toBeTruthy();
     expect(screen.getByRole("alert").textContent).toContain("入力内容を確認してください");
     expect(input("朝の体重").value).toBe("abc"); // 送った値が残る
     expect(input("夜の振り返り").value).toBe("残す文章");
