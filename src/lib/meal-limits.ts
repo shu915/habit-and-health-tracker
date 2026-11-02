@@ -23,3 +23,17 @@ export const MEAL_TIME_MAX_HOUR = 26;
 // 料理名(dish_name)と別名(alias)の文字数の上限(列の長さと同じ)
 export const DISH_NAME_MAX_LENGTH = 100;
 export const ALIAS_MAX_LENGTH = 100;
+
+// 食事の推定に送る入力の上限(サーバーの検証と、ブラウザ側の写真の縮小で共有する)
+export const TEXT_MAX_LENGTH = 2000; // 食べたものの文章の文字数
+// 写真は、最大 4 枚(同じ食事の別の角度や、別の皿)。ブラウザ側で縮小して送る。
+// 1 枚あたりの data URL の文字数の上限。縮小した写真(数百 KB)が通る大きさ。
+// 4 枚 × 1 枚の上限(3.6MB 相当)が、Server Action の本文の上限(4MB。next.config.ts)に収まる。この関係を変えるときは、両方を直す
+export const MAX_PHOTOS = 4;
+export const IMAGE_MAX_LENGTH = 900_000;
+
+// 食事の id(PostgreSQL の serial = int4)として、ありうる値か。範囲外の数を DB に渡すとエラー(500)になるので、手前で弾いて 404 にする
+export const MAX_ID = 2_147_483_647;
+export function isMealId(id: number): boolean {
+  return Number.isInteger(id) && id > 0 && id <= MAX_ID;
+}

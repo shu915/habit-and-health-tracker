@@ -35,6 +35,18 @@ export const mealEstimateSchema = z.object({
   items: z.array(estimatedItemSchema).min(1).max(30).describe("品目ごとの内訳"),
 });
 
+// AI の返事の形。mealEstimateSchema に、「食事として扱えるか」の判定を足したもの。
+// 食べ物でないもの(靴、薬、体の一部、人や動物の写真など)には、栄養素を作らせない: isMeal を false にして、品目は空にできる。
+// isMeal を先頭に置く(品目より先に、食べ物かどうかを決めさせる)。料理名・説明も、食べ物でないときは空でよい
+export const mealEstimateAnswerSchema = z.object({
+  isMeal: z.boolean().describe("人が食べる食べ物・飲み物の記録として扱えるときだけ true。食べ物でないもの、人や動物が写っているだけの写真などは false"),
+  notMealReason: z.string().trim().max(200).describe("isMeal が false のとき、扱えない理由を短く（例: 食べ物ではないため）。true のときは空文字"),
+  dishName: z.string().trim().max(DISH_NAME_MAX_LENGTH).refine(oneLine, ONE_LINE_MESSAGE).describe(mealEstimateSchema.shape.dishName.description ?? ""),
+  description: mealEstimateSchema.shape.description,
+  items: z.array(estimatedItemSchema).max(30).describe("品目ごとの内訳。isMeal が false のときは空の配列"),
+});
+
+export type MealEstimateAnswer = z.output<typeof mealEstimateAnswerSchema>;
 export type EstimatedItem = z.output<typeof estimatedItemSchema>;
 export type MealEstimateResponse = z.output<typeof mealEstimateSchema>;
 
@@ -66,6 +78,6 @@ function withoutUnsupportedKeywords(node: unknown): unknown {
 // OpenRouter の response_format に渡す JSON スキーマ（zod から作り、提供元が受け付けないキーワードを外す）。
 // 形（項目名・型・必須・説明）だけを AI に伝える。範囲などの検証は、返事を受け取ったあとに zod で行う
 export function mealEstimateJsonSchema(): Record<string, unknown> {
-  const cleaned = withoutUnsupportedKeywords(z.toJSONSchema(mealEstimateSchema));
+  const cleaned = withoutUnsupportedKeywords(z.toJSONSchema(mealEstimateAnswerSchema));
   return cleaned as Record<string, unknown>;
 }
