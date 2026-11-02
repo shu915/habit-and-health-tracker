@@ -29,6 +29,28 @@ button:disabled {
   cursor: not-allowed;
 }
 
+/* 処理中の「動いている」印: 長さの分からない待ちのための、左右に流れる帯。動きを減らす設定のときは、止めて薄い帯にする */
+@keyframes indeterminate-slide {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(300%);
+  }
+}
+
+.indeterminate-bar {
+  animation: indeterminate-slide 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .indeterminate-bar {
+    animation: none;
+    width: 100%;
+    opacity: 0.4;
+  }
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
