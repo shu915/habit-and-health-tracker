@@ -195,7 +195,41 @@ export const meals = pgTable(
 );
 
 // ==========================================
-// 4. AI Requests (AI の呼び出しの記録。回数の制限に使う)
+// 4. Exercises (運動ログ)
+// ==========================================
+// 1 回の運動 = 1 行。1 日の数は決めない(可変長)。meals と同じく days の行に紐づけ、複合外部キーで持ち主を揃える。
+// 「ふだんの運動」はプロフィールの活動係数に含まれているので、ここには「いつもより多く動いた分」だけを記録する(消費に足す)。
+// 消費カロリーは列に保存せず、種類・強さ・時間と、その日の体重から計算する(lib/exercise.ts)。AI は使わない
+export const exercises = pgTable(
+  "exercises",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    dayId: integer("day_id").notNull(),
+    // 種類のキー(lib/exercise.ts の EXERCISE_TYPES)。種類を足してもマイグレーションが要らないよう、CHECK には名前を書かない
+    type: varchar("type", { length: 20 }).notNull(),
+    // 強さ: light / normal / hard
+    intensity: varchar("intensity", { length: 10 }).notNull(),
+    minutes: integer("minutes").notNull(),
+    // 自分用のメモ(任意)。AI には送らない
+    memo: varchar("memo", { length: 200 }),
+
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
+  },
+  (table) => [
+    // 運動の持ち主(user_id)と、その日(days)の持ち主が同じであることを、DB が保証する(日が消えたら運動も消える)
+    foreignKey({ name: "exercises_user_day_fk", columns: [table.userId, table.dayId], foreignColumns: [days.userId, days.id] }).onDelete("cascade"),
+    index("exercises_user_day_idx").on(table.userId, table.dayId),
+    check("exercises_intensity_values", sql`${table.intensity} IN ('light', 'normal', 'hard')`),
+    check("exercises_minutes_range", sql`${table.minutes} >= 1 AND ${table.minutes} <= 1440`),
+  ],
+);
+
+// ==========================================
+// 5. AI Requests (AI の呼び出しの記録。回数の制限に使う)
 // ==========================================
 // AI を呼ぶたびに 1 行を足し、直近の件数を数えて、課金が膨らむのを防ぐ(lib/ai-limit.ts)。
 // サーバーが複数に分かれても効くよう、メモリではなく DB で数える。古い行は、足すときに消す
