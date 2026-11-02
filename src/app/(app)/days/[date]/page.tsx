@@ -2,7 +2,9 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
+import { BackLink } from "@/components/back-link";
 import { buttonClass } from "@/components/button";
+import { MealList } from "@/components/meal-list";
 import { isRecordableDate } from "@/lib/date";
 import { getDay } from "@/lib/days";
 import { formatDuration, formatTimeOfDay } from "@/lib/duration";
@@ -31,9 +33,7 @@ async function DayContent({ params }: Pick<PageProps<"/days/[date]">, "params">)
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
-          <Link href="/" className="text-sm text-zinc-500 hover:underline">
-            ← ダッシュボード
-          </Link>
+          <BackLink href="/">ダッシュボードに戻る</BackLink>
           <h1 className="text-2xl font-semibold">{date}</h1>
         </div>
         <Link href={`/days/${date}/edit`} className={buttonClass()}>
@@ -60,6 +60,11 @@ async function DayContent({ params }: Pick<PageProps<"/days/[date]">, "params">)
           <dd className="max-w-xl whitespace-pre-wrap">{day.reflection === null ? unset : day.reflection}</dd>
         </dl>
       )}
+
+      {/* その日の食事(日の記録が無い日でも、「食事を追加」から追加できる)。一覧の読み込みは別に待つ */}
+      <Suspense fallback={<p className="text-zinc-500">食事を読み込み中...</p>}>
+        <MealList date={date} />
+      </Suspense>
     </div>
   );
 }

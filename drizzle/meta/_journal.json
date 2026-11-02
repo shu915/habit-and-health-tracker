@@ -50,6 +50,13 @@
       "when": 1793585101081,
       "tag": "0006_meals_same_owner",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793586292014,
+      "tag": "0007_ai_requests",
+      "breakpoints": true
     }
   ]
 }

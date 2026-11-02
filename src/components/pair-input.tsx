@@ -36,6 +36,8 @@ export function PairInput({
   units,
   initial,
   join,
+  onValue,
+  placeholders,
   error,
   errorId,
 }: {
@@ -45,6 +47,8 @@ export function PairInput({
   units: readonly [string, string];
   initial: Pair;
   join: (first: string, second: string) => string;
+  placeholders?: readonly [string, string]; // 空のときに薄く出す例(例: 12 と 30)
+  onValue?: (value: string) => void; // 入力のたびに、送る形に変換した値を知らせる(画面の状態で使いたいとき)
   error: string | undefined;
   errorId: string;
 }) {
@@ -62,7 +66,11 @@ export function PairInput({
         inputMode="numeric"
         autoComplete="off"
         value={first}
-        onChange={(event) => setFirst(event.target.value)}
+        placeholder={placeholders?.[0]}
+        onChange={(event) => {
+          setFirst(event.target.value);
+          onValue?.(join(event.target.value, second));
+        }}
         aria-label={`${label}（${units[0]}）`}
         aria-invalid={invalid}
         aria-describedby={describedBy}
@@ -74,7 +82,11 @@ export function PairInput({
         inputMode="numeric"
         autoComplete="off"
         value={second}
-        onChange={(event) => setSecond(event.target.value)}
+        placeholder={placeholders?.[1]}
+        onChange={(event) => {
+          setSecond(event.target.value);
+          onValue?.(join(first, event.target.value));
+        }}
         aria-label={`${label}（${units[1]}）`}
         aria-invalid={invalid}
         aria-describedby={describedBy}
