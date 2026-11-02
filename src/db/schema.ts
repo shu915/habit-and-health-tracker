@@ -193,3 +193,20 @@ export const meals = pgTable(
     check("meals_salt_g_range", sql`${table.saltG} IS NULL OR (${table.saltG} >= 0 AND ${table.saltG} <= 100)`),
   ],
 );
+
+// ==========================================
+// 4. AI Requests (AI の呼び出しの記録。回数の制限に使う)
+// ==========================================
+// AI を呼ぶたびに 1 行を足し、直近の件数を数えて、課金が膨らむのを防ぐ(lib/ai-limit.ts)。
+// サーバーが複数に分かれても効くよう、メモリではなく DB で数える。古い行は、足すときに消す
+export const aiRequests = pgTable(
+  "ai_requests",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [index("ai_requests_user_created_idx").on(table.userId, table.createdAt)],
+);
