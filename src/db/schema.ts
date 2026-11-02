@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   check,
   date,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -10,6 +11,7 @@ import {
   serial,
   text,
   timestamp,
+  unique,
   uniqueIndex,
   varchar,
 } from "drizzle-orm/pg-core";
@@ -119,6 +121,8 @@ export const days = pgTable(
   (table) => [
     // 1 ユーザーにつき 1 日 1 レコードに限定
     uniqueIndex("days_user_date_unique_idx").on(table.userId, table.date),
+    // meals の複合外部キー(user_id, day_id)の参照先。食事の持ち主と、その日の持ち主が一致することを DB で保証する
+    unique("days_user_id_id_unique").on(table.userId, table.id),
     check(
       "days_morning_weight_kg_range",
       sql`${table.morningWeightKg} IS NULL OR (${table.morningWeightKg} > 0 AND ${table.morningWeightKg} < 500)`,
@@ -144,10 +148,9 @@ export const meals = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
-    // 「その日」の days の行。深夜 3 時までの食事は前の日に入れる(だから時刻は 26:59 まで書ける)。日が消えたら食事も消える
-    dayId: integer("day_id")
-      .notNull()
-      .references(() => days.id, { onDelete: "cascade" }),
+    // 「その日」の days の行。深夜 3 時までの食事は前の日に入れる(だから時刻は 26:59 まで書ける)。日が消えたら食事も消える。
+    // 外部キーは下の複合キー(user_id, day_id)。他のユーザーの日には紐づけられない
+    dayId: integer("day_id").notNull(),
     // 食べた時刻 "HH:MM"(00:00〜26:59。24:00 以降は、翌日の 0:00 以降の深夜)。朝・昼・晩のラベルは保存せず、時刻から計算する
     eatenTime: varchar("eaten_time", { length: 5 }).notNull(),
 
@@ -155,7 +158,7 @@ export const meals = pgTable(
     dishName: varchar("dish_name", { length: 100 }).notNull(),
     // 人が付ける別名(表示用。あれば dish_name より優先して出す)。AI に渡す名前の一覧には入れない
     alias: varchar("alias", { length: 100 }),
-    // 入力した説明文、または写真から AI が書いた説明文(写真そのものは保存しない)。再推定の入力にもなる
+    // 入力した内容(写真から読み取った内容を含む)を、AI が意味を変えずに読みやすく整えた説明文(写真そのものは保存しない)。再推定の入力にもなる
     description: text("description"),
 
     // 1 食の合計。すべての食事は AI の推定で、数字は直接直せない(直すときは説明を直して再推定する)。
@@ -176,6 +179,8 @@ export const meals = pgTable(
     updatedAt: timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
   },
   (table) => [
+    // 食事の持ち主(user_id)と、その日(days)の持ち主が同じであることを、DB が保証する(日が消えたら食事も消える)
+    foreignKey({ name: "meals_user_day_fk", columns: [table.userId, table.dayId], foreignColumns: [days.userId, days.id] }).onDelete("cascade"),
     // その日の食事の一覧を引く
     index("meals_user_day_idx").on(table.userId, table.dayId),
     // 値の範囲。「絶対にあり得ない値」だけを止める広い範囲(現実的な範囲は meal-limits.ts の app で検証する)
