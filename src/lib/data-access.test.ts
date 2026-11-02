@@ -35,6 +35,12 @@ vi.mock("next/navigation", () => ({
   }),
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+// AI の呼び出しは、返事を模した固定の JSON に差し替える(実際の API は呼ばない)
+const ai = vi.hoisted(() => ({ complete: vi.fn() }));
+vi.mock("@/lib/openrouter", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/openrouter")>()),
+  completeJson: ai.complete,
+}));
 
 // DB が返したエラーが、指定した制約の違反であることを確かめる(drizzle はエラーを cause に入れる)
 async function expectViolation(attempt: Promise<unknown>, constraint: string, label: string) {
@@ -54,6 +60,9 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
   let dbModule: typeof import("@/db");
   let schema: typeof import("@/db/schema");
   let daysModule: typeof import("@/lib/days");
+  let mealsModule: typeof import("@/lib/meals");
+  let aiLimitModule: typeof import("@/lib/ai-limit");
+  let mealActionsModule: typeof import("@/app/(app)/days/[date]/meals/actions");
   let profilesModule: typeof import("@/lib/profiles");
   let actionsModule: typeof import("@/app/(app)/profile/actions");
   let dayActionsModule: typeof import("@/app/(app)/days/[date]/edit/actions");
@@ -73,6 +82,9 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
     const { migrate } = await import("drizzle-orm/node-postgres/migrator");
     await migrate(dbModule.db, { migrationsFolder: "./drizzle" });
     daysModule = await import("@/lib/days");
+    mealsModule = await import("@/lib/meals");
+    aiLimitModule = await import("@/lib/ai-limit");
+    mealActionsModule = await import("@/app/(app)/days/[date]/meals/actions");
     profilesModule = await import("@/lib/profiles");
     actionsModule = await import("@/app/(app)/profile/actions");
     dayActionsModule = await import("@/app/(app)/days/[date]/edit/actions");
@@ -646,6 +658,501 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
 
       const [row] = await dbModule.db.select().from(schema.meals).where(eq(schema.meals.dayId, day.id));
       expect(row.items).toEqual(items);
+    });
+  });
+
+  describe("meals の保存処理(lib/meals.ts)", () => {
+    const item = { name: "焼鮭", amount: "1切れ 約80g", kcal: 150, proteinG: 18, fatG: 8, carbohydrateG: 0, fiberG: 0, saltG: 1.4 };
+    const input = (overrides: Partial<import("@/lib/meals").MealInput> = {}): import("@/lib/meals").MealInput => ({
+      eatenTime: "12:30",
+      dishName: "焼鮭定食",
+      alias: null,
+      description: "焼鮭と白ご飯",
+      items: [item],
+      totals: { kcal: 432, proteinG: 24.3, fatG: 9.5, netCarbG: 57.7, fiberG: 1.2, saltG: 2.6 },
+      ...overrides,
+    });
+    const DATE = "2026-04-10";
+
+    it("保存すると、その日の days の行が無ければ空で作られ、合計が列の形で入る", async () => {
+      currentUser.id = USER_A;
+      const meal = await mealsModule.saveMeal(DATE, input());
+
+      expect(meal).toMatchObject({
+        userId: USER_A,
+        eatenTime: "12:30",
+        dishName: "焼鮭定食",
+        alias: null,
+        kcal: 432,
+        proteinG: "24.3",
+        fatG: "9.5",
+        netCarbG: "57.7",
+        fiberG: "1.2",
+        saltG: "2.6",
+        itemsValid: true,
+      });
+      const day = await daysModule.getDay(DATE);
+      expect(day).not.toBeNull();
+      expect(day?.id).toBe(meal.dayId);
+      expect(day?.morningWeightKg).toBeNull(); // 空の日の行(体重などは未入力のまま)
+    });
+
+    it("同じ日に 2 食保存しても、days の行は 1 つのまま(同じ日に紐づく)。すでにある日の記録は変わらない", async () => {
+      currentUser.id = USER_A;
+      await daysModule.saveDay(DATE, { morningWeightKg: "70.00", reflection: "良い日" });
+      const first = await mealsModule.saveMeal(DATE, input());
+      const second = await mealsModule.saveMeal(DATE, input({ eatenTime: "19:00" }));
+
+      expect(second.dayId).toBe(first.dayId);
+      expect(await daysModule.listDays()).toHaveLength(1);
+      expect(await daysModule.getDay(DATE)).toMatchObject({ morningWeightKg: "70.00", reflection: "良い日" });
+    });
+
+    it("食物繊維・食塩相当量が null のまま保存でき、一覧は食べた時刻の順(24 時以降は最後)", async () => {
+      currentUser.id = USER_A;
+      await mealsModule.saveMeal(DATE, input({ eatenTime: "25:30", dishName: "夜食のラーメン" }));
+      await mealsModule.saveMeal(DATE, input({ eatenTime: "19:00", dishName: "夕食" }));
+      await mealsModule.saveMeal(DATE, input({ eatenTime: "07:30", dishName: "朝食", totals: { ...input().totals, fiberG: null, saltG: null } }));
+
+      const list = await mealsModule.listMealsOfDay(DATE);
+      expect(list.map((meal) => meal.dishName)).toEqual(["朝食", "夕食", "夜食のラーメン"]);
+      expect(list[0]).toMatchObject({ fiberG: null, saltG: null });
+    });
+
+    it("内訳(items)は、読むときも検証される。形が壊れた jsonb は、空にして itemsValid が false", async () => {
+      currentUser.id = USER_A;
+      const meal = await mealsModule.saveMeal(DATE, input());
+      expect(meal.items).toEqual([item]);
+
+      const { eq } = await import("drizzle-orm");
+      await dbModule.db.update(schema.meals).set({ items: [{ name: "壊れた", kcal: "文字列" }] }).where(eq(schema.meals.id, meal.id));
+      const [broken] = await mealsModule.listMealsOfDay(DATE);
+      expect(broken).toMatchObject({ items: [], itemsValid: false });
+    });
+
+    it("1 件取得・更新・削除ができる(更新しても、日と作成日時は変わらない)", async () => {
+      currentUser.id = USER_A;
+      const meal = await mealsModule.saveMeal(DATE, input());
+
+      const found = await mealsModule.getMeal(meal.id);
+      expect(found?.date).toBe(DATE);
+      expect(found?.meal.dishName).toBe("焼鮭定食");
+
+      const updated = await mealsModule.updateMeal(meal.id, input({ eatenTime: "13:00", alias: "ホテルの鮭定食", totals: { ...input().totals, kcal: 900 } }));
+      expect(updated).toMatchObject({ id: meal.id, dayId: meal.dayId, eatenTime: "13:00", alias: "ホテルの鮭定食", kcal: 900 });
+      expect(updated?.createdAt).toEqual(meal.createdAt);
+
+      expect(await mealsModule.deleteMeal(meal.id)).toBe(true);
+      expect(await mealsModule.getMeal(meal.id)).toBeNull();
+      expect(await mealsModule.deleteMeal(meal.id)).toBe(false); // もう無い
+    });
+
+    it("他のユーザーの食事は、一覧にも取得にも出ず、更新も削除もできない", async () => {
+      currentUser.id = USER_A;
+      const meal = await mealsModule.saveMeal(DATE, input());
+
+      currentUser.id = USER_B;
+      expect(await mealsModule.listMealsOfDay(DATE)).toEqual([]);
+      expect(await mealsModule.getMeal(meal.id)).toBeNull();
+      expect(await mealsModule.updateMeal(meal.id, input({ dishName: "乗っ取り" }))).toBeNull();
+      expect(await mealsModule.deleteMeal(meal.id)).toBe(false);
+
+      currentUser.id = USER_A;
+      expect((await mealsModule.getMeal(meal.id))?.meal.dishName).toBe("焼鮭定食"); // 変わっていない
+    });
+
+    it("同じ日付でも、ユーザーごとに別の日に紐づく(他のユーザーの days を使わない)", async () => {
+      currentUser.id = USER_A;
+      const mealA = await mealsModule.saveMeal(DATE, input());
+      currentUser.id = USER_B;
+      const mealB = await mealsModule.saveMeal(DATE, input());
+
+      expect(mealB.dayId).not.toBe(mealA.dayId);
+      expect(mealB.userId).toBe(USER_B);
+      expect(await mealsModule.listMealsOfDay(DATE)).toHaveLength(1);
+    });
+
+    it("int4 の範囲外の id は、DB に渡さず、「無い」として返す(DB のエラーにならない)", async () => {
+      currentUser.id = USER_A;
+      for (const id of [2_147_483_648, 9_999_999_999, 0, -1, 1.5, Number.NaN]) {
+        expect(await mealsModule.getMeal(id)).toBeNull();
+        expect(await mealsModule.updateMeal(id, input())).toBeNull();
+        expect(await mealsModule.deleteMeal(id)).toBe(false);
+      }
+      // 範囲の端(2147483647)は、DB に渡して「無い」と返る(存在しない id)
+      expect(await mealsModule.getMeal(2_147_483_647)).toBeNull();
+    });
+
+    it("未ログインなら、どの関数も /login へ送られ、DB には何も書かれない", async () => {
+      currentUser.id = "";
+      const nothingWritten = async () => {
+        currentUser.id = USER_A;
+        expect(await mealsModule.listMealsOfDay(DATE)).toEqual([]);
+        expect(await daysModule.listDays()).toEqual([]);
+        currentUser.id = "";
+      };
+
+      await expect(mealsModule.saveMeal(DATE, input())).rejects.toThrow("NEXT_REDIRECT:/login");
+      await expect(mealsModule.listMealsOfDay(DATE)).rejects.toThrow("NEXT_REDIRECT:/login");
+      await expect(mealsModule.getMeal(1)).rejects.toThrow("NEXT_REDIRECT:/login");
+      await expect(mealsModule.updateMeal(1, input())).rejects.toThrow("NEXT_REDIRECT:/login");
+      await expect(mealsModule.deleteMeal(1)).rejects.toThrow("NEXT_REDIRECT:/login");
+      await expect(mealsModule.listRecentDishNames()).rejects.toThrow("NEXT_REDIRECT:/login");
+      await nothingWritten();
+    });
+
+    it("日付が不正なら、保存も一覧もエラーになる(認証のあとで検証する)", async () => {
+      currentUser.id = USER_A;
+      await expect(mealsModule.saveMeal("2026-02-30", input())).rejects.toThrow("invalid date");
+      await expect(mealsModule.listMealsOfDay("abc")).rejects.toThrow("invalid date");
+      expect(await daysModule.listDays()).toEqual([]);
+    });
+
+    it("範囲外の値は、DB の CHECK 制約が最後に止める(保存は失敗し、食事は残らない)", async () => {
+      currentUser.id = USER_A;
+      await expectViolation(mealsModule.saveMeal(DATE, input({ eatenTime: "27:00" })), "meals_eaten_time_format", "27:00");
+      await expectViolation(
+        mealsModule.saveMeal(DATE, input({ totals: { ...input().totals, kcal: 20001 } })),
+        "meals_kcal_range",
+        "kcal 20001",
+      );
+      expect(await mealsModule.listMealsOfDay(DATE)).toEqual([]);
+    });
+
+    it("過去の料理名の一覧: 最近使った順で、重複なし、別名(alias)は入れず、自分の分だけ、件数の上限がある", async () => {
+      currentUser.id = USER_A;
+      await mealsModule.saveMeal("2026-04-01", input({ dishName: "カレー" }));
+      await mealsModule.saveMeal("2026-04-02", input({ dishName: "焼鮭定食", alias: "ホテルの鮭" }));
+      await mealsModule.saveMeal("2026-04-03", input({ dishName: "カレー" })); // 最後に使った
+      currentUser.id = USER_B;
+      await mealsModule.saveMeal("2026-04-04", input({ dishName: "他人の料理" }));
+
+      currentUser.id = USER_A;
+      expect(await mealsModule.listRecentDishNames()).toEqual(["カレー", "焼鮭定食"]);
+      expect(await mealsModule.listRecentDishNames(1)).toEqual(["カレー"]);
+    });
+  });
+
+  describe("AI の呼び出しの回数制限(lib/ai-limit.ts)", () => {
+    // n 件の記録を、ago 前に作る(DB の now() 基準。アプリと DB のタイムゾーンの違いに左右されない)
+    const seed = async (userId: string, n: number, ago: string) => {
+      const { sql } = await import("drizzle-orm");
+      await dbModule.db.insert(schema.aiRequests).values(Array.from({ length: n }, () => ({ userId, createdAt: sql`now() - ${ago}::interval` })));
+    };
+    const countOf = async (userId: string) => {
+      const { eq } = await import("drizzle-orm");
+      return (await dbModule.db.select().from(schema.aiRequests).where(eq(schema.aiRequests.userId, userId))).length;
+    };
+
+    it("上限の回数までは通り、超えたら通さず、記録も増やさない", async () => {
+      currentUser.id = USER_A;
+      for (let i = 0; i < aiLimitModule.AI_LIMITS.perHour; i++) {
+        expect(await aiLimitModule.consumeAiRequest(), `${i + 1} 回目は通るはず`).toEqual({ ok: true });
+      }
+      const over = await aiLimitModule.consumeAiRequest();
+      expect(over).toEqual({ ok: false, message: aiLimitModule.AI_LIMIT_MESSAGE });
+      expect(await countOf(USER_A)).toBe(aiLimitModule.AI_LIMITS.perHour);
+    });
+
+    it("同時に何本送っても、通るのは上限まで(並列の要求が、すべて「0 件」を見て通らない)", async () => {
+      currentUser.id = USER_A;
+      const results = await Promise.all(Array.from({ length: 60 }, () => aiLimitModule.consumeAiRequest()));
+
+      expect(results.filter((result) => result.ok)).toHaveLength(aiLimitModule.AI_LIMITS.perHour);
+      expect(results.filter((result) => !result.ok)).toHaveLength(60 - aiLimitModule.AI_LIMITS.perHour);
+      expect(await countOf(USER_A)).toBe(aiLimitModule.AI_LIMITS.perHour); // 記録も、上限までしか増えない
+    });
+
+    it("同時に送っても、残りの回数だけ通る(すでに 15 回使っていれば、残り 5 回)", async () => {
+      await seed(USER_A, 15, "10 minutes");
+      currentUser.id = USER_A;
+      const results = await Promise.all(Array.from({ length: 30 }, () => aiLimitModule.consumeAiRequest()));
+
+      expect(results.filter((result) => result.ok)).toHaveLength(aiLimitModule.AI_LIMITS.perHour - 15);
+      expect(await countOf(USER_A)).toBe(aiLimitModule.AI_LIMITS.perHour);
+    });
+
+    it("同時に送る要求は、ユーザーごとに別々に数える(一方が使い切っても、他方は上限まで通る)", async () => {
+      // currentUser は 1 つなので、ユーザーごとに順に並列で呼ぶ(各ユーザーの 30 本は、それぞれ同時)
+      currentUser.id = USER_A;
+      const a = await Promise.all(Array.from({ length: 30 }, () => aiLimitModule.consumeAiRequest()));
+      currentUser.id = USER_B;
+      const b = await Promise.all(Array.from({ length: 30 }, () => aiLimitModule.consumeAiRequest()));
+
+      expect(a.filter((result) => result.ok)).toHaveLength(aiLimitModule.AI_LIMITS.perHour);
+      expect(b.filter((result) => result.ok)).toHaveLength(aiLimitModule.AI_LIMITS.perHour);
+    });
+
+    it("制限はユーザーごと(他のユーザーが使い切っても、自分は通る)", async () => {
+      await seed(USER_A, aiLimitModule.AI_LIMITS.perHour, "1 minute");
+      currentUser.id = USER_A;
+      expect((await aiLimitModule.consumeAiRequest()).ok).toBe(false);
+      currentUser.id = USER_B;
+      expect(await aiLimitModule.consumeAiRequest()).toEqual({ ok: true });
+    });
+
+    it("1 時間より前の記録は、1 時間の上限に数えない", async () => {
+      await seed(USER_A, aiLimitModule.AI_LIMITS.perHour, "2 hours");
+      currentUser.id = USER_A;
+      expect(await aiLimitModule.consumeAiRequest()).toEqual({ ok: true });
+    });
+
+    it("1 日の上限もある(1 時間より前でも、1 日以内なら数える)", async () => {
+      await seed(USER_A, aiLimitModule.AI_LIMITS.perDay, "3 hours");
+      currentUser.id = USER_A;
+      expect((await aiLimitModule.consumeAiRequest()).ok).toBe(false);
+    });
+
+    it("1 日より前の記録は、1 日の上限に数えない", async () => {
+      await seed(USER_A, aiLimitModule.AI_LIMITS.perDay, "25 hours");
+      currentUser.id = USER_A;
+      expect(await aiLimitModule.consumeAiRequest()).toEqual({ ok: true });
+    });
+
+    it("2 日より古い記録は、記録を足すときに消える(表が育たない)", async () => {
+      await seed(USER_A, 5, "3 days");
+      currentUser.id = USER_A;
+      await aiLimitModule.consumeAiRequest();
+      expect(await countOf(USER_A)).toBe(1);
+    });
+
+    it("未ログインなら /login へ送られ、何も記録されない", async () => {
+      currentUser.id = "";
+      await expect(aiLimitModule.consumeAiRequest()).rejects.toThrow("NEXT_REDIRECT:/login");
+      expect(await countOf(USER_A)).toBe(0);
+    });
+  });
+
+  describe("食事の Server Action(meals/actions.ts)", () => {
+    const DATE = "2026-04-10";
+    const item = { name: "焼鮭", amount: "1切れ 約80g", kcal: 150, proteinG: 18, fatG: 8, carbohydrateG: 0, fiberG: 0, saltG: 1.4 };
+    const rice = { name: "白ご飯", amount: "約150g", kcal: 252, proteinG: 3.8, fatG: 0.5, carbohydrateG: 55.7, fiberG: 0.5, saltG: 0 };
+    const estimate = { dishName: "焼鮭定食", description: "焼鮭と白ご飯", items: [item, rice] };
+    const aiReply = JSON.stringify({ isMeal: true, notMealReason: "", ...estimate });
+    const payload = (overrides: Record<string, unknown> = {}) => ({ eatenTime: "12:30", alias: "", estimate, ...overrides });
+    const mealsOf = async (userId: string) => {
+      const { eq } = await import("drizzle-orm");
+      return dbModule.db.select().from(schema.meals).where(eq(schema.meals.userId, userId));
+    };
+    const aiRequestsOf = async (userId: string) => {
+      const { eq } = await import("drizzle-orm");
+      return (await dbModule.db.select().from(schema.aiRequests).where(eq(schema.aiRequests.userId, userId))).length;
+    };
+    const expectRedirectTo = (promise: Promise<unknown>, url: string) => expect(promise).rejects.toThrow(`NEXT_REDIRECT:${url}`);
+
+    describe("estimateMealAction", () => {
+      // 波括弧で囲む: アロー関数の式の値(モック自身)を返すと、Vitest が「後片付けの関数」として、テストのあとに呼んでしまう
+      beforeEach(() => {
+        ai.complete.mockResolvedValue(aiReply);
+      });
+
+      it("推定を返す(合計はコードで計算)。1 回分を数えるが、食事は保存しない", async () => {
+        currentUser.id = USER_A;
+        const result = await mealActionsModule.estimateMealAction({ text: "焼鮭定食" });
+
+        expect(result.ok && result.estimate.totals).toMatchObject({ kcal: 402, proteinG: 21.8, fatG: 8.5 });
+        expect(ai.complete).toHaveBeenCalledTimes(1);
+        expect(await aiRequestsOf(USER_A)).toBe(1);
+        expect(await mealsOf(USER_A)).toEqual([]);
+      });
+
+      it("過去の料理名(自分の分だけ)を AI に渡す", async () => {
+        currentUser.id = USER_B;
+        await mealsModule.saveMeal(DATE, { eatenTime: "12:00", dishName: "他人のカレー", alias: null, description: "x", items: [item], totals: { kcal: 1, proteinG: 1, fatG: 1, netCarbG: 1, fiberG: null, saltG: null } });
+        currentUser.id = USER_A;
+        await mealsModule.saveMeal(DATE, { eatenTime: "12:00", dishName: "自分の親子丼", alias: null, description: "x", items: [item], totals: { kcal: 1, proteinG: 1, fatG: 1, netCarbG: 1, fiberG: null, saltG: null } });
+
+        await mealActionsModule.estimateMealAction({ text: "焼鮭定食" });
+        const userMessage = JSON.stringify(ai.complete.mock.calls[0][0].messages[1].content);
+        expect(userMessage).toContain("自分の親子丼");
+        expect(userMessage).not.toContain("他人のカレー");
+      });
+
+      it("未ログインなら /login へ送られ、AI も呼ばず、回数も数えない", async () => {
+        currentUser.id = "";
+        await expect(mealActionsModule.estimateMealAction({ text: "焼鮭定食" })).rejects.toThrow("NEXT_REDIRECT:/login");
+        expect(ai.complete).not.toHaveBeenCalled();
+        expect(await aiRequestsOf(USER_A)).toBe(0);
+      });
+
+      it.each([
+        ["文章も写真も無い", { text: "  " }],
+        ["文章が長すぎる", { text: "あ".repeat(2001) }],
+        ["写真が偽物", { text: "x", imageDataUrls: ["data:image/png;base64,AAAA"] }],
+        ["写真が 5 枚(別々の写真)", { text: "x", imageDataUrls: Array.from({ length: 5 }, (_, n) => `data:image/png;base64,AAA${n}`) }],
+        ["形が違う入力", { foo: 1 }],
+        ["null", null],
+        ["文字列", "焼鮭"],
+      ])("不正な入力は、AI を呼ばず、回数も数えずに失敗にする: %s", async (_label, raw) => {
+        currentUser.id = USER_A;
+        const result = await mealActionsModule.estimateMealAction(raw);
+        expect(result.ok).toBe(false);
+        expect(ai.complete).not.toHaveBeenCalled();
+        expect(await aiRequestsOf(USER_A)).toBe(0);
+      });
+
+      it("回数の上限に達していたら、AI を呼ばずに失敗にする", async () => {
+        currentUser.id = USER_A;
+        for (let i = 0; i < aiLimitModule.AI_LIMITS.perHour; i++) await aiLimitModule.consumeAiRequest();
+
+        const result = await mealActionsModule.estimateMealAction({ text: "焼鮭定食" });
+        expect(result).toEqual({ ok: false, message: aiLimitModule.AI_LIMIT_MESSAGE });
+        expect(ai.complete).not.toHaveBeenCalled();
+      });
+
+      it("食べ物でない入力(AI が isMeal を false で返した)は、推定を返さず、何も保存されない(回数は数える)", async () => {
+        ai.complete.mockResolvedValue(JSON.stringify({ isMeal: false, notMealReason: "子猫の写真で、食べ物ではないため", dishName: "", description: "", items: [] }));
+        currentUser.id = USER_A;
+
+        const result = await mealActionsModule.estimateMealAction({ text: "子猫の写真" });
+
+        expect(result.ok).toBe(false);
+        if (!result.ok) expect(result.message).toContain("子猫の写真で、食べ物ではないため");
+        expect(await mealsOf(USER_A)).toEqual([]);
+        expect(await aiRequestsOf(USER_A)).toBe(1); // AI は呼んだので、1 回分は数える
+      });
+
+      it("AI が失敗(HTTP 400)しても、画面には利用者向けの文言を返す(内部の理由は返さない)", async () => {
+        // 本物の completeJson を、400 を返す偽の fetch で動かす(モックの中で例外を投げずに、実際の失敗の経路を通す)
+        const actual = await vi.importActual<typeof import("@/lib/openrouter")>("@/lib/openrouter");
+        vi.stubEnv("OPENROUTER_API_KEY", "test-key");
+        vi.stubEnv("OPENROUTER_MODEL", "test/model");
+        const failingFetch = vi.fn(async () => new Response(JSON.stringify({ error: { message: "内部の理由" } }), { status: 400 }));
+        ai.complete.mockImplementation((options: Parameters<typeof actual.completeJson>[0]) => actual.completeJson({ ...options, fetchImpl: failingFetch }));
+        const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
+        currentUser.id = USER_A;
+
+        const result = await mealActionsModule.estimateMealAction({ text: "焼鮭定食" });
+
+        expect(result.ok).toBe(false);
+        if (!result.ok) expect(result.message).not.toContain("内部の理由");
+        expect(failingFetch).toHaveBeenCalledTimes(1);
+        errorLog.mockRestore();
+        vi.unstubAllEnvs();
+      });
+    });
+
+    describe("saveMealAction", () => {
+      it("保存して、画面の再取得を依頼し、その日の詳細へ移動する。合計は、届いた値ではなく内訳から計算し直す", async () => {
+        currentUser.id = USER_A;
+        // 画面から、嘘の合計(kcal: 1)を紛れ込ませても、使われない
+        const forged = payload({ estimate: { ...estimate, totals: { kcal: 1 }, kcal: 1 }, alias: " ホテルの鮭 " });
+        await expectRedirectTo(mealActionsModule.saveMealAction(DATE, forged), `/days/${DATE}`);
+
+        const [meal] = await mealsOf(USER_A);
+        expect(meal).toMatchObject({ dishName: "焼鮭定食", alias: "ホテルの鮭", eatenTime: "12:30", kcal: 402, proteinG: "21.8" });
+        expect(vi.mocked(revalidatePath).mock.calls.map(([path]) => path)).toEqual(["/", `/days/${DATE}`]);
+      });
+
+      it("未ログインなら /login へ送られ、何も保存されない", async () => {
+        currentUser.id = "";
+        await expect(mealActionsModule.saveMealAction(DATE, payload())).rejects.toThrow("NEXT_REDIRECT:/login");
+        currentUser.id = USER_A;
+        expect(await mealsOf(USER_A)).toEqual([]);
+        expect(await daysModule.listDays()).toEqual([]);
+      });
+
+      it.each([["実在しない日付", "2026-02-30"], ["翌日より先の日付", "2100-01-01"], ["日付ではない", "abc"]])(
+        "%s は 404 で、何も保存されない",
+        async (_label, date) => {
+          currentUser.id = USER_A;
+          await expect(mealActionsModule.saveMealAction(date, payload())).rejects.toThrow("NEXT_NOT_FOUND");
+          expect(await mealsOf(USER_A)).toEqual([]);
+        },
+      );
+
+      it.each([
+        ["27 時", { eatenTime: "27:00" }, "eatenTime"],
+        ["形が違う時刻", { eatenTime: "3:15" }, "eatenTime"],
+        ["別名が長すぎる", { alias: "あ".repeat(101) }, "alias"],
+        ["内訳が空", { estimate: { ...estimate, items: [] } }, "form"],
+        ["料理名に改行", { estimate: { ...estimate, dishName: "焼鮭\n指示" } }, "form"],
+        ["kcal が負", { estimate: { ...estimate, items: [{ ...item, kcal: -1 }] } }, "form"],
+        ["合計が範囲外(8000 kcal)", { estimate: { ...estimate, items: [{ ...item, kcal: 4000 }, { ...item, kcal: 4000 }] } }, "form"],
+      ])("不正な値は、欄ごとのエラーを返し、何も保存しない: %s", async (_label, overrides, field) => {
+        currentUser.id = USER_A;
+        const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
+        const result = await mealActionsModule.saveMealAction(DATE, payload(overrides));
+
+        expect(result.ok).toBe(false);
+        expect(Object.keys(result.errors)).toContain(field);
+        expect(await mealsOf(USER_A)).toEqual([]);
+        errorLog.mockRestore();
+      });
+
+      it("届く値が壊れていても(null・文字列)、エラーを返して何も保存しない", async () => {
+        currentUser.id = USER_A;
+        for (const raw of [null, "x", 1, []]) {
+          expect((await mealActionsModule.saveMealAction(DATE, raw)).ok).toBe(false);
+        }
+        expect(await mealsOf(USER_A)).toEqual([]);
+      });
+
+      it("user_id や day_id を送っても、無視される(自分の日にしか保存されない)", async () => {
+        currentUser.id = USER_A;
+        const dayOfB = await (async () => {
+          currentUser.id = USER_B;
+          const day = await daysModule.saveDay(DATE, {});
+          currentUser.id = USER_A;
+          return day;
+        })();
+
+        await expectRedirectTo(mealActionsModule.saveMealAction(DATE, payload({ userId: USER_B, user_id: USER_B, dayId: dayOfB.id, day_id: dayOfB.id })), `/days/${DATE}`);
+
+        const [meal] = await mealsOf(USER_A);
+        expect(meal.userId).toBe(USER_A);
+        expect(meal.dayId).not.toBe(dayOfB.id);
+        expect(await mealsOf(USER_B)).toEqual([]);
+      });
+    });
+
+    describe("updateMealAction / deleteMealAction", () => {
+      const savedBy = async (userId: string) => {
+        currentUser.id = userId;
+        return mealsModule.saveMeal(DATE, { eatenTime: "12:00", dishName: "焼鮭定食", alias: null, description: "x", items: [item], totals: { kcal: 150, proteinG: 18, fatG: 8, netCarbG: 0, fiberG: 0, saltG: 1.4 } });
+      };
+
+      it("自分の食事を直せる。その日の詳細へ移動し、画面の再取得を依頼する", async () => {
+        const meal = await savedBy(USER_A);
+        await expectRedirectTo(mealActionsModule.updateMealAction(meal.id, payload({ eatenTime: "19:00", alias: "夕飯" })), `/days/${DATE}`);
+
+        const [updated] = await mealsOf(USER_A);
+        expect(updated).toMatchObject({ id: meal.id, eatenTime: "19:00", alias: "夕飯", kcal: 402 });
+        expect(vi.mocked(revalidatePath).mock.calls.map(([path]) => path)).toEqual(["/", `/days/${DATE}`]);
+      });
+
+      it("他のユーザーの食事は、直せず消せない(404 で、中身は変わらない)", async () => {
+        const meal = await savedBy(USER_A);
+        currentUser.id = USER_B;
+
+        await expect(mealActionsModule.updateMealAction(meal.id, payload({ alias: "乗っ取り" }))).rejects.toThrow("NEXT_NOT_FOUND");
+        await expect(mealActionsModule.deleteMealAction(meal.id)).rejects.toThrow("NEXT_NOT_FOUND");
+
+        const [kept] = await mealsOf(USER_A);
+        expect(kept).toMatchObject({ id: meal.id, alias: null, kcal: 150 });
+      });
+
+      it("自分の食事を消せる。その日の詳細へ移動する", async () => {
+        const meal = await savedBy(USER_A);
+        await expectRedirectTo(mealActionsModule.deleteMealAction(meal.id), `/days/${DATE}`);
+        expect(await mealsOf(USER_A)).toEqual([]);
+        // 食事を消しても、日(days)の行は残る
+        expect(await daysModule.getDay(DATE)).not.toBeNull();
+      });
+
+      it.each([[0], [-1], [1.5], [Number.NaN], [2_147_483_648], [9_999_999_999], [Number.MAX_SAFE_INTEGER], [Infinity]])("不正な id(%s)は 404(DB のエラー(500)にならない)", async (id) => {
+        currentUser.id = USER_A;
+        await expect(mealActionsModule.updateMealAction(id, payload())).rejects.toThrow("NEXT_NOT_FOUND");
+        await expect(mealActionsModule.deleteMealAction(id)).rejects.toThrow("NEXT_NOT_FOUND");
+      });
+
+      it("未ログインなら /login へ送られ、何も変わらない", async () => {
+        const meal = await savedBy(USER_A);
+        currentUser.id = "";
+        await expect(mealActionsModule.updateMealAction(meal.id, payload({ alias: "x" }))).rejects.toThrow("NEXT_REDIRECT:/login");
+        await expect(mealActionsModule.deleteMealAction(meal.id)).rejects.toThrow("NEXT_REDIRECT:/login");
+        expect(await mealsOf(USER_A)).toHaveLength(1);
+      });
     });
   });
 
