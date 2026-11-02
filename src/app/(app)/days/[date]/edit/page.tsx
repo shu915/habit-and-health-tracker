@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
+import { BackLink } from "@/components/back-link";
 import { DayForm, type DayFormInitial } from "@/components/day-form";
 import { isRecordableDate, shiftDate } from "@/lib/date";
 import { getDay } from "@/lib/days";
@@ -35,9 +36,7 @@ async function DayEditContent({ params }: Pick<PageProps<"/days/[date]/edit">, "
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <Link href={`/days/${date}`} className="text-sm text-zinc-500 hover:underline">
-          ← {date} の詳細
-        </Link>
+        <BackLink href={`/days/${date}`}>{date} の詳細に戻る</BackLink>
         <h1 className="text-2xl font-semibold">{date} の{day ? "編集" : "記録"}</h1>
         <DayNavigation date={date} />
       </div>
