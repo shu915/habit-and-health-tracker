@@ -36,6 +36,20 @@
       "when": 1793341284027,
       "tag": "0004_meals",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793585095077,
+      "tag": "0005_days_user_id_unique",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793585101081,
+      "tag": "0006_meals_same_owner",
+      "breakpoints": true
     }
   ]
 }

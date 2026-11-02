@@ -2,6 +2,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { DAY_LIMITS, type DayLimitedField } from "./day-limits";
+import { MEAL_LIMITS, type MealLimitedField } from "./meal-limits";
 import { PROFILE_LIMITS, type LimitedField } from "./profile-limits";
 
 // 実際の PostgreSQL を使うテスト。TEST_DATABASE_URL が無いと実行されない(CI では未実行を失敗として扱う)。
@@ -526,6 +527,125 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
       const cleared = await daysModule.getDay("2026-03-01");
       expect(cleared?.sleepBedtime).toBeNull();
       expect(cleared?.sleepWakeTime).toBe("06:05");
+    });
+  });
+
+  describe("meals(食事)", () => {
+    // 必須の列だけを埋めた食事。テストごとに、調べる列だけを上書きする
+    const mealValues = (dayId: number, userId: string, overrides: Record<string, unknown> = {}) => ({
+      userId,
+      dayId,
+      eatenTime: "12:30",
+      dishName: "焼鮭定食",
+      kcal: 600,
+      proteinG: "30.0",
+      fatG: "15.0",
+      netCarbG: "70.0",
+      items: [],
+      ...overrides,
+    });
+    const insertMeal = (dayId: number, overrides: Record<string, unknown> = {}, userId = USER_A) =>
+      dbModule.db.insert(schema.meals).values(mealValues(dayId, userId, overrides));
+    const makeDay = async (date = "2026-03-05", userId = USER_A) => {
+      currentUser.id = userId;
+      return daysModule.saveDay(date, {});
+    };
+
+    // 端の値は meal-limits.ts の db の範囲から作る。定数と実際の DB(マイグレーション)が食い違うと落ちる
+    const cases = (Object.keys(MEAL_LIMITS) as MealLimitedField[]).map((field) => {
+      const { db, scale } = MEAL_LIMITS[field];
+      const step = 10 ** -scale;
+      const value = (n: number) => (scale === 0 ? n : n.toFixed(scale));
+      return {
+        field,
+        constraint: `meals_${field.replace(/[A-Z]/g, (m) => `_${m.toLowerCase()}`)}_range`,
+        passes: [value(db.min), value(db.max)],
+        fails: [value(db.min - step), value(db.max + step)],
+      };
+    });
+
+    it.each(cases)("$constraint: 端の値は通り、直外の値は拒否される", async ({ field, constraint, passes, fails }) => {
+      const day = await makeDay();
+      for (const value of passes) {
+        await expect(insertMeal(day.id, { [field]: value }), `${field}=${value} は通るはず`).resolves.toBeDefined();
+      }
+      for (const value of fails) await expectViolation(insertMeal(day.id, { [field]: value }), constraint, `${field}=${value}`);
+    });
+
+    it("食物繊維と食塩相当量は、空(null)でもよい。ほかの合計は必須", async () => {
+      const day = await makeDay();
+      await expect(insertMeal(day.id, { fiberG: null, saltG: null })).resolves.toBeDefined();
+      await expect(insertMeal(day.id, { kcal: null })).rejects.toThrow();
+    });
+
+    it("meals_eaten_time_format: 00:00〜26:59 は通り、27:00 以降と不正な形は拒否される", async () => {
+      const day = await makeDay();
+      for (const time of ["00:00", "03:00", "23:59", "24:00", "26:59"]) {
+        await expect(insertMeal(day.id, { eatenTime: time }), `${time} は通るはず`).resolves.toBeDefined();
+      }
+      for (const time of ["27:00", "26:60", "3:15", "03:5", "abc", "99:99"]) {
+        await expectViolation(insertMeal(day.id, { eatenTime: time }), "meals_eaten_time_format", time);
+      }
+    });
+
+    it("存在しない日には紐づけられない(外部キー)", async () => {
+      await expectViolation(insertMeal(2_000_000_000), "meals_user_day_fk", "day_id=2000000000");
+    });
+
+    it("他のユーザーの日には、食事を紐づけられない(user_id と day の持ち主が一致しなければ、DB が拒否する)", async () => {
+      const dayOfB = await makeDay("2026-03-05", USER_B);
+
+      // A の user_id で、B の日に紐づけようとする
+      await expectViolation(insertMeal(dayOfB.id, {}, USER_A), "meals_user_day_fk", "A の食事を B の日に");
+      // B の持ち主として挿入するなら通る(拒否されるのは、持ち主の食い違いだけ)
+      await expect(insertMeal(dayOfB.id, {}, USER_B)).resolves.toBeDefined();
+    });
+
+    it("日の持ち主を変えるような更新も、食事が残っていれば拒否される", async () => {
+      const { eq } = await import("drizzle-orm");
+      const day = await makeDay("2026-03-05", USER_A);
+      await insertMeal(day.id);
+
+      await expect(
+        dbModule.db.update(schema.meals).set({ userId: USER_B }).where(eq(schema.meals.dayId, day.id)),
+      ).rejects.toThrow();
+    });
+
+    it("日を消すと、その日の食事も消える(ほかの日の食事は残る)", async () => {
+      const { eq } = await import("drizzle-orm");
+      const day = await makeDay("2026-03-05");
+      const other = await makeDay("2026-03-06");
+      await insertMeal(day.id);
+      await insertMeal(day.id, { eatenTime: "19:00" });
+      await insertMeal(other.id);
+
+      await dbModule.db.delete(schema.days).where(eq(schema.days.id, day.id));
+
+      const rest = await dbModule.db.select().from(schema.meals).where(eq(schema.meals.userId, USER_A));
+      expect(rest.map((meal) => meal.dayId)).toEqual([other.id]);
+    });
+
+    it("ユーザーを消すと、そのユーザーの食事も消える(ほかのユーザーの食事は残る)", async () => {
+      const { eq } = await import("drizzle-orm");
+      const dayA = await makeDay("2026-03-05", USER_A);
+      const dayB = await makeDay("2026-03-05", USER_B);
+      await insertMeal(dayA.id, {}, USER_A);
+      await insertMeal(dayB.id, {}, USER_B);
+
+      await dbModule.db.delete(schema.user).where(eq(schema.user.id, USER_A));
+
+      expect(await dbModule.db.select().from(schema.meals).where(eq(schema.meals.userId, USER_A))).toEqual([]);
+      expect(await dbModule.db.select().from(schema.meals).where(eq(schema.meals.userId, USER_B))).toHaveLength(1);
+    });
+
+    it("jsonb の内訳(items)は、入れた形のまま読み戻せる", async () => {
+      const { eq } = await import("drizzle-orm");
+      const day = await makeDay();
+      const items = [{ name: "焼鮭", kcal: 200 }, { name: "ご飯", kcal: 250 }];
+      await insertMeal(day.id, { items });
+
+      const [row] = await dbModule.db.select().from(schema.meals).where(eq(schema.meals.dayId, day.id));
+      expect(row.items).toEqual(items);
     });
   });
 
