@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { BackLink } from "@/components/back-link";
 import { buttonClass } from "@/components/button";
+import { ExerciseList } from "@/components/exercise-list";
 import { MealList } from "@/components/meal-list";
 import { isRecordableDate } from "@/lib/date";
 import { getDay } from "@/lib/days";
@@ -64,6 +65,11 @@ async function DayContent({ params }: Pick<PageProps<"/days/[date]">, "params">)
       {/* その日の食事(日の記録が無い日でも、「食事を追加」から追加できる)。一覧の読み込みは別に待つ */}
       <Suspense fallback={<p className="text-zinc-500">食事を読み込み中...</p>}>
         <MealList date={date} />
+      </Suspense>
+
+      {/* いつもより多く動いた分の運動 */}
+      <Suspense fallback={<p className="text-zinc-500">運動を読み込み中...</p>}>
+        <ExerciseList date={date} morningWeightKg={day?.morningWeightKg ?? null} />
       </Suspense>
     </div>
   );

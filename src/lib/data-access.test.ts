@@ -2,6 +2,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { DAY_LIMITS, type DayLimitedField } from "./day-limits";
+import { EXERCISE_LIMITS, EXERCISE_MAX_PER_DAY } from "./exercise-limits";
 import { MEAL_LIMITS, type MealLimitedField } from "./meal-limits";
 import { PROFILE_LIMITS, type LimitedField } from "./profile-limits";
 
@@ -61,6 +62,8 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
   let schema: typeof import("@/db/schema");
   let daysModule: typeof import("@/lib/days");
   let mealsModule: typeof import("@/lib/meals");
+  let exercisesModule: typeof import("@/lib/exercises");
+  let exerciseActionsModule: typeof import("@/app/(app)/days/[date]/exercises/actions");
   let aiLimitModule: typeof import("@/lib/ai-limit");
   let mealActionsModule: typeof import("@/app/(app)/days/[date]/meals/actions");
   let profilesModule: typeof import("@/lib/profiles");
@@ -83,6 +86,8 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
     await migrate(dbModule.db, { migrationsFolder: "./drizzle" });
     daysModule = await import("@/lib/days");
     mealsModule = await import("@/lib/meals");
+    exercisesModule = await import("@/lib/exercises");
+    exerciseActionsModule = await import("@/app/(app)/days/[date]/exercises/actions");
     aiLimitModule = await import("@/lib/ai-limit");
     mealActionsModule = await import("@/app/(app)/days/[date]/meals/actions");
     profilesModule = await import("@/lib/profiles");
@@ -1152,6 +1157,267 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
         await expect(mealActionsModule.updateMealAction(meal.id, payload({ alias: "x" }))).rejects.toThrow("NEXT_REDIRECT:/login");
         await expect(mealActionsModule.deleteMealAction(meal.id)).rejects.toThrow("NEXT_REDIRECT:/login");
         expect(await mealsOf(USER_A)).toHaveLength(1);
+      });
+    });
+  });
+
+  describe("運動(lib/exercises.ts と exercises/actions.ts)", () => {
+    const DATE = "2026-05-12";
+    const input = { type: "walk", intensity: "normal", minutes: 30, memo: null };
+    const formOf = (fields: Record<string, string>) => {
+      const formData = new FormData();
+      for (const [key, value] of Object.entries(fields)) formData.set(key, value);
+      return formData;
+    };
+    const validForm = (overrides: Record<string, string> = {}) => formOf({ type: "walk", intensity: "normal", minutes: "30", memo: "", ...overrides });
+    const exercisesOf = async (userId: string) => {
+      const { eq } = await import("drizzle-orm");
+      return dbModule.db.select().from(schema.exercises).where(eq(schema.exercises.userId, userId));
+    };
+    const insertExercise = (dayId: number, overrides: Record<string, unknown> = {}, userId = USER_A) =>
+      dbModule.db.insert(schema.exercises).values({ userId, dayId, type: "walk", intensity: "normal", minutes: 30, ...overrides });
+    const makeDay = async (date = DATE, userId = USER_A) => {
+      currentUser.id = userId;
+      return daysModule.saveDay(date, {});
+    };
+
+    describe("DB の制約", () => {
+      it("exercises_minutes_range: db の範囲の端は通り、直外は拒否される", async () => {
+        const day = await makeDay();
+        const { min, max } = EXERCISE_LIMITS.minutes.db;
+        for (const minutes of [min, max]) await expect(insertExercise(day.id, { minutes })).resolves.toBeDefined();
+        for (const minutes of [min - 1, max + 1]) await expectViolation(insertExercise(day.id, { minutes }), "exercises_minutes_range", String(minutes));
+      });
+
+      it("exercises_intensity_values: light / normal / hard だけ通る。種類は文字列なら何でも入る(種類の追加でマイグレーションが要らない)", async () => {
+        const day = await makeDay();
+        for (const intensity of ["light", "normal", "hard"]) await expect(insertExercise(day.id, { intensity })).resolves.toBeDefined();
+        for (const intensity of ["", "easy", "HARD"]) await expectViolation(insertExercise(day.id, { intensity }), "exercises_intensity_values", intensity);
+        await expect(insertExercise(day.id, { type: "future-type" })).resolves.toBeDefined();
+      });
+
+      it("メモは 200 文字まで", async () => {
+        const day = await makeDay();
+        await expect(insertExercise(day.id, { memo: "あ".repeat(200) })).resolves.toBeDefined();
+        await expect(insertExercise(day.id, { memo: "あ".repeat(201) })).rejects.toThrow();
+      });
+
+      it("他のユーザーの日には紐づけられない(複合外部キー)", async () => {
+        const dayOfB = await makeDay(DATE, USER_B);
+        await expectViolation(insertExercise(dayOfB.id, {}, USER_A), "exercises_user_day_fk", "A の運動を B の日に");
+      });
+
+      it("日を消すと、その日の運動も消える", async () => {
+        const day = await makeDay();
+        await insertExercise(day.id);
+        const { eq } = await import("drizzle-orm");
+        await dbModule.db.delete(schema.days).where(eq(schema.days.id, day.id));
+        expect(await exercisesOf(USER_A)).toEqual([]);
+      });
+    });
+
+    describe("lib/exercises.ts", () => {
+      it("追加すると、その日の行が無ければ作られ、一覧には追加した順に出る", async () => {
+        currentUser.id = USER_A;
+        expect(await daysModule.getDay(DATE)).toBeNull();
+        const first = await exercisesModule.saveExercise(DATE, input);
+        const second = await exercisesModule.saveExercise(DATE, { ...input, type: "strength", minutes: 45, memo: "脚の日" });
+
+        expect(await daysModule.getDay(DATE)).not.toBeNull();
+        const list = await exercisesModule.listExercisesOfDay(DATE);
+        expect(list.map((exercise) => exercise.id)).toEqual([first.id, second.id]);
+        expect(list[1]).toMatchObject({ type: "strength", minutes: 45, memo: "脚の日", userId: USER_A });
+      });
+
+      it("他のユーザーの運動は、一覧にも取得にも出ず、直せず、消せない", async () => {
+        currentUser.id = USER_A;
+        const mine = await exercisesModule.saveExercise(DATE, input);
+
+        currentUser.id = USER_B;
+        expect(await exercisesModule.listExercisesOfDay(DATE)).toEqual([]);
+        expect(await exercisesModule.getExercise(mine.id)).toBeNull();
+        expect(await exercisesModule.updateExercise(mine.id, { ...input, minutes: 99 })).toBeNull();
+        expect(await exercisesModule.deleteExercise(mine.id)).toBe(false);
+
+        currentUser.id = USER_A;
+        expect((await exercisesModule.getExercise(mine.id))?.exercise.minutes).toBe(30);
+      });
+
+      it("直すと、日は変わらず中身だけが変わる。消すと一覧から消える", async () => {
+        currentUser.id = USER_A;
+        const saved = await exercisesModule.saveExercise(DATE, input);
+        const updated = await exercisesModule.updateExercise(saved.id, { type: "indoor", intensity: "hard", minutes: 20, memo: "HIIT" });
+        expect(updated).toMatchObject({ id: saved.id, dayId: saved.dayId, type: "indoor", intensity: "hard", minutes: 20, memo: "HIIT" });
+        expect((await exercisesModule.getExercise(saved.id))?.date).toBe(DATE);
+
+        expect(await exercisesModule.deleteExercise(saved.id)).toBe(true);
+        expect(await exercisesModule.listExercisesOfDay(DATE)).toEqual([]);
+      });
+
+      it("1 日に追加できるのは 5 件まで。6 件目は ExerciseLimitError で、保存されない", async () => {
+        currentUser.id = USER_A;
+        expect(EXERCISE_MAX_PER_DAY).toBe(5);
+        for (let n = 0; n < EXERCISE_MAX_PER_DAY; n++) await exercisesModule.saveExercise(DATE, input);
+
+        await expect(exercisesModule.saveExercise(DATE, input)).rejects.toBeInstanceOf(exercisesModule.ExerciseLimitError);
+        expect(await exercisesOf(USER_A)).toHaveLength(5);
+      });
+
+      it("上限は、日ごと・ユーザーごとに数える。消すと 1 件分が空き、直すのは上限に影響されない", async () => {
+        currentUser.id = USER_A;
+        const saved = [];
+        for (let n = 0; n < EXERCISE_MAX_PER_DAY; n++) saved.push(await exercisesModule.saveExercise(DATE, input));
+
+        await expect(exercisesModule.saveExercise("2026-05-13", input)).resolves.toBeDefined(); // 別の日
+        currentUser.id = USER_B;
+        await expect(exercisesModule.saveExercise(DATE, input)).resolves.toBeDefined(); // 別のユーザー
+
+        currentUser.id = USER_A;
+        await expect(exercisesModule.updateExercise(saved[0].id, { ...input, minutes: 99 })).resolves.toMatchObject({ minutes: 99 }); // 満杯でも直せる
+        await exercisesModule.deleteExercise(saved[0].id);
+        await expect(exercisesModule.saveExercise(DATE, input)).resolves.toBeDefined(); // 1 件空いた
+        await expect(exercisesModule.saveExercise(DATE, input)).rejects.toBeInstanceOf(exercisesModule.ExerciseLimitError);
+      });
+
+      it("同時に届いた要求でも、上限を超えない(その日の行のロックで直列にする)", async () => {
+        currentUser.id = USER_A;
+        const results = await Promise.allSettled(Array.from({ length: 12 }, () => exercisesModule.saveExercise(DATE, input)));
+
+        expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(EXERCISE_MAX_PER_DAY);
+        for (const result of results) {
+          if (result.status === "rejected") expect(result.reason).toBeInstanceOf(exercisesModule.ExerciseLimitError);
+        }
+        expect(await exercisesOf(USER_A)).toHaveLength(EXERCISE_MAX_PER_DAY);
+      });
+
+      it("範囲外の id は DB に渡さず、無いものとして扱う", async () => {
+        currentUser.id = USER_A;
+        for (const id of [0, -1, 1.5, 2_147_483_648, Number.NaN]) {
+          expect(await exercisesModule.getExercise(id)).toBeNull();
+          expect(await exercisesModule.updateExercise(id, input)).toBeNull();
+          expect(await exercisesModule.deleteExercise(id)).toBe(false);
+        }
+      });
+
+      it("日付が不正なら投げる。未ログインなら /login へ送る", async () => {
+        currentUser.id = USER_A;
+        await expect(exercisesModule.saveExercise("2026-02-30", input)).rejects.toThrow("invalid date");
+        await expect(exercisesModule.listExercisesOfDay("abc")).rejects.toThrow("invalid date");
+        currentUser.id = "";
+        await expect(exercisesModule.listExercisesOfDay(DATE)).rejects.toThrow("NEXT_REDIRECT:/login");
+        await expect(exercisesModule.getExercise(1)).rejects.toThrow("NEXT_REDIRECT:/login");
+      });
+    });
+
+    describe("Server Action", () => {
+      it("追加: 保存してその日の詳細へ移動し、再描画を頼む。メモの空欄は null", async () => {
+        currentUser.id = USER_A;
+        await expect(exerciseActionsModule.saveExerciseAction(DATE, null, validForm())).rejects.toThrow(`NEXT_REDIRECT:/days/${DATE}`);
+
+        const [saved] = await exercisesOf(USER_A);
+        expect(saved).toMatchObject({ type: "walk", intensity: "normal", minutes: 30, memo: null });
+        expect(vi.mocked(revalidatePath)).toHaveBeenCalledWith(`/days/${DATE}`);
+        expect(vi.mocked(revalidatePath)).toHaveBeenCalledWith("/");
+      });
+
+      it("追加: その日が 5 件なら、保存せず、理由と入力した値を返す(移動もしない)", async () => {
+        currentUser.id = USER_A;
+        for (let n = 0; n < EXERCISE_MAX_PER_DAY; n++) await exercisesModule.saveExercise(DATE, input);
+
+        const result = await exerciseActionsModule.saveExerciseAction(DATE, null, validForm({ memo: "残る" }));
+        expect(result?.message).toContain("5 件までです");
+        expect(result?.errors).toEqual({});
+        expect(result?.values).toMatchObject({ memo: "残る" });
+        expect(await exercisesOf(USER_A)).toHaveLength(5);
+        expect(vi.mocked(redirect)).not.toHaveBeenCalled();
+      });
+
+      it("追加: フォームに user_id や day_id を紛れ込ませても無視される", async () => {
+        currentUser.id = USER_A;
+        const form = validForm({ userId: USER_B, user_id: USER_B, dayId: "999", id: "1" });
+        await expect(exerciseActionsModule.saveExerciseAction(DATE, null, form)).rejects.toThrow("NEXT_REDIRECT");
+        expect(await exercisesOf(USER_B)).toEqual([]);
+        expect(await exercisesOf(USER_A)).toHaveLength(1);
+      });
+
+      it.each([
+        ["種類が空", { type: "" }, "type"],
+        ["種類が一覧に無い", { type: "swim" }, "type"],
+        ["強さが空", { intensity: "" }, "intensity"],
+        ["強さが一覧に無い", { intensity: "easy" }, "intensity"],
+        ["時間が空", { minutes: "" }, "minutes"],
+        ["時間が 0", { minutes: "0" }, "minutes"],
+        ["時間が上限超え", { minutes: "601" }, "minutes"],
+        ["時間が小数", { minutes: "1.5" }, "minutes"],
+        ["時間が 16 進数", { minutes: "0x10" }, "minutes"],
+        ["メモが長すぎる", { memo: "あ".repeat(201) }, "memo"],
+      ])("追加: 検証に失敗したら、保存せず、欄ごとのエラーと入力した値を返す: %s", async (_label, overrides, field) => {
+        currentUser.id = USER_A;
+        const result = await exerciseActionsModule.saveExerciseAction(DATE, null, validForm(overrides));
+
+        expect(result?.errors[field as "type"]).toBeTruthy();
+        expect(result?.values).toMatchObject(overrides);
+        expect(await exercisesOf(USER_A)).toEqual([]);
+      });
+
+      it("追加: フォームに種類の欄が無い(キーが無い)場合も、保存せずエラーにする", async () => {
+        currentUser.id = USER_A;
+        const result = await exerciseActionsModule.saveExerciseAction(DATE, null, formOf({ intensity: "normal", minutes: "30" }));
+        expect(result?.errors.type).toBeTruthy();
+        expect(await exercisesOf(USER_A)).toEqual([]);
+      });
+
+      it("追加: 実在しない日付と、翌日より先の日付は 404。何も保存しない", async () => {
+        currentUser.id = USER_A;
+        await expect(exerciseActionsModule.saveExerciseAction("2026-02-30", null, validForm())).rejects.toThrow("NEXT_NOT_FOUND");
+        await expect(exerciseActionsModule.saveExerciseAction("2999-01-01", null, validForm())).rejects.toThrow("NEXT_NOT_FOUND");
+        expect(await exercisesOf(USER_A)).toEqual([]);
+      });
+
+      it("直す: 自分の運動を変えて、その日の詳細へ移動する(日は変わらない)", async () => {
+        currentUser.id = USER_A;
+        const saved = await exercisesModule.saveExercise(DATE, input);
+        await expect(exerciseActionsModule.updateExerciseAction(saved.id, null, validForm({ type: "strength", minutes: "50", memo: "胸" }))).rejects.toThrow(`NEXT_REDIRECT:/days/${DATE}`);
+
+        expect((await exercisesOf(USER_A))[0]).toMatchObject({ id: saved.id, dayId: saved.dayId, type: "strength", minutes: 50, memo: "胸" });
+      });
+
+      it("直す: 検証に失敗したら変更せず、他のユーザーの運動・範囲外の id は 404", async () => {
+        currentUser.id = USER_A;
+        const saved = await exercisesModule.saveExercise(DATE, input);
+        const failed = await exerciseActionsModule.updateExerciseAction(saved.id, null, validForm({ minutes: "0" }));
+        expect(failed?.errors.minutes).toBeTruthy();
+        expect((await exercisesOf(USER_A))[0].minutes).toBe(30);
+
+        currentUser.id = USER_B;
+        await expect(exerciseActionsModule.updateExerciseAction(saved.id, null, validForm({ minutes: "99" }))).rejects.toThrow("NEXT_NOT_FOUND");
+        await expect(exerciseActionsModule.updateExerciseAction(2_147_483_648, null, validForm())).rejects.toThrow("NEXT_NOT_FOUND");
+        expect((await exercisesOf(USER_A))[0].minutes).toBe(30);
+      });
+
+      it("消す: 自分の運動だけ消えて、その日の詳細へ移動する。他のユーザーのものは 404 で消えない", async () => {
+        currentUser.id = USER_A;
+        const saved = await exercisesModule.saveExercise(DATE, input);
+
+        currentUser.id = USER_B;
+        await expect(exerciseActionsModule.deleteExerciseAction(saved.id)).rejects.toThrow("NEXT_NOT_FOUND");
+        expect(await exercisesOf(USER_A)).toHaveLength(1);
+
+        currentUser.id = USER_A;
+        await expect(exerciseActionsModule.deleteExerciseAction(saved.id)).rejects.toThrow(`NEXT_REDIRECT:/days/${DATE}`);
+        expect(await exercisesOf(USER_A)).toEqual([]);
+      });
+
+      it("未ログインなら、どの Action も /login へ送られ、何も変わらない", async () => {
+        currentUser.id = USER_A;
+        const saved = await exercisesModule.saveExercise(DATE, input);
+
+        currentUser.id = "";
+        await expect(exerciseActionsModule.saveExerciseAction(DATE, null, validForm())).rejects.toThrow("NEXT_REDIRECT:/login");
+        await expect(exerciseActionsModule.updateExerciseAction(saved.id, null, validForm({ minutes: "99" }))).rejects.toThrow("NEXT_REDIRECT:/login");
+        await expect(exerciseActionsModule.deleteExerciseAction(saved.id)).rejects.toThrow("NEXT_REDIRECT:/login");
+        expect(await exercisesOf(USER_A)).toHaveLength(1);
+        expect((await exercisesOf(USER_A))[0].minutes).toBe(30);
       });
     });
   });
