@@ -74,11 +74,11 @@ describe("suggestTargets", () => {
   it("3 つとも提案する(目標体重 → カロリー → タンパク質の順に、前の結果を使う)", () => {
     const result = suggestTargets(full, SUGGESTABLE_FIELDS);
     expect(result.errors).toEqual({});
-    expect(result.values).toEqual({ targetWeightKg: "93.5", targetCalories: "2400", targetProteinG: "131" });
+    expect(result.values).toEqual({ targetWeightKg: "93.5", targetCalories: "2400", targetProteinG: "112" });
     expect(result.notes.targetWeightKg).toContain("5% 減");
     // 目標体重 93.5kg・体脂肪率 32% → 除脂肪体重 63.58kg → 基礎代謝 1743 × 1.375 = 2397 → 2400
     expect(result.notes.targetCalories).toContain("目標体重 93.5kg で釣り合うカロリー（基礎代謝 1743 × 1.375 = 2397 kcal）");
-    expect(result.notes.targetProteinG).toContain("93.5kg × 1.4 g/kg");
+    expect(result.notes.targetProteinG).toContain("93.5kg × 1.2 g/kg");
     // 現在の体重での消費 2494 kcal との差(2494 − 2400)
     expect(result.notes.targetCalories).toContain("現在の体重での消費 2494 kcal より、94 kcal 少ない量です");
   });
@@ -92,8 +92,8 @@ describe("suggestTargets", () => {
   it("本人が入れた目標体重を使う(チェックを外した項目は上書きしない)", () => {
     // 目標体重 85kg を自分で入れて、カロリーとタンパク質だけ提案
     const result = suggestTargets({ ...full, targetWeightKg: "85" }, ["targetCalories", "targetProteinG"]);
-    expect(result.values).toEqual({ targetCalories: "2250", targetProteinG: "119" }); // 85 × 1.4 = 119。カロリーは 85kg の基礎代謝 1618 × 1.375 = 2225 → 2250
-    expect(result.notes.targetProteinG).toBe("目標体重 85kg × 1.4 g/kg");
+    expect(result.values).toEqual({ targetCalories: "2250", targetProteinG: "102" }); // 85 × 1.2 = 102。カロリーは 85kg の基礎代謝 1618 × 1.375 = 2225 → 2250
+    expect(result.notes.targetProteinG).toBe("目標体重 85kg × 1.2 g/kg");
   });
 
   it("目標体重が空のまま、カロリーだけを提案するときは、5% 減の目標体重を仮定して、そう表示する", () => {
@@ -156,7 +156,7 @@ describe("suggestTargets", () => {
   it("活動係数が未選択なら、カロリーだけが提案できない(体重とタンパク質は提案できる)", () => {
     const result = suggestTargets({ ...full, activityLevel: "" }, SUGGESTABLE_FIELDS);
     expect(result.errors.targetCalories).toContain("活動係数");
-    expect(result.values).toEqual({ targetWeightKg: "93.5", targetProteinG: "131" });
+    expect(result.values).toEqual({ targetWeightKg: "93.5", targetProteinG: "112" });
   });
 
   it("基礎代謝に必要な項目が足りないときは、足りない項目名を理由に出す", () => {
@@ -172,7 +172,7 @@ describe("suggestTargets", () => {
 
   it("目標体重が空(空白だけを含む)なら、入力済みではないので、5% 減を仮定して提案する", () => {
     const result = suggestTargets({ ...full, targetWeightKg: "   " }, ["targetProteinG"]);
-    expect(result.values.targetProteinG).toBe("131");
+    expect(result.values.targetProteinG).toBe("112");
     expect(result.notes.targetProteinG).toContain("を仮定");
   });
 });

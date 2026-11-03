@@ -4,14 +4,13 @@ import { ExerciseBadge } from "@/components/exercise-badge";
 import { exerciseIntensityLabel, exerciseKcal, exerciseTypeLabel } from "@/lib/exercise";
 import { EXERCISE_MAX_PER_DAY } from "@/lib/exercise-limits";
 import { listExercisesOfDay } from "@/lib/exercises";
-import { getProfile } from "@/lib/profiles";
+import { getDayWeight } from "@/lib/days";
 
 // 日の詳細に出す、その日の運動の一覧(開始時刻の早い順。時刻なしは最後)と、増えた消費の合計、「運動を追加」。行のどこでも、直す画面へ移動する。
-// 消費カロリーは保存せず、その日の朝の体重(呼び出し側が渡す。無ければプロフィールの体重)から、表示のたびに計算する
-export async function ExerciseList({ date, morningWeightKg }: { date: string; morningWeightKg: string | null }) {
-  const [exercises, profile] = await Promise.all([listExercisesOfDay(date), getProfile()]);
-  const weight = morningWeightKg ?? profile.currentWeightKg;
-  const weightKg = weight === null ? null : Number(weight);
+// 消費カロリーは保存せず、その日の体重(朝の体重 → それ以前の最新 → プロフィールの体重。day-weight.ts)から、表示のたびに計算する
+export async function ExerciseList({ date }: { date: string }) {
+  const [exercises, weight] = await Promise.all([listExercisesOfDay(date), getDayWeight(date)]);
+  const weightKg = weight.kg;
 
   const rows = exercises.map((exercise) => ({ exercise, kcal: exerciseKcal(exercise.type, exercise.intensity, exercise.minutes, weightKg) }));
   const totalKcal = rows.reduce((total, row) => total + (row.kcal ?? 0), 0);

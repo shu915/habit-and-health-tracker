@@ -3,6 +3,12 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  /* グラフの色(dataviz の基準色。系列は青の1色、格子と目安の輪は灰色で目立たせない) */
+  --viz-series: #2a78d6;
+  --viz-grid: #e4e4e7;
+  --viz-ring: #a1a1aa;
+  --viz-text: #52514e;
+  --viz-surface: #ffffff;
 }
 
 @theme inline {
@@ -16,6 +22,11 @@
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
+    --viz-series: #3987e5;
+    --viz-grid: #3f3f46;
+    --viz-ring: #71717a;
+    --viz-text: #c3c2b7;
+    --viz-surface: #0a0a0a;
   }
 }
 

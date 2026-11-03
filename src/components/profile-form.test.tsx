@@ -187,7 +187,7 @@ describe("ProfileForm: 目標値の提案(各欄の「提案」ボタン)", () =
 
     expect(valueOf("目標体重")).toBe("93.5");
     expect(valueOf("目標カロリー")).toBe("2400");
-    expect(valueOf("目標タンパク質")).toBe("131");
+    expect(valueOf("目標タンパク質")).toBe("112");
     expect(screen.getAllByText(/提案の根拠:/)).toHaveLength(3); // 先に押した欄の根拠も残る
     expect(screen.getByText(/基礎代謝 1743 × 1.375/)).toBeTruthy();
   });
@@ -224,8 +224,8 @@ describe("ProfileForm: 目標値の提案(各欄の「提案」ボタン)", () =
     await user.click(suggestButton("目標タンパク質"));
 
     expect(valueOf("目標体重")).toBe("85");
-    expect(valueOf("目標タンパク質")).toBe("119"); // 85 × 1.4
-    expect(screen.getByText(/目標体重 85kg × 1.4 g\/kg/)).toBeTruthy();
+    expect(valueOf("目標タンパク質")).toBe("102"); // 85 × 1.2
+    expect(screen.getByText(/目標体重 85kg × 1.2 g\/kg/)).toBeTruthy();
   });
 
   it("材料が足りない項目は、値を入れず、理由を出す", async () => {

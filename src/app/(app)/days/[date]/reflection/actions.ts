@@ -8,7 +8,7 @@ import { isRecordableDate } from "@/lib/date";
 import { parseDayForm } from "@/lib/day-schema";
 import { saveDay } from "@/lib/days";
 
-// 夜の振り返りだけを保存する Server Action。朝の記録(edit/actions.ts)と同じ saveDay を使い、reflection だけを渡すので、ほかの項目は変わらない。
+// 今日の気づきだけを保存する Server Action。朝の記録(edit/actions.ts)と同じ saveDay を使い、reflection だけを渡すので、ほかの項目は変わらない。
 // 日付は、ページが bind して渡す(フォームの入力としては受け取らない)。念のため、ここでも検証する
 export async function saveReflectionAction(date: string, _previous: DayFormState, formData: FormData): Promise<DayFormState> {
   // 最初に認証を確かめる。ログインしていなければ /login へ送られ、検証にも保存にも進まない

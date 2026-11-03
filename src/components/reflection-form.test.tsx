@@ -16,7 +16,7 @@ const DATE = "2026-10-30";
 const makeAction = (result: DayFormState = null) =>
   vi.fn<(state: DayFormState, formData: FormData) => Promise<DayFormState>>(async () => result);
 
-const textarea = () => screen.getByLabelText("夜の振り返り") as HTMLTextAreaElement;
+const textarea = () => screen.getByLabelText("今日の気づき") as HTMLTextAreaElement;
 
 describe("ReflectionForm", () => {
   it("保存済みの文章を出す(改行も残る)。まだ無ければ空欄", () => {
@@ -44,7 +44,7 @@ describe("ReflectionForm", () => {
   it("検証に失敗すると、エラーが出て、入力した文章が残る", async () => {
     const user = userEvent.setup();
     const action = makeAction({
-      errors: { reflection: "夜の振り返りは 2000 文字以内で入力してください" },
+      errors: { reflection: "今日の気づきは 2000 文字以内で入力してください" },
       values: { reflection: "残す文章" },
       submittedAt: 1,
     });

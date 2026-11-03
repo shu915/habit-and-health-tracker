@@ -115,7 +115,7 @@ export const days = pgTable(
     sleepBedtime: varchar("sleep_bedtime", { length: 5 }),
     sleepWakeTime: varchar("sleep_wake_time", { length: 5 }),
 
-    // 今日の振り返り(夜の振り返り・日記。自由記入で、あとで AI がフィードバックする対象)。AI の返事はここに書かず、別テーブルに置く
+    // 今日の気づき(反省・気づき・明日への一言。自由記入で、あとで AI がフィードバックする対象)。AI の返事はここに書かず、別テーブルに置く
     reflection: text("reflection"),
 
     createdAt: timestamp("created_at").defaultNow().notNull(),

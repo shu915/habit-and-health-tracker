@@ -46,7 +46,7 @@ async function DayContent({ params }: Pick<PageProps<"/days/[date]">, "params">)
 
       {/* 過ぎた日だけ、摂取と消費の目安の結果を出す(今日と未来は、まだ記録が増えるので出さない) */}
       <Suspense fallback={null}>
-        <DayResult date={date} morningWeightKg={day?.morningWeightKg ?? null} />
+        <DayResult date={date} />
       </Suspense>
 
       {!day ? (
@@ -62,7 +62,7 @@ async function DayContent({ params }: Pick<PageProps<"/days/[date]">, "params">)
 
       {/* いつもより多く動いた分の運動 */}
       <Suspense fallback={<p className="text-zinc-500">運動を読み込み中...</p>}>
-        <ExerciseList date={date} morningWeightKg={day?.morningWeightKg ?? null} />
+        <ExerciseList date={date} />
       </Suspense>
 
       {/* ポジティブ3行日記(良かったこと) */}
@@ -70,7 +70,7 @@ async function DayContent({ params }: Pick<PageProps<"/days/[date]">, "params">)
         <PositiveList date={date} />
       </Suspense>
 
-      {/* 夜の振り返り(自由記入)。編集は別のパス */}
+      {/* 今日の気づき(自由記入)。編集は別のパス */}
       <ReflectionSection date={date} reflection={day?.reflection ?? null} />
 
       {/* 縦に長いので、下まで読んだ人のために、上と同じ戻るリンクを置く */}

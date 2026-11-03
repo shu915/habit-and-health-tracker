@@ -18,7 +18,7 @@ const fields = z.object({
   sleepWakeTime: timeOfDayField("起床時刻"),
   morningWeightKg: decimalField("朝の体重(kg)", limitOf("morningWeightKg")),
   morningBodyFatPercent: decimalField("朝の体脂肪率(%)", limitOf("morningBodyFatPercent")),
-  reflection: textField("夜の振り返り", REFLECTION_MAX_LENGTH),
+  reflection: textField("今日の気づき", REFLECTION_MAX_LENGTH),
 });
 
 // 検証を通った値(DB に保存する形)
