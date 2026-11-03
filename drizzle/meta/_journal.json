@@ -5,85 +5,50 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1793242117408,
-      "tag": "0000_enable_pgvector",
+      "when": 1793675651104,
+      "tag": "0000_auth",
       "breakpoints": true
     },
     {
       "idx": 1,
       "version": "7",
-      "when": 1793242126944,
-      "tag": "0001_better_auth",
+      "when": 1793675651996,
+      "tag": "0001_profiles",
       "breakpoints": true
     },
     {
       "idx": 2,
       "version": "7",
-      "when": 1793320166819,
-      "tag": "0002_profiles_and_days",
+      "when": 1793675652900,
+      "tag": "0002_days",
       "breakpoints": true
     },
     {
       "idx": 3,
       "version": "7",
-      "when": 1793326594686,
-      "tag": "0003_sleep_columns",
+      "when": 1793675653845,
+      "tag": "0003_meals",
       "breakpoints": true
     },
     {
       "idx": 4,
       "version": "7",
-      "when": 1793341284027,
-      "tag": "0004_meals",
+      "when": 1793675654684,
+      "tag": "0004_exercises",
       "breakpoints": true
     },
     {
       "idx": 5,
       "version": "7",
-      "when": 1793585095077,
-      "tag": "0005_days_user_id_unique",
+      "when": 1793675655568,
+      "tag": "0005_positive_entries",
       "breakpoints": true
     },
     {
       "idx": 6,
       "version": "7",
-      "when": 1793585101081,
-      "tag": "0006_meals_same_owner",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "7",
-      "when": 1793586292014,
-      "tag": "0007_ai_requests",
-      "breakpoints": true
-    },
-    {
-      "idx": 8,
-      "version": "7",
-      "when": 1793593537088,
-      "tag": "0008_exercises",
-      "breakpoints": true
-    },
-    {
-      "idx": 9,
-      "version": "7",
-      "when": 1793671235254,
-      "tag": "0009_positive_entries",
-      "breakpoints": true
-    },
-    {
-      "idx": 10,
-      "version": "7",
-      "when": 1793673055393,
-      "tag": "0010_exercise_start_time",
-      "breakpoints": true
-    },
-    {
-      "idx": 11,
-      "version": "7",
-      "when": 1793673235600,
-      "tag": "0011_profile_waist_measured_on",
+      "when": 1793675656418,
+      "tag": "0006_ai_requests",
       "breakpoints": true
     }
   ]

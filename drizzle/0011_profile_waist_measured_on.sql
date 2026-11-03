@@ -1,1 +1,0 @@
-ALTER TABLE "profiles" ADD COLUMN "waist_measured_on" date;

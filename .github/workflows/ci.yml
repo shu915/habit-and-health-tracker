@@ -12,9 +12,9 @@ jobs:
   check:
     runs-on: ubuntu-latest
     services:
-      # 実 DB を使うテスト(data-access.test.ts)用。pgvector 入りのイメージ(マイグレーションが拡張を作る)
+      # 実 DB を使うテスト(data-access.test.ts)用
       postgres:
-        image: pgvector/pgvector:pg17
+        image: postgres:17
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
