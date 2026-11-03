@@ -1,2 +1,0 @@
-ALTER TABLE "exercises" ADD COLUMN "start_time" varchar(5);--> statement-breakpoint
-ALTER TABLE "exercises" ADD CONSTRAINT "exercises_start_time_format" CHECK ("exercises"."start_time" IS NULL OR "exercises"."start_time" ~ '^([01][0-9]|2[0-6]):[0-5][0-9]$');

@@ -25,5 +25,5 @@ CREATE TABLE "meals" (
 );
 --> statement-breakpoint
 ALTER TABLE "meals" ADD CONSTRAINT "meals_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "meals" ADD CONSTRAINT "meals_day_id_days_id_fk" FOREIGN KEY ("day_id") REFERENCES "public"."days"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "meals" ADD CONSTRAINT "meals_user_day_fk" FOREIGN KEY ("user_id","day_id") REFERENCES "public"."days"("user_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "meals_user_day_idx" ON "meals" USING btree ("user_id","day_id");

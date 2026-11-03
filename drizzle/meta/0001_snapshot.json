@@ -1,9 +1,181 @@
 {
-  "id": "57496133-ea07-4a3b-9278-f2c85f615365",
-  "prevId": "6a05d95c-f6cb-44ea-85a3-dff436d703ba",
+  "id": "6775783f-4ac3-4b09-9673-d6a08e0d9f85",
+  "prevId": "914cd9ef-5005-42e8-a03f-875edc6fcc94",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
+    "public.profiles": {
+      "name": "profiles",
+      "schema": "",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "gender": {
+          "name": "gender",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "age": {
+          "name": "age",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "height_cm": {
+          "name": "height_cm",
+          "type": "numeric(5, 1)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "current_weight_kg": {
+          "name": "current_weight_kg",
+          "type": "numeric(5, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "current_body_fat_percent": {
+          "name": "current_body_fat_percent",
+          "type": "numeric(4, 1)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "current_waist_cm": {
+          "name": "current_waist_cm",
+          "type": "numeric(5, 1)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "waist_measured_on": {
+          "name": "waist_measured_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "activity_level": {
+          "name": "activity_level",
+          "type": "numeric(4, 3)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "target_weight_kg": {
+          "name": "target_weight_kg",
+          "type": "numeric(5, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "target_calories": {
+          "name": "target_calories",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "target_protein_g": {
+          "name": "target_protein_g",
+          "type": "numeric(5, 1)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "target_sleep_minutes": {
+          "name": "target_sleep_minutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 450
+        },
+        "target_sleep_midpoint": {
+          "name": "target_sleep_midpoint",
+          "type": "varchar(5)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'03:15'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "profiles_user_id_user_id_fk": {
+          "name": "profiles_user_id_user_id_fk",
+          "tableFrom": "profiles",
+          "tableTo": "user",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "profiles_age_range": {
+          "name": "profiles_age_range",
+          "value": "\"profiles\".\"age\" BETWEEN 0 AND 150"
+        },
+        "profiles_height_cm_range": {
+          "name": "profiles_height_cm_range",
+          "value": "\"profiles\".\"height_cm\" > 0 AND \"profiles\".\"height_cm\" <= 300"
+        },
+        "profiles_current_weight_kg_range": {
+          "name": "profiles_current_weight_kg_range",
+          "value": "\"profiles\".\"current_weight_kg\" > 0 AND \"profiles\".\"current_weight_kg\" < 500"
+        },
+        "profiles_current_body_fat_percent_range": {
+          "name": "profiles_current_body_fat_percent_range",
+          "value": "\"profiles\".\"current_body_fat_percent\" > 0 AND \"profiles\".\"current_body_fat_percent\" < 100"
+        },
+        "profiles_current_waist_cm_range": {
+          "name": "profiles_current_waist_cm_range",
+          "value": "\"profiles\".\"current_waist_cm\" > 0 AND \"profiles\".\"current_waist_cm\" <= 300"
+        },
+        "profiles_activity_level_range": {
+          "name": "profiles_activity_level_range",
+          "value": "\"profiles\".\"activity_level\" BETWEEN 1 AND 3"
+        },
+        "profiles_target_weight_kg_range": {
+          "name": "profiles_target_weight_kg_range",
+          "value": "\"profiles\".\"target_weight_kg\" > 0 AND \"profiles\".\"target_weight_kg\" < 500"
+        },
+        "profiles_target_calories_range": {
+          "name": "profiles_target_calories_range",
+          "value": "\"profiles\".\"target_calories\" > 0 AND \"profiles\".\"target_calories\" <= 10000"
+        },
+        "profiles_target_protein_g_range": {
+          "name": "profiles_target_protein_g_range",
+          "value": "\"profiles\".\"target_protein_g\" >= 0 AND \"profiles\".\"target_protein_g\" <= 1000"
+        },
+        "profiles_target_sleep_minutes_range": {
+          "name": "profiles_target_sleep_minutes_range",
+          "value": "\"profiles\".\"target_sleep_minutes\" > 0 AND \"profiles\".\"target_sleep_minutes\" <= 1440"
+        },
+        "profiles_target_sleep_midpoint_format": {
+          "name": "profiles_target_sleep_midpoint_format",
+          "value": "\"profiles\".\"target_sleep_midpoint\" ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.account": {
       "name": "account",
       "schema": "",
