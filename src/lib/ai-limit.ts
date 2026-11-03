@@ -25,7 +25,7 @@ async function countSince(executor: Db, userId: string, interval: string): Promi
 }
 
 // 上限内なら 1 回分を記録して ok、超えていれば記録せずに ng。
-// 「数える → 足す」を、ユーザー単位のロック(pg_advisory_xact_lock)で直列にする。ロックがないと、AI の呼び出し(最大 60 秒)の間に
+// 「数える → 足す」を、ユーザー単位のロック(pg_advisory_xact_lock)で直列にする。ロックがないと、AI の呼び出し(最大 約 70 秒: 35 秒 × 2 回)の間に
 // 同時に届いた要求が、すべて「0 件」を見て通り、上限を無視して課金が膨らむ。ロックは、数えて足すまでの短い間だけで、AI の呼び出しは、ロックの外
 export async function consumeAiRequest(): Promise<AiLimitResult> {
   const userId = await getCurrentUserId();
