@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useActionState } from "react";
 import type { PositiveFormState } from "@/app/(app)/days/[date]/positive/actions";
 import { buttonClass } from "@/components/button";
+import { FormActions } from "@/components/form-actions";
 import { POSITIVE_BODY_MAX_LENGTH } from "@/lib/positive-limits";
 // zod を含む positive-schema.ts は、ブラウザ側のコードに入れないよう、型だけを読む
 import type { PositiveField } from "@/lib/positive-schema";
@@ -82,14 +83,14 @@ export function PositiveForm({ date, initial, action }: Props) {
           })}
         </div>
 
-        <div className="flex gap-2">
-          <button type="submit" disabled={isPending} className={buttonClass()}>
-            {isPending ? "保存中..." : "保存"}
-          </button>
-          <Link href={`/days/${date}`} className={buttonClass({ variant: "secondary" })}>
+        <FormActions>
+          <Link href={`/days/${date}`} className={buttonClass({ variant: "secondary", size: "action" })}>
             キャンセル
           </Link>
-        </div>
+          <button type="submit" disabled={isPending} className={buttonClass({ size: "action" })}>
+            {isPending ? "保存中..." : "保存"}
+          </button>
+        </FormActions>
       </form>
     </div>
   );

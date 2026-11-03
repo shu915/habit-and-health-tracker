@@ -3,6 +3,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PositiveFormState } from "@/app/(app)/days/[date]/positive/actions";
+import { isBefore, isLastChild } from "./dom-order";
 import { EMPTY_POSITIVE, PositiveForm } from "./positive-form";
 
 afterEach(() => {
@@ -19,6 +20,19 @@ const makeAction = (result: PositiveFormState = null) =>
 const control = (n: number) => screen.getByLabelText(`${n} つ目`) as HTMLTextAreaElement;
 
 describe("PositiveForm", () => {
+  it("ボタンの並び: キャンセル(左)→ 保存(右端)", () => {
+    render(<PositiveForm date={DATE} initial={EMPTY_POSITIVE} action={makeAction()} />);
+    const cancel = screen.getByRole("link", { name: "キャンセル" });
+    const save = screen.getByRole("button", { name: "保存" });
+    expect(isBefore(cancel, save)).toBe(true);
+    expect(isLastChild(save)).toBe(true);
+    expect(save.className).toContain("bg-zinc-900"); // 決定は濃い色
+    expect(cancel.className).toContain("bg-zinc-200"); // キャンセルはグレー
+    expect(cancel.className).toContain("py-2"); // 高さはそろえる
+    expect(save.className).toContain("py-2");
+    expect(save.className).toContain("min-w-24"); // 決定も、字が少なくても細くならない(キャンセルと同じ幅)
+  });
+
   it("1 行の欄を 3 つ出す。初めは空で、例は入力欄の薄い文字(値ではない)", () => {
     render(<PositiveForm date={DATE} initial={EMPTY_POSITIVE} action={makeAction()} />);
     for (const n of [1, 2, 3]) {

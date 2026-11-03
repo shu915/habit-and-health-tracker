@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useActionState } from "react";
 import { buttonClass } from "@/components/button";
+import { FormActions } from "@/components/form-actions";
 import type { DayFormState } from "@/app/(app)/days/[date]/edit/actions";
 import { PairInput, timeParts } from "@/components/pair-input";
 import { formatDayRange } from "@/lib/day-limits";
@@ -82,18 +83,14 @@ export function DayForm({ date, initial, action }: Props) {
           <Field key={field.name} field={field} value={valueOf(field.name)} error={state?.errors[field.name]} />
         ))}
       </div>
-      <div className="flex gap-2">
-        <button
-          type="submit"
-          disabled={isPending}
-          className={buttonClass()}
-        >
-          {isPending ? "保存中..." : "保存"}
-        </button>
-        <Link href={`/days/${date}`} className={buttonClass({ variant: "secondary" })}>
+      <FormActions>
+        <Link href={`/days/${date}`} className={buttonClass({ variant: "secondary", size: "action" })}>
           キャンセル
         </Link>
-      </div>
+        <button type="submit" disabled={isPending} className={buttonClass({ size: "action" })}>
+          {isPending ? "保存中..." : "保存"}
+        </button>
+      </FormActions>
     </form>
   );
 }

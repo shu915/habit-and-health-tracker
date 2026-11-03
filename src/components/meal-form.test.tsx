@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { MealEstimate } from "@/lib/meal-estimate";
+import { isBefore, isFirstChild, isLastChild } from "./dom-order";
 import { MealForm } from "./meal-form";
 
 const actions = vi.hoisted(() => ({
@@ -55,6 +56,7 @@ function deferred<T>() {
 
 const field = (name: string) => screen.getByLabelText(name) as HTMLInputElement | HTMLTextAreaElement;
 const button = (name: string) => screen.getByRole("button", { name }) as HTMLButtonElement;
+const cancelLink = () => screen.getByRole("link", { name: "キャンセル" });
 
 // 解決されない Promise を残したテストが、あとのテストを巻き込まないよう、終わりに必ず解決する
 const pendingPromises: Array<() => void> = [];
@@ -452,6 +454,57 @@ describe("MealForm: 保存", () => {
     await screen.findByRole("heading", { name: "焼鮭定食" });
   }
 
+  it("ボタンの並び(推定する前): キャンセル(左)→ AI で推定する(右端、濃い色)", () => {
+    render(<MealForm date={DATE} mode="new" />);
+    expect(isBefore(cancelLink(), button("AI で推定する"))).toBe(true);
+    expect(isLastChild(button("AI で推定する"))).toBe(true);
+    expect(button("AI で推定する").className).toContain("bg-zinc-900");
+    expect(cancelLink().className).toContain("bg-zinc-200");
+    expect(cancelLink().className).toContain("py-2"); // 高さはそろえる
+    expect(button("AI で推定する").className).toContain("py-2");
+    expect(button("AI で推定する").className).toContain("min-w-24");
+  });
+
+  it("ボタンの並び(推定したあと): キャンセル(左)→ この内容で保存(右端、濃い色)。キャンセルは1つだけ", async () => {
+    const user = userEvent.setup();
+    render(<MealForm date={DATE} mode="new" />);
+    await estimated(user);
+
+    expect(screen.getAllByRole("link", { name: "キャンセル" })).toHaveLength(1);
+    expect(isBefore(cancelLink(), button("この内容で保存"))).toBe(true);
+    expect(isLastChild(button("この内容で保存"))).toBe(true);
+    expect(button("この内容で保存").className).toContain("bg-zinc-900");
+  });
+
+  it("推定し直している間も、キャンセルは1つだけ出る(押せば戻れる)", async () => {
+    const user = userEvent.setup();
+    render(<MealForm date={DATE} mode="new" />);
+    await estimated(user);
+    await user.type(field("説明"), "と納豆");
+
+    const pending = deferred<{ ok: true; estimate: MealEstimate }>();
+    actions.estimateMealAction.mockReturnValue(pending.promise);
+    await user.click(button("推定し直す"));
+    expect(screen.getByRole("status")).toBeTruthy(); // 推定中
+    expect(screen.getAllByRole("link", { name: "キャンセル" })).toHaveLength(1);
+    expect(isBefore(cancelLink(), button("推定中..."))).toBe(true);
+
+    await act(async () => pending.resolve({ ok: true, estimate }));
+    expect(screen.getAllByRole("link", { name: "キャンセル" })).toHaveLength(1);
+    expect(isBefore(cancelLink(), button("この内容で保存"))).toBe(true);
+  });
+
+  it("推定したあと、説明を変えていない間の「推定し直す」はグレー(決定は保存)。説明を変えると、押す必要があるので濃い色に戻る", async () => {
+    const user = userEvent.setup();
+    render(<MealForm date={DATE} mode="new" />);
+    await estimated(user);
+    expect(button("推定し直す").className).toContain("bg-zinc-200");
+    expect(button("推定し直す").className).not.toContain("bg-zinc-900");
+
+    await user.type(field("説明"), "と納豆");
+    expect(button("推定し直す").className).toContain("bg-zinc-900");
+  });
+
   it("推定しただけでは、何も保存されない。「この内容で保存」を押すと、日付・時刻・別名・推定(合計は含めない)を送る", async () => {
     const user = userEvent.setup();
     actions.saveMealAction.mockResolvedValue({ ok: false, errors: {} });
@@ -569,5 +622,24 @@ describe("MealForm: 編集", () => {
     await user.click(button("推定し直す"));
     await waitFor(() => expect(button("この内容で保存").disabled).toBe(false));
     expect(actions.estimateMealAction).toHaveBeenCalledWith({ text: "焼鮭2切れ、白ご飯", imageDataUrls: [] });
+  });
+
+  it("ボタンの並び: 削除(左端に離す)、キャンセル、この内容で保存(右端)。削除の確認は、やめる(左)→ 削除する(右)", async () => {
+    const user = userEvent.setup();
+    render(<MealForm date={DATE} mode="edit" mealId={7} initial={initial} />);
+    const remove = button("削除");
+    expect(isFirstChild(remove)).toBe(true);
+    expect(remove.parentElement?.contains(cancelLink())).toBe(false); // キャンセル・決定とは別のセル(離して置く)
+    expect(isBefore(remove, cancelLink())).toBe(true);
+    expect(isBefore(cancelLink(), button("この内容で保存"))).toBe(true);
+    expect(isLastChild(button("この内容で保存"))).toBe(true);
+
+    await user.click(remove);
+    expect(isBefore(button("やめる"), button("削除する"))).toBe(true);
+    expect(button("やめる").className).toContain("bg-zinc-200");
+    expect(button("削除する").className).toContain("bg-zinc-900");
+    expect(button("やめる").className).toContain("py-2"); // 高さはそろえる
+    expect(button("削除する").className).toContain("py-2");
+    expect(button("削除する").className).toContain("min-w-24");
   });
 });

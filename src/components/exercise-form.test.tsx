@@ -3,6 +3,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ExerciseFormState } from "@/app/(app)/days/[date]/exercises/actions";
+import { isBefore, isFirstChild, isLastChild } from "./dom-order";
 import { EMPTY_EXERCISE, ExerciseForm } from "./exercise-form";
 
 afterEach(() => {
@@ -20,6 +21,43 @@ const makeAction = (result: ExerciseFormState = null) =>
 const control = (label: string) => screen.getByLabelText(label) as HTMLSelectElement | HTMLInputElement;
 
 describe("ExerciseForm", () => {
+  it("ボタンの並び: キャンセル(左)→ 保存(右端)", () => {
+    render(<ExerciseForm date={DATE} initial={EMPTY_EXERCISE} action={makeAction()} />);
+    const cancel = screen.getByRole("link", { name: "キャンセル" });
+    const save = screen.getByRole("button", { name: "保存" });
+    expect(isBefore(cancel, save)).toBe(true);
+    expect(isLastChild(save)).toBe(true);
+    expect(save.className).toContain("bg-zinc-900"); // 決定は濃い色
+    expect(cancel.className).toContain("bg-zinc-200"); // キャンセルはグレー
+    expect(cancel.className).toContain("py-2"); // 高さはそろえる
+    expect(save.className).toContain("py-2");
+    expect(save.className).toContain("min-w-24"); // 決定も、字が少なくても細くならない(キャンセルと同じ幅)
+  });
+
+  it("直すときのボタンの並び: 削除(左端に離す)、キャンセル、保存(右端)。削除の確認は、やめる(左)→ 削除する(右)", async () => {
+    const user = userEvent.setup();
+    render(<ExerciseForm date={DATE} initial={{ type: "walk", intensity: "normal", minutes: "30", startTime: "", memo: "" }} action={makeAction()} deleteAction={vi.fn(async () => {})} />);
+    const remove = screen.getByRole("button", { name: "削除" });
+    const cancel = screen.getByRole("link", { name: "キャンセル" });
+    const save = screen.getByRole("button", { name: "保存" });
+    expect(isFirstChild(remove)).toBe(true);
+    expect(remove.parentElement?.contains(cancel)).toBe(false); // キャンセル・決定とは別のセル(離して置く)
+    expect(isBefore(remove, cancel)).toBe(true);
+    expect(isBefore(cancel, save)).toBe(true);
+    expect(isLastChild(save)).toBe(true);
+
+    await user.click(remove);
+    const back = screen.getByRole("button", { name: "やめる" });
+    const confirm = screen.getByRole("button", { name: "削除する" });
+    expect(isBefore(back, confirm)).toBe(true);
+    expect(back.className).toContain("bg-zinc-200");
+    expect(confirm.className).toContain("bg-zinc-900");
+    expect(back.className).toContain("py-2"); // 高さはそろえる
+    expect(confirm.className).toContain("py-2");
+    expect(confirm.className).toContain("min-w-24");
+    expect(remove.className).toContain("py-2");
+  });
+
   it("二重に数えないための注意書きを出す(ふだんの運動は活動係数に含まれ、増えた分だけ記録する)", () => {
     render(<ExerciseForm date={DATE} initial={EMPTY_EXERCISE} action={makeAction()} />);
     expect(screen.getByText(/活動係数に、すでに含まれています/)).toBeTruthy();

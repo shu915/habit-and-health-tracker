@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRef, useState, useSyncExternalStore, useTransition } from "react";
 import { deleteMealAction, estimateMealAction, saveMealAction, updateMealAction, type SaveMealResult } from "@/app/(app)/days/[date]/meals/actions";
 import { buttonClass } from "@/components/button";
+import { FormActions } from "@/components/form-actions";
 import { MealBadge } from "@/components/meal-badge";
 import { PairInput, timeParts } from "@/components/pair-input";
 import { ProcessingIndicator } from "@/components/processing-indicator";
@@ -270,11 +271,20 @@ export function MealForm({ date, mode, mealId, initial }: Props) {
         </div>
       </fieldset>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <button type="button" onClick={handleEstimate} disabled={!canEstimate} className={buttonClass()}>
-          {estimating ? "推定中..." : estimate ? "推定し直す" : "AI で推定する"}
-        </button>
+      <div className="flex flex-col gap-2">
         {descriptionChanged && !estimating && <span className="text-xs text-amber-700 dark:text-amber-400">説明を変えました。「推定し直す」を押してから、保存してください。</span>}
+        <FormActions>
+          {/* 下の保存の行が出ていないとき(推定する前と、推定し直している間)は、ここにキャンセルを置く */}
+          {!(estimate && !estimating) && (
+            <Link href={`/days/${date}`} className={buttonClass({ variant: "secondary", size: "action" })}>
+              キャンセル
+            </Link>
+          )}
+          {/* 推定したあと、説明を変えていない間は、決定ではない(決定は下の「この内容で保存」)ので、グレーにする */}
+          <button type="button" onClick={handleEstimate} disabled={!canEstimate} className={buttonClass({ variant: estimate && !descriptionChanged ? "secondary" : "primary", size: "action" })}>
+            {estimating ? "推定中..." : estimate ? "推定し直す" : "AI で推定する"}
+          </button>
+        </FormActions>
       </div>
 
       {estimating && <ProcessingIndicator hasPhoto={photos.length > 0} />}
@@ -312,39 +322,34 @@ export function MealForm({ date, mode, mealId, initial }: Props) {
               {saveErrors.form}
             </p>
           )}
-          <div className="flex flex-wrap items-center gap-2">
-            <button type="button" onClick={handleSave} disabled={!canSave} className={buttonClass()}>
-              {saving ? "保存中..." : "この内容で保存"}
-            </button>
-            <Link href={`/days/${date}`} className={buttonClass({ variant: "secondary" })}>
+          <FormActions
+            remove={
+              mode === "edit" && mealId !== undefined && !confirmingDelete ? (
+                <button type="button" onClick={() => setConfirmingDelete(true)} disabled={busy} className={buttonClass({ variant: "secondary", size: "action" })}>
+                  削除
+                </button>
+              ) : null
+            }
+          >
+            <Link href={`/days/${date}`} className={buttonClass({ variant: "secondary", size: "action" })}>
               キャンセル
             </Link>
-            {mode === "edit" && mealId !== undefined && !confirmingDelete && (
-              <button type="button" onClick={() => setConfirmingDelete(true)} disabled={busy} className={`${buttonClass({ variant: "secondary" })} ml-auto`}>
-                削除
-              </button>
-            )}
-          </div>
+            <button type="button" onClick={handleSave} disabled={!canSave} className={buttonClass({ size: "action" })}>
+              {saving ? "保存中..." : "この内容で保存"}
+            </button>
+          </FormActions>
           {confirmingDelete && (
             <div role="alertdialog" aria-label="削除の確認" className="flex flex-wrap items-center gap-3 rounded-lg border border-red-300 p-3 text-sm dark:border-red-900">
               <span>この食事を削除します。元に戻せません。よろしいですか。</span>
-              <button type="button" onClick={handleDelete} disabled={saving} className={buttonClass()}>
-                削除する
-              </button>
-              <button type="button" onClick={() => setConfirmingDelete(false)} disabled={saving} className={buttonClass({ variant: "secondary" })}>
+              <button type="button" onClick={() => setConfirmingDelete(false)} disabled={saving} className={buttonClass({ variant: "secondary", size: "action" })}>
                 やめる
+              </button>
+              <button type="button" onClick={handleDelete} disabled={saving} className={buttonClass({ size: "action" })}>
+                削除する
               </button>
             </div>
           )}
         </section>
-      )}
-
-      {!estimate && (
-        <div>
-          <Link href={`/days/${date}`} className={buttonClass({ variant: "secondary" })}>
-            キャンセル
-          </Link>
-        </div>
       )}
     </div>
   );

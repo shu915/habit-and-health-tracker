@@ -3,6 +3,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DayFormState } from "@/app/(app)/days/[date]/edit/actions";
+import { isBefore, isLastChild } from "./dom-order";
 import { DayForm, type DayFormInitial } from "./day-form";
 
 afterEach(() => {
@@ -33,6 +34,19 @@ const makeAction = (result: DayFormState = null) =>
 const input = (label: string) => screen.getByLabelText(label) as HTMLInputElement | HTMLTextAreaElement;
 
 describe("DayForm", () => {
+  it("ボタンの並び: キャンセル(左)→ 保存(右端)", () => {
+    render(<DayForm date="2026-10-30" initial={empty} action={makeAction()} />);
+    const cancel = screen.getByRole("link", { name: "キャンセル" });
+    const save = screen.getByRole("button", { name: "保存" });
+    expect(isBefore(cancel, save)).toBe(true);
+    expect(isLastChild(save)).toBe(true);
+    expect(save.className).toContain("bg-zinc-900"); // 決定は濃い色
+    expect(cancel.className).toContain("bg-zinc-200"); // キャンセルはグレー
+    expect(cancel.className).toContain("py-2"); // 高さはそろえる
+    expect(save.className).toContain("py-2");
+    expect(save.className).toContain("min-w-24"); // 決定も、字が少なくても細くならない(キャンセルと同じ幅)
+  });
+
   it("保存済みの値を、各欄に出す(振り返りの改行も残る)", () => {
     render(<DayForm date={DATE} initial={filled} action={makeAction()} />);
     expect(input("就寝(前の夜)（時）").value).toBe("23");
