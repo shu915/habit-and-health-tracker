@@ -1,9 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useState, useTransition } from "react";
+import { useActionState, useState, useSyncExternalStore, useTransition } from "react";
 import type { ExerciseFormState } from "@/app/(app)/days/[date]/exercises/actions";
 import { buttonClass } from "@/components/button";
+import { PairInput, timeParts } from "@/components/pair-input";
+import { joinTimeOfDay } from "@/lib/duration";
+import { defaultMealDayAndTime } from "@/lib/meal-time";
 import { EXERCISE_INTENSITIES, EXERCISE_TYPES } from "@/lib/exercise";
 import { EXERCISE_MEMO_MAX_LENGTH, formatExerciseRange } from "@/lib/exercise-limits";
 // zod を含む exercise-schema.ts は、ブラウザ側のコードに入れないよう、型だけを読む
@@ -12,7 +15,9 @@ import type { ExerciseField } from "@/lib/exercise-schema";
 // 運動の追加・編集フォーム。値はすべて文字列で送り、検証はサーバー側(exercise-schema.ts)で行う。消費カロリーは保存後に計算して出す
 export type ExerciseFormInitial = Record<ExerciseField, string>;
 
-export const EMPTY_EXERCISE: ExerciseFormInitial = { type: "", intensity: "", minutes: "", memo: "" };
+export const EMPTY_EXERCISE: ExerciseFormInitial = { type: "", intensity: "", minutes: "", startTime: "", memo: "" };
+
+const subscribeNothing = () => () => {};
 
 type Props = {
   date: string;
@@ -21,18 +26,28 @@ type Props = {
   action: (state: ExerciseFormState, formData: FormData) => Promise<ExerciseFormState>;
   // 直すときだけ渡す、削除の Server Action(id を bind)
   deleteAction?: () => Promise<void>;
+  // 追加のときだけ true: 開始時刻の初期値を、端末の今の時刻にする(画面の日付が「今の食事の日」のときだけ。別の日は空)
+  defaultToNow?: boolean;
 };
 
 const INPUT_CLASS = "rounded-md border border-zinc-300 bg-transparent px-3 py-1.5 dark:border-zinc-700";
 
-export function ExerciseForm({ date, initial, action, deleteAction }: Props) {
+export function ExerciseForm({ date, initial, action, deleteAction, defaultToNow = false }: Props) {
   const [state, formAction, isPending] = useActionState<ExerciseFormState, FormData>(action, null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, startDelete] = useTransition();
   const busy = isPending || deleting;
 
+  // 開始時刻の初期値は、端末の今の時刻(サーバーには分からないので、ブラウザ側で決める)。
+  // 「その日」は 03:00〜翌 02:59 なので、画面の日付が今の食事の日のときだけ入れる(03:00 前は前日の 24 時以降の表記)
+  const defaultStartTime = useSyncExternalStore(
+    subscribeNothing,
+    () => (defaultToNow && defaultMealDayAndTime().date === date ? defaultMealDayAndTime().time : initial.startTime),
+    () => initial.startTime,
+  );
+
   // 検証に失敗したら、送った値をそのまま残す(保存に成功すると、サーバーが詳細ページへ移動する)
-  const valueOf = (name: ExerciseField) => state?.values[name] ?? initial[name];
+  const valueOf = (name: ExerciseField) => state?.values[name] ?? (name === "startTime" ? defaultStartTime : initial[name]);
   const errorOf = (name: ExerciseField) => state?.errors[name];
 
   return (
@@ -79,6 +94,28 @@ export function ExerciseForm({ date, initial, action, deleteAction }: Props) {
                 </option>
               ))}
             </select>
+          </Row>
+          <Row
+            name="startTime"
+            label="開始時刻"
+            error={errorOf("startTime")}
+            description="任意。深夜(午前 3 時まで)の運動は、前の日の記録として、24 時以降(例: 25 時 30 分)で入れます。"
+          >
+            <div className="flex items-center gap-2">
+              {/* 初期値が決まったとき(サーバーの空 → ブラウザの今の時刻)に、入力欄を作り直す */}
+              <PairInput
+                key={defaultStartTime}
+                id="exercise-startTime"
+                name="startTime"
+                label="開始時刻"
+                units={["時", "分"]}
+                initial={timeParts(valueOf("startTime"))}
+                join={joinTimeOfDay}
+                placeholders={["7", "30"]}
+                error={errorOf("startTime")}
+                errorId="exercise-startTime-error"
+              />
+            </div>
           </Row>
           <Row name="minutes" label="時間" error={errorOf("minutes")} description={`分で入力します(${formatExerciseRange("minutes")})。`}>
             <div className="flex items-center gap-2">
@@ -143,7 +180,7 @@ function describe(name: ExerciseField, error: string | undefined) {
 }
 
 function Row({ name, label, error, description, children }: { name: ExerciseField; label: string; error: string | undefined; description?: string; children: React.ReactNode }) {
-  const controlId = { type: "exercise-type", intensity: "exercise-intensity", minutes: "exercise-minutes", memo: "exercise-memo" }[name];
+  const controlId = { type: "exercise-type", intensity: "exercise-intensity", minutes: "exercise-minutes", startTime: "exercise-startTime", memo: "exercise-memo" }[name];
   return (
     <div className="grid grid-cols-[9rem_1fr] items-start gap-x-4 gap-y-1 text-sm">
       <label htmlFor={controlId} className="pt-1.5 text-zinc-500">

@@ -71,6 +71,20 @@
       "when": 1793671235254,
       "tag": "0009_positive_entries",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793673055393,
+      "tag": "0010_exercise_start_time",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1793673235600,
+      "tag": "0011_profile_waist_measured_on",
+      "breakpoints": true
     }
   ]
 }

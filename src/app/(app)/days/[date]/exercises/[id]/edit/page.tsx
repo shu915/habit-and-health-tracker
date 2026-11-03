@@ -35,7 +35,7 @@ async function EditExerciseContent({ params }: Pick<PageProps<"/days/[date]/exer
       </div>
       <ExerciseForm
         date={date}
-        initial={{ type: exercise.type, intensity: exercise.intensity, minutes: String(exercise.minutes), memo: exercise.memo ?? "" }}
+        initial={{ type: exercise.type, intensity: exercise.intensity, minutes: String(exercise.minutes), startTime: exercise.startTime ?? "", memo: exercise.memo ?? "" }}
         action={updateExerciseAction.bind(null, exercise.id)}
         deleteAction={deleteExerciseAction.bind(null, exercise.id)}
       />

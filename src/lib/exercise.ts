@@ -5,7 +5,7 @@
 
 // 保存する値(キー)と、画面に出す名前
 export const EXERCISE_TYPES = [
-  { key: "walk", label: "散歩(非定期)" },
+  { key: "walk", label: "散歩" },
   { key: "indoor", label: "室内エクササイズ" },
   { key: "strength", label: "筋トレ" },
   { key: "other", label: "その他" },

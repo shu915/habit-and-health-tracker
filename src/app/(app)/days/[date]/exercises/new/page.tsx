@@ -27,7 +27,7 @@ async function NewExerciseContent({ params }: Pick<PageProps<"/days/[date]/exerc
         <BackLink href={`/days/${date}`}>{date} の詳細に戻る</BackLink>
         <h1 className="text-2xl font-semibold">{date} の運動を追加</h1>
       </div>
-      <ExerciseForm date={date} initial={EMPTY_EXERCISE} action={saveExerciseAction.bind(null, date)} />
+      <ExerciseForm date={date} initial={EMPTY_EXERCISE} action={saveExerciseAction.bind(null, date)} defaultToNow />
     </div>
   );
 }

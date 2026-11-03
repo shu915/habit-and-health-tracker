@@ -1,6 +1,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { todayString } from "./date";
 import { DAY_LIMITS, type DayLimitedField } from "./day-limits";
 import { EXERCISE_LIMITS, EXERCISE_MAX_PER_DAY } from "./exercise-limits";
 import { MEAL_LIMITS, type MealLimitedField } from "./meal-limits";
@@ -1167,13 +1168,13 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
 
   describe("運動(lib/exercises.ts と exercises/actions.ts)", () => {
     const DATE = "2026-05-12";
-    const input = { type: "walk", intensity: "normal", minutes: 30, memo: null };
+    const input = { type: "walk", intensity: "normal", minutes: 30, startTime: null, memo: null };
     const formOf = (fields: Record<string, string>) => {
       const formData = new FormData();
       for (const [key, value] of Object.entries(fields)) formData.set(key, value);
       return formData;
     };
-    const validForm = (overrides: Record<string, string> = {}) => formOf({ type: "walk", intensity: "normal", minutes: "30", memo: "", ...overrides });
+    const validForm = (overrides: Record<string, string> = {}) => formOf({ type: "walk", intensity: "normal", minutes: "30", startTime: "", memo: "", ...overrides });
     const exercisesOf = async (userId: string) => {
       const { eq } = await import("drizzle-orm");
       return dbModule.db.select().from(schema.exercises).where(eq(schema.exercises.userId, userId));
@@ -1198,6 +1199,14 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
         for (const intensity of ["light", "normal", "hard"]) await expect(insertExercise(day.id, { intensity })).resolves.toBeDefined();
         for (const intensity of ["", "easy", "HARD"]) await expectViolation(insertExercise(day.id, { intensity }), "exercises_intensity_values", intensity);
         await expect(insertExercise(day.id, { type: "future-type" })).resolves.toBeDefined();
+      });
+
+      it("exercises_start_time_format: 00:00〜26:59 の HH:MM か null だけ通る", async () => {
+        const day = await makeDay();
+        for (const startTime of [null, "00:00", "07:30", "23:59", "24:00", "26:59"]) await expect(insertExercise(day.id, { startTime })).resolves.toBeDefined();
+        for (const startTime of ["27:00", "26:60", "7:30", "07:5", "ab:cd", ""]) {
+          await expectViolation(insertExercise(day.id, { startTime }), "exercises_start_time_format", JSON.stringify(startTime));
+        }
       });
 
       it("メモは 200 文字まで", async () => {
@@ -1233,6 +1242,26 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
         expect(list[1]).toMatchObject({ type: "strength", minutes: 45, memo: "脚の日", userId: USER_A });
       });
 
+      it("一覧は開始時刻の早い順。時刻なしは最後で、同じ時刻や時刻なし同士は追加した順(24 時以降は深夜として最後のほう)", async () => {
+        currentUser.id = USER_A;
+        const none1 = await exercisesModule.saveExercise(DATE, input);
+        const morning = await exercisesModule.saveExercise(DATE, { ...input, startTime: "07:30" });
+        const none2 = await exercisesModule.saveExercise(DATE, input);
+        const lateNight = await exercisesModule.saveExercise(DATE, { ...input, startTime: "25:10" });
+        const sameAsMorning = await exercisesModule.saveExercise(DATE, { ...input, startTime: "07:30" });
+
+        const list = await exercisesModule.listExercisesOfDay(DATE);
+        expect(list.map((exercise) => exercise.id)).toEqual([morning.id, sameAsMorning.id, lateNight.id, none1.id, none2.id]);
+        expect(list.map((exercise) => exercise.startTime)).toEqual(["07:30", "07:30", "25:10", null, null]);
+      });
+
+      it("直すと、開始時刻も変わる(時刻を消して null にもできる)", async () => {
+        currentUser.id = USER_A;
+        const saved = await exercisesModule.saveExercise(DATE, { ...input, startTime: "06:00" });
+        expect((await exercisesModule.updateExercise(saved.id, { ...input, startTime: "18:45" }))?.startTime).toBe("18:45");
+        expect((await exercisesModule.updateExercise(saved.id, { ...input, startTime: null }))?.startTime).toBeNull();
+      });
+
       it("他のユーザーの運動は、一覧にも取得にも出ず、直せず、消せない", async () => {
         currentUser.id = USER_A;
         const mine = await exercisesModule.saveExercise(DATE, input);
@@ -1250,7 +1279,7 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
       it("直すと、日は変わらず中身だけが変わる。消すと一覧から消える", async () => {
         currentUser.id = USER_A;
         const saved = await exercisesModule.saveExercise(DATE, input);
-        const updated = await exercisesModule.updateExercise(saved.id, { type: "indoor", intensity: "hard", minutes: 20, memo: "HIIT" });
+        const updated = await exercisesModule.updateExercise(saved.id, { type: "indoor", intensity: "hard", minutes: 20, startTime: null, memo: "HIIT" });
         expect(updated).toMatchObject({ id: saved.id, dayId: saved.dayId, type: "indoor", intensity: "hard", minutes: 20, memo: "HIIT" });
         expect((await exercisesModule.getExercise(saved.id))?.date).toBe(DATE);
 
@@ -1324,6 +1353,24 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
         expect(vi.mocked(revalidatePath)).toHaveBeenCalledWith("/");
       });
 
+      it("追加: 開始時刻を保存する。空欄は null。24 時以降も保存できる", async () => {
+        currentUser.id = USER_A;
+        await expect(exerciseActionsModule.saveExerciseAction(DATE, null, validForm({ startTime: "07:05" }))).rejects.toThrow("NEXT_REDIRECT");
+        await expect(exerciseActionsModule.saveExerciseAction(DATE, null, validForm({ startTime: "25:30" }))).rejects.toThrow("NEXT_REDIRECT");
+        await expect(exerciseActionsModule.saveExerciseAction(DATE, null, validForm({ startTime: "" }))).rejects.toThrow("NEXT_REDIRECT");
+        expect((await exercisesOf(USER_A)).map((exercise) => exercise.startTime).sort()).toEqual(["07:05", "25:30", null]);
+      });
+
+      it("追加: 開始時刻が範囲外・形が違うなら、保存せず、その欄のエラーを返す", async () => {
+        currentUser.id = USER_A;
+        for (const startTime of ["27:00", "12:60", "7:5", "abc"]) {
+          const result = await exerciseActionsModule.saveExerciseAction(DATE, null, validForm({ startTime }));
+          expect(result?.errors.startTime, startTime).toContain("0〜26");
+          expect(result?.values).toMatchObject({ startTime });
+        }
+        expect(await exercisesOf(USER_A)).toEqual([]);
+      });
+
       it("追加: その日が 5 件なら、保存せず、理由と入力した値を返す(移動もしない)", async () => {
         currentUser.id = USER_A;
         for (let n = 0; n < EXERCISE_MAX_PER_DAY; n++) await exercisesModule.saveExercise(DATE, input);
@@ -1386,6 +1433,15 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
         expect((await exercisesOf(USER_A))[0]).toMatchObject({ id: saved.id, dayId: saved.dayId, type: "strength", minutes: 50, memo: "胸" });
       });
 
+      it("直す: 開始時刻を変えられる。空にすると null", async () => {
+        currentUser.id = USER_A;
+        const saved = await exercisesModule.saveExercise(DATE, { ...input, startTime: "06:00" });
+        await expect(exerciseActionsModule.updateExerciseAction(saved.id, null, validForm({ startTime: "18:30" }))).rejects.toThrow("NEXT_REDIRECT");
+        expect((await exercisesOf(USER_A))[0].startTime).toBe("18:30");
+        await expect(exerciseActionsModule.updateExerciseAction(saved.id, null, validForm({ startTime: "" }))).rejects.toThrow("NEXT_REDIRECT");
+        expect((await exercisesOf(USER_A))[0].startTime).toBeNull();
+      });
+
       it("直す: 検証に失敗したら変更せず、他のユーザーの運動・範囲外の id は 404", async () => {
         currentUser.id = USER_A;
         const saved = await exercisesModule.saveExercise(DATE, input);
@@ -1422,6 +1478,140 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
         await expect(exerciseActionsModule.deleteExerciseAction(saved.id)).rejects.toThrow("NEXT_REDIRECT:/login");
         expect(await exercisesOf(USER_A)).toHaveLength(1);
         expect((await exercisesOf(USER_A))[0].minutes).toBe(30);
+      });
+    });
+  });
+
+  describe("ウエストを保存した日(profiles.waist_measured_on)", () => {
+    const profileOf = async (userId: string) => {
+      const { eq } = await import("drizzle-orm");
+      const [row] = await dbModule.db.select().from(schema.profiles).where(eq(schema.profiles.userId, userId));
+      return row;
+    };
+    const setMeasuredOn = async (userId: string, waistMeasuredOn: string | null) => {
+      const { eq } = await import("drizzle-orm");
+      await dbModule.db.update(schema.profiles).set({ waistMeasuredOn }).where(eq(schema.profiles.userId, userId));
+    };
+    const formOf = (fields: Record<string, string>) => {
+      const formData = new FormData();
+      for (const [key, value] of Object.entries(fields)) formData.set(key, value);
+      return formData;
+    };
+
+    it("新しいプロフィールでは null", async () => {
+      currentUser.id = USER_A;
+      await profilesModule.getProfile();
+      expect((await profileOf(USER_A)).waistMeasuredOn).toBeNull();
+    });
+
+    it("ウエストを入れて保存すると今日になる", async () => {
+      currentUser.id = USER_A;
+      await profilesModule.updateProfile({ currentWaistCm: "80.5" });
+      expect((await profileOf(USER_A)).waistMeasuredOn).toBe(todayString());
+    });
+
+    it("ウエストの値を変えると更新される。同じ値なら更新されない", async () => {
+      currentUser.id = USER_A;
+      await profilesModule.updateProfile({ currentWaistCm: "80.5" });
+      await setMeasuredOn(USER_A, "2026-01-15");
+
+      await profilesModule.updateProfile({ currentWaistCm: "80.5" }); // 同じ値
+      expect((await profileOf(USER_A)).waistMeasuredOn).toBe("2026-01-15");
+
+      await profilesModule.updateProfile({ currentWaistCm: "79.8" }); // 変えた
+      expect((await profileOf(USER_A)).waistMeasuredOn).toBe(todayString());
+    });
+
+    it("ほかの項目だけを直して保存しても、ウエストを測ったことにはならない", async () => {
+      currentUser.id = USER_A;
+      await profilesModule.updateProfile({ currentWaistCm: "80.5" });
+      await setMeasuredOn(USER_A, "2026-01-15");
+
+      await profilesModule.updateProfile({ targetCalories: 1900 });
+      expect((await profileOf(USER_A)).waistMeasuredOn).toBe("2026-01-15");
+    });
+
+    it("ウエストを空にすると null に戻る", async () => {
+      currentUser.id = USER_A;
+      await profilesModule.updateProfile({ currentWaistCm: "80.5" });
+      await profilesModule.updateProfile({ currentWaistCm: null });
+      const row = await profileOf(USER_A);
+      expect(row.currentWaistCm).toBeNull();
+      expect(row.waistMeasuredOn).toBeNull();
+    });
+
+    it("recordWaistMeasurement: 前と同じ値でも日付は今日になる。他の項目と、他のユーザーには触れない", async () => {
+      currentUser.id = USER_A;
+      await profilesModule.updateProfile({ currentWaistCm: "80.5", targetCalories: 1900 });
+      await setMeasuredOn(USER_A, "2026-01-15");
+      currentUser.id = USER_B;
+      await profilesModule.updateProfile({ currentWaistCm: "70.0" });
+      await setMeasuredOn(USER_B, "2026-01-20");
+
+      currentUser.id = USER_A;
+      await profilesModule.recordWaistMeasurement("80.5");
+
+      expect(await profileOf(USER_A)).toMatchObject({ currentWaistCm: "80.5", targetCalories: 1900, waistMeasuredOn: todayString() });
+      expect(await profileOf(USER_B)).toMatchObject({ currentWaistCm: "70.0", waistMeasuredOn: "2026-01-20" });
+    });
+
+    it("recordWaistMeasurement: プロフィールの行が無くても作って保存する。未ログインなら /login へ送る", async () => {
+      currentUser.id = USER_A;
+      await profilesModule.recordWaistMeasurement("81.0");
+      expect(await profileOf(USER_A)).toMatchObject({ currentWaistCm: "81.0", waistMeasuredOn: todayString() });
+
+      currentUser.id = "";
+      await expect(profilesModule.recordWaistMeasurement("90.0")).rejects.toThrow("NEXT_REDIRECT:/login");
+    });
+
+    describe("recordWaistAction", () => {
+      it("保存して、ダッシュボードの再描画を頼む(移動はしない)", async () => {
+        currentUser.id = USER_A;
+        const result = await actionsModule.recordWaistAction(null, formOf({ currentWaistCm: "80.5" }));
+
+        expect(result).toBeNull();
+        expect(await profileOf(USER_A)).toMatchObject({ currentWaistCm: "80.5", waistMeasuredOn: todayString() });
+        expect(vi.mocked(revalidatePath).mock.calls.map(([path]) => path)).toEqual(["/"]);
+        expect(vi.mocked(redirect)).not.toHaveBeenCalled();
+      });
+
+      it.each([
+        ["空", "", "ウエストを入力してください"],
+        ["範囲外(小さすぎる)", "29.9", "ウエスト(cm)は 30 以上 250 以下の数値で入力してください"],
+        ["範囲外(大きすぎる)", "250.1", "ウエスト(cm)は 30 以上 250 以下の数値で入力してください"],
+        ["16 進数", "0x10", "ウエスト(cm)は 30 以上 250 以下の数値で入力してください"],
+        ["指数", "1e2", "ウエスト(cm)は 30 以上 250 以下の数値で入力してください"],
+        ["文字", "abc", "ウエスト(cm)は 30 以上 250 以下の数値で入力してください"],
+      ])("検証に失敗したら、保存せず、エラーと入れた値を返す: %s", async (_label, value, message) => {
+        currentUser.id = USER_A;
+        await profilesModule.updateProfile({ currentWaistCm: "80.5" });
+        await setMeasuredOn(USER_A, "2026-01-15");
+        vi.mocked(revalidatePath).mockClear();
+
+        const result = await actionsModule.recordWaistAction(null, formOf({ currentWaistCm: value }));
+        expect(result?.error).toBe(message);
+        expect(result?.value).toBe(value);
+        expect(await profileOf(USER_A)).toMatchObject({ currentWaistCm: "80.5", waistMeasuredOn: "2026-01-15" });
+        expect(vi.mocked(revalidatePath)).not.toHaveBeenCalled();
+      });
+
+      it("キーが無い(送られてこない)ときも、保存せずエラーにする。余計なキーは無視する", async () => {
+        currentUser.id = USER_A;
+        const missing = await actionsModule.recordWaistAction(null, formOf({}));
+        expect(missing?.error).toBe("ウエストを入力してください");
+
+        await actionsModule.recordWaistAction(null, formOf({ currentWaistCm: "80.5", userId: USER_B, targetCalories: "9999", waistMeasuredOn: "1999-01-01" }));
+        expect(await profileOf(USER_A)).toMatchObject({ currentWaistCm: "80.5", targetCalories: null, waistMeasuredOn: todayString() });
+      });
+
+      it("未ログインなら /login へ送られ、何も変わらない", async () => {
+        currentUser.id = USER_A;
+        await profilesModule.updateProfile({ currentWaistCm: "80.5" });
+        await setMeasuredOn(USER_A, "2026-01-15");
+
+        currentUser.id = "";
+        await expect(actionsModule.recordWaistAction(null, formOf({ currentWaistCm: "99.0" }))).rejects.toThrow("NEXT_REDIRECT:/login");
+        expect(await profileOf(USER_A)).toMatchObject({ currentWaistCm: "80.5", waistMeasuredOn: "2026-01-15" });
       });
     });
   });

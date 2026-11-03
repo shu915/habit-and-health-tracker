@@ -35,15 +35,18 @@ export const decimalField = (label: string, range: Range) =>
 export const integerField = (label: string, range: Range, customMessage?: string) =>
   z.preprocess(emptyToNull, integerBase(label, range, customMessage).nullable());
 
-// 時刻("HH:MM"): 任意の項目で、空欄は null。画面では「時」「分」の2欄で入力し、"HH:MM" に直して送る
-export function timeOfDayField(label: string) {
-  const message = `${label}は、時を 0〜23、分を 0〜59 で入力してください`;
+// 時刻("HH:MM"): 任意の項目で、空欄は null。画面では「時」「分」の2欄で入力し、"HH:MM" に直して送る。
+// maxHour は時の上限(既定は 23。深夜を前の日に入れる食事・運動の時刻は 26。20〜29 だけ)
+export function timeOfDayField(label: string, maxHour = 23) {
+  if (!Number.isInteger(maxHour) || maxHour < 20 || maxHour > 29) throw new Error(`invalid maxHour: ${maxHour}`);
+  const message = `${label}は、時を 0〜${maxHour}、分を 0〜59 で入力してください`;
+  const pattern = new RegExp(`^([01][0-9]|2[0-${maxHour % 10}]):[0-5][0-9]$`);
   return z.preprocess(
     emptyToNull,
     z
       .string({ error: message })
       .trim()
-      .regex(/^([01][0-9]|2[0-3]):[0-5][0-9]$/, message)
+      .regex(pattern, message)
       .nullable(),
   );
 }
