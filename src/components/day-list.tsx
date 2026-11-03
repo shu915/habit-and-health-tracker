@@ -10,7 +10,7 @@ import { sleepMinutes } from "@/lib/sleep";
 // ダッシュボードの日付ごとの一覧(新しい日が上)。行のどこをクリックしても、その日の詳細へ移動する。
 // 14 日ずつ(?page=)、今日から過去へさかのぼる。記録の無い日も 1 行ずつ出し、そこから「記録する」で書き始められる。
 // 「今日」はサーバーの日付(利用者のタイムゾーンとずれうる)なので、1 ページ目には、記録のあるサーバーの明日も出す。最初の記録の日(その人の開始日)より前は出さない
-const COLUMNS = ["日付", "睡眠時間", "朝の体重", "朝の体脂肪率", "夜の振り返り"];
+const COLUMNS = ["日付", "睡眠時間", "朝の体重", "朝の体脂肪率", "今日の気づき"];
 
 export async function DayList({ searchParams }: { searchParams: Promise<{ page?: string | string[] }> }) {
   const today = todayString();

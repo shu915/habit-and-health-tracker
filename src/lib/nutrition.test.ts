@@ -111,8 +111,8 @@ describe("suggestTargetCalories", () => {
 });
 
 describe("suggestTargetProtein", () => {
-  it("目標体重 × 1.4 g/kg を整数に丸める", () => {
-    expect(suggestTargetProtein(93.5)).toBe(131); // 130.76
-    expect(suggestTargetProtein(70)).toBe(98);
+  it("目標体重 × 1.2 g/kg を整数に丸める", () => {
+    expect(suggestTargetProtein(93.5)).toBe(112); // 112.2
+    expect(suggestTargetProtein(70)).toBe(84);
   });
 });

@@ -12,7 +12,7 @@ import { joinTimeOfDay } from "@/lib/duration";
 import type { DayField } from "@/lib/day-schema";
 
 // 1 日の記録の手入力フォーム。値はすべて文字列で送り、検証と変換はサーバー側(day-schema.ts)で行う。空欄は「未入力」になる
-// 夜の振り返り(reflection)はこのフォームに含めない(別のパス /days/[date]/reflection)。送らないので、保存しても変わらない
+// 今日の気づき(reflection)はこのフォームに含めない(別のパス /days/[date]/reflection)。送らないので、保存しても変わらない
 export type DayFormField = Exclude<DayField, "reflection">;
 export type DayFormInitial = Record<DayFormField, string>;
 

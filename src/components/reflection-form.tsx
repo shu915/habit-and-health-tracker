@@ -7,7 +7,7 @@ import { buttonClass } from "@/components/button";
 import { FormActions } from "@/components/form-actions";
 import { REFLECTION_MAX_LENGTH } from "@/lib/day-limits";
 
-// 夜の振り返り(自由記入)のフォーム。朝の記録(day-form.tsx)とは別。値は文字列で送り、検証はサーバー側(day-schema.ts)で行う。空にして保存すると消える
+// 今日の気づき(自由記入)のフォーム。朝の記録(day-form.tsx)とは別。値は文字列で送り、検証はサーバー側(day-schema.ts)で行う。空にして保存すると消える
 type Props = {
   date: string;
   initial: string;
@@ -25,18 +25,19 @@ export function ReflectionForm({ date, initial, action }: Props) {
     <form key={state?.submittedAt ?? "initial"} action={formAction} className="flex flex-col gap-6">
       <div className="flex flex-col gap-1 text-sm">
         <label htmlFor="reflection" className="text-zinc-500">
-          夜の振り返り
+          今日の気づき
         </label>
         <textarea
           id="reflection"
           name="reflection"
           rows={8}
           defaultValue={value}
+          placeholder="例: 夜に食べすぎた。寝る前のお菓子が原因かも。明日は目につく所に置かないようにする"
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? "reflection-error" : undefined}
           className="w-full rounded-md border border-zinc-300 bg-transparent px-3 py-1.5 dark:border-zinc-700"
         />
-        <p className="text-xs text-zinc-500">今日あったこと、感じたことを自由に。{REFLECTION_MAX_LENGTH} 文字まで。</p>
+        <p className="text-xs text-zinc-500">うまくいかなかったこと、気づいたこと、明日どうするかを自由に。(良い出来事は「良かったこと」へ){REFLECTION_MAX_LENGTH} 文字まで。</p>
         {error && (
           <p id="reflection-error" role="alert" className="text-xs text-red-600">
             {error}

@@ -21,7 +21,7 @@ export const DAY_LIMITS: Record<DayLimitedField, Limit> = {
   },
 };
 
-// 夜の振り返り(自由記入)の文字数の上限
+// 今日の気づき(自由記入)の文字数の上限
 export const REFLECTION_MAX_LENGTH = 2000;
 
 // フォームに出す範囲の文字列("20〜300")
