@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useActionState, useRef, useState } from "react";
 import { buttonClass } from "@/components/button";
+import { FormActions } from "@/components/form-actions";
 import { saveProfileAction, type ProfileFormState } from "@/app/(app)/profile/actions";
 import { PairInput, durationParts, timeParts } from "@/components/pair-input";
 import { joinMinutes, joinTimeOfDay } from "@/lib/duration";
@@ -151,18 +152,14 @@ export function ProfileForm({ initial }: { initial: ProfileFormInitial }) {
           </div>
         }
       />
-      <div className="flex gap-2">
-        <button
-          type="submit"
-          disabled={isPending}
-          className={buttonClass()}
-        >
-          {isPending ? "保存中..." : "保存"}
-        </button>
-        <Link href="/" className={buttonClass({ variant: "secondary" })}>
+      <FormActions>
+        <Link href="/" className={buttonClass({ variant: "secondary", size: "action" })}>
           キャンセル
         </Link>
-      </div>
+        <button type="submit" disabled={isPending} className={buttonClass({ size: "action" })}>
+          {isPending ? "保存中..." : "保存"}
+        </button>
+      </FormActions>
     </form>
   );
 }

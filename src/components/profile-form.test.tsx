@@ -2,6 +2,7 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { isBefore, isLastChild } from "./dom-order";
 import { ProfileForm, type ProfileFormInitial } from "./profile-form";
 
 // 保存の Server Action は使わない(このテストが見るのは、提案ボタンと表示の動き)
@@ -33,6 +34,19 @@ const valueOf = (label: string) => (screen.getByLabelText(label) as HTMLInputEle
 const suggestButton = (label: string) => screen.getByRole("button", { name: `${label}を提案` });
 
 describe("ProfileForm: 消費カロリーの目安", () => {
+  it("ボタンの並び: キャンセル(左)→ 保存(右端)", () => {
+    render(<ProfileForm initial={initial} />);
+    const cancel = screen.getByRole("link", { name: "キャンセル" });
+    const save = screen.getByRole("button", { name: "保存" });
+    expect(isBefore(cancel, save)).toBe(true);
+    expect(isLastChild(save)).toBe(true);
+    expect(save.className).toContain("bg-zinc-900"); // 決定は濃い色
+    expect(cancel.className).toContain("bg-zinc-200"); // キャンセルはグレー
+    expect(cancel.className).toContain("py-2"); // 高さはそろえる
+    expect(save.className).toContain("py-2");
+    expect(save.className).toContain("min-w-24"); // 決定も、字が少なくても細くならない(キャンセルと同じ幅)
+  });
+
   it("入力値から、基礎代謝と 1 日の消費カロリーの目安を出す", () => {
     render(<ProfileForm initial={initial} />);
     expect(screen.getByText(/1日の消費カロリーの目安: 約 2,494 kcal/)).toBeTruthy();

@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { SignOutButton } from "@/components/sign-out-button";
+import { UserEmail } from "@/components/user-email";
 import { getCurrentUserId } from "@/lib/current-user";
 
 // ログイン必須のページ(ダッシュボード・日の詳細・編集)の共通レイアウト
@@ -12,7 +13,13 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
           <Link href="/" className="font-semibold">
             Habit and Health Tracker
           </Link>
-          <SignOutButton />
+          <div className="flex items-center gap-4">
+            {/* セッションを読むので、Suspense の内側に置く */}
+            <Suspense fallback={null}>
+              <UserEmail />
+            </Suspense>
+            <SignOutButton />
+          </div>
         </nav>
       </header>
       <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-8">

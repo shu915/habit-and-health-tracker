@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { LoginForm } from "@/components/login-form";
 import { getSession } from "@/lib/current-user";
 
-// セッションはリクエスト時に読むので、Suspense の内側に置く(cacheComponents)
+// セッションはリクエスト時に読むので、Suspense の内側に置く(読み込み中の表示を先に出すため)
 export default function LoginPage() {
   return (
     <main className="mx-auto flex w-full max-w-sm flex-1 flex-col gap-6 px-6 pt-24">

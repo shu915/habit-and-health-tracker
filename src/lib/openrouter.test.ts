@@ -91,6 +91,65 @@ describe("completeJson", () => {
     expect((await failureOf(completeJson({ ...options, fetchImpl }))).kind).toBe("network");
   });
 
+  it("接続の失敗・時間切れは、もう 1 回だけ呼び直す(合計 2 回)。2 回目に成功すれば、その返事を使う", async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockRejectedValueOnce(new DOMException("The operation was aborted due to timeout", "TimeoutError"))
+      .mockResolvedValueOnce(jsonResponse(reply("{\"ok\":true}")));
+    expect(await completeJson({ ...options, fetchImpl })).toBe('{"ok":true}');
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it("2 回とも失敗したら、network エラー(3 回目は呼ばない)", async () => {
+    const fetchImpl = vi.fn(async () => {
+      throw new TypeError("fetch failed");
+    });
+    expect((await failureOf(completeJson({ ...options, fetchImpl }))).kind).toBe("network");
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it("OpenRouter が失敗を返した(HTTP エラー)ときは、呼び直さない", async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse({ error: { message: "bad" } }, 500));
+    expect((await failureOf(completeJson({ ...options, fetchImpl }))).kind).toBe("http");
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("返事の本文の読み取り中の時間切れも、呼び直す(返事が JSON ではない、とは扱わない)", async () => {
+    const stalled = new Response("{}");
+    vi.spyOn(stalled, "json").mockRejectedValue(new DOMException("The operation was aborted due to timeout", "TimeoutError"));
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValueOnce(stalled).mockResolvedValueOnce(jsonResponse(reply("{\"ok\":true}")));
+    expect(await completeJson({ ...options, fetchImpl })).toBe('{"ok":true}');
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it("本文の読み取りが 2 回とも切れたら network エラー", async () => {
+    const fetchImpl = vi.fn(async () => {
+      const stalled = new Response("{}");
+      vi.spyOn(stalled, "json").mockRejectedValue(new DOMException("aborted", "AbortError"));
+      return stalled;
+    });
+    expect((await failureOf(completeJson({ ...options, fetchImpl }))).kind).toBe("network");
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it("JSON として読めない返事は、response エラー(呼び直さない)", async () => {
+    const fetchImpl = vi.fn(async () => new Response("これは JSON ではない", { status: 200 }));
+    expect((await failureOf(completeJson({ ...options, fetchImpl }))).kind).toBe("response");
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("呼び直しのたびに、新しい時間切れの signal を付ける(使い回さない)", async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockRejectedValueOnce(new TypeError("fetch failed"))
+      .mockResolvedValueOnce(jsonResponse(reply("{}")));
+    await completeJson({ ...options, fetchImpl });
+    const [first, second] = fetchImpl.mock.calls.map(([, init]) => init?.signal);
+    expect(first).toBeInstanceOf(AbortSignal);
+    expect(second).toBeInstanceOf(AbortSignal);
+    expect(second).not.toBe(first);
+  });
+
   it("リクエストには時間切れの signal を付ける", async () => {
     const fetchImpl = vi.fn(async () => jsonResponse(reply("{}")));
     await completeJson({ ...options, fetchImpl });

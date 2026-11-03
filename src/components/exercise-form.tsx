@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useActionState, useState, useSyncExternalStore, useTransition } from "react";
 import type { ExerciseFormState } from "@/app/(app)/days/[date]/exercises/actions";
 import { buttonClass } from "@/components/button";
+import { FormActions } from "@/components/form-actions";
 import { PairInput, timeParts } from "@/components/pair-input";
 import { joinTimeOfDay } from "@/lib/duration";
 import { defaultMealDayAndTime } from "@/lib/meal-time";
@@ -52,10 +53,10 @@ export function ExerciseForm({ date, initial, action, deleteAction, defaultToNow
 
   return (
     <div className="flex flex-col gap-6">
-      {/* 二重に数えないための注意。ふだんの運動は、プロフィールの活動係数にすでに含まれている */}
-      <p className="max-w-xl rounded-lg bg-zinc-100 p-3 text-sm text-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
-        ふだんの散歩や軽い運動は、プロフィールの活動係数に、すでに含まれています。いつもどおりの運動は、記録しても、1 日の消費には足されません(二重に数えないため)。
-        <strong className="font-semibold">いつもより多く動いた分だけ</strong>、記録してください。
+      {/* 二重に数えないための注意。仕事やふだんの運動は、プロフィールで選んだ活動係数に織り込まれている(含めていれば足さない) */}
+      <p className="rounded-lg bg-zinc-100 p-3 text-sm text-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
+        プロフィールで選んだ活動係数に、仕事や、ふだんの運動(散歩や軽い運動など)を含めている場合、それらは 1 日の消費にすでに入っています。同じ運動を記録すると二重に数えてしまうので、足しません。
+        <strong className="font-semibold">活動係数に含めていない、追加の運動だけ</strong>を記録してください。
       </p>
 
       <form key={state?.submittedAt ?? "initial"} action={formAction} className="flex flex-col gap-6">
@@ -140,34 +141,37 @@ export function ExerciseForm({ date, initial, action, deleteAction, defaultToNow
               autoComplete="off"
               defaultValue={valueOf("memo")}
               {...describe("memo", errorOf("memo"))}
-              className={`${INPUT_CLASS} w-full max-w-xl resize-none`}
+              className={`${INPUT_CLASS} w-full resize-none`}
             />
           </Row>
         </div>
 
-        <div className="flex gap-2">
-          <button type="submit" disabled={busy} className={buttonClass()}>
-            {isPending ? "保存中..." : "保存"}
-          </button>
-          <Link href={`/days/${date}`} className={buttonClass({ variant: "secondary" })}>
+        <FormActions
+          remove={
+            deleteAction && !confirmingDelete ? (
+              <button type="button" onClick={() => setConfirmingDelete(true)} disabled={busy} className={buttonClass({ variant: "secondary", size: "action" })}>
+                削除
+              </button>
+            ) : null
+          }
+        >
+          <Link href={`/days/${date}`} className={buttonClass({ variant: "secondary", size: "action" })}>
             キャンセル
           </Link>
-          {deleteAction && !confirmingDelete && (
-            <button type="button" onClick={() => setConfirmingDelete(true)} disabled={busy} className={`${buttonClass({ variant: "secondary" })} ml-auto`}>
-              削除
-            </button>
-          )}
-        </div>
+          <button type="submit" disabled={busy} className={buttonClass({ size: "action" })}>
+            {isPending ? "保存中..." : "保存"}
+          </button>
+        </FormActions>
       </form>
 
       {deleteAction && confirmingDelete && (
         <div role="alertdialog" aria-label="削除の確認" className="flex flex-wrap items-center gap-3 rounded-lg border border-red-300 p-3 text-sm dark:border-red-900">
           <span>この運動を削除します。元に戻せません。よろしいですか。</span>
-          <button type="button" onClick={() => startDelete(() => deleteAction())} disabled={busy} className={buttonClass()}>
-            削除する
-          </button>
-          <button type="button" onClick={() => setConfirmingDelete(false)} disabled={busy} className={buttonClass({ variant: "secondary" })}>
+          <button type="button" onClick={() => setConfirmingDelete(false)} disabled={busy} className={buttonClass({ variant: "secondary", size: "action" })}>
             やめる
+          </button>
+          <button type="button" onClick={() => startDelete(() => deleteAction())} disabled={busy} className={buttonClass({ size: "action" })}>
+            削除する
           </button>
         </div>
       )}

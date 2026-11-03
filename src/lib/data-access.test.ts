@@ -72,6 +72,7 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
   let profilesModule: typeof import("@/lib/profiles");
   let actionsModule: typeof import("@/app/(app)/profile/actions");
   let dayActionsModule: typeof import("@/app/(app)/days/[date]/edit/actions");
+  let reflectionActionsModule: typeof import("@/app/(app)/days/[date]/reflection/actions");
 
   beforeAll(async () => {
     // 開発用の DB を取り違えて、テスト用のユーザーを作ったりマイグレーションを流したりしないための確認。
@@ -98,6 +99,7 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
     profilesModule = await import("@/lib/profiles");
     actionsModule = await import("@/app/(app)/profile/actions");
     dayActionsModule = await import("@/app/(app)/days/[date]/edit/actions");
+    reflectionActionsModule = await import("@/app/(app)/days/[date]/reflection/actions");
   });
 
   beforeEach(async () => {
@@ -1929,6 +1931,86 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
       expect(vi.mocked(revalidatePath)).not.toHaveBeenCalled();
       currentUser.id = USER_A;
       expect(await daysModule.getDay(DATE)).toBeNull();
+    });
+  });
+
+  describe("saveReflectionAction", () => {
+    const DATE = "2026-10-30";
+    const formOf = (fields: Record<string, string>) => {
+      const formData = new FormData();
+      for (const [name, value] of Object.entries(fields)) formData.set(name, value);
+      return formData;
+    };
+    const expectRedirectTo = (promise: Promise<unknown>, url: string) =>
+      expect(promise).rejects.toThrow(`NEXT_REDIRECT:${url}`);
+
+    it("振り返りだけを保存し、朝の項目(体重・睡眠)は変えない", async () => {
+      currentUser.id = USER_A;
+      await daysModule.saveDay(DATE, { morningWeightKg: "70.00", sleepBedtime: "23:30", sleepWakeTime: "06:00" });
+
+      await expectRedirectTo(reflectionActionsModule.saveReflectionAction(DATE, null, formOf({ reflection: "夜" })), `/days/${DATE}`);
+
+      expect(await daysModule.getDay(DATE)).toMatchObject({
+        morningWeightKg: "70.00",
+        sleepBedtime: "23:30",
+        sleepWakeTime: "06:00",
+        reflection: "夜",
+      });
+      expect(vi.mocked(revalidatePath)).toHaveBeenCalledWith("/");
+      expect(vi.mocked(revalidatePath)).toHaveBeenCalledWith(`/days/${DATE}`);
+    });
+
+    it("記録が無い日でも、日の行を作って保存する", async () => {
+      currentUser.id = USER_A;
+      await expectRedirectTo(reflectionActionsModule.saveReflectionAction(DATE, null, formOf({ reflection: "夜" })), `/days/${DATE}`);
+      expect((await daysModule.getDay(DATE))?.reflection).toBe("夜");
+    });
+
+    it("空で保存すると振り返りが消える(朝の項目は残る)", async () => {
+      currentUser.id = USER_A;
+      await daysModule.saveDay(DATE, { morningWeightKg: "70.00", reflection: "書いた" });
+      await expectRedirectTo(reflectionActionsModule.saveReflectionAction(DATE, null, formOf({ reflection: "  " })), `/days/${DATE}`);
+      expect(await daysModule.getDay(DATE)).toMatchObject({ morningWeightKg: "70.00", reflection: null });
+    });
+
+    it("長すぎるとエラーを返し、何も保存せず、移動も再取得もしない", async () => {
+      currentUser.id = USER_A;
+      await daysModule.saveDay(DATE, { reflection: "元の文章" });
+      vi.mocked(revalidatePath).mockClear();
+
+      const state = await reflectionActionsModule.saveReflectionAction(DATE, null, formOf({ reflection: "あ".repeat(2001) }));
+
+      expect(state?.errors.reflection).toBeTruthy();
+      expect((await daysModule.getDay(DATE))?.reflection).toBe("元の文章");
+      expect(vi.mocked(revalidatePath)).not.toHaveBeenCalled();
+    });
+
+    it("不正な日付と、翌日より先の日付は 404 にして、何も保存しない", async () => {
+      currentUser.id = USER_A;
+      for (const bad of ["2026-02-30", "abc", "0000-01-01", "2100-12-31"]) {
+        await expect(reflectionActionsModule.saveReflectionAction(bad, null, formOf({ reflection: "x" }))).rejects.toThrow("NEXT_NOT_FOUND");
+      }
+      expect(await daysModule.listDays()).toEqual([]);
+    });
+
+    it("未ログインなら /login へ送られ、何も保存しない", async () => {
+      currentUser.id = "";
+      await expect(reflectionActionsModule.saveReflectionAction(DATE, null, formOf({ reflection: "x" }))).rejects.toThrow(
+        "NEXT_REDIRECT:/login",
+      );
+      expect(vi.mocked(revalidatePath)).not.toHaveBeenCalled();
+      currentUser.id = USER_A;
+      expect(await daysModule.getDay(DATE)).toBeNull();
+    });
+
+    it("他のユーザーの同じ日には書き込まない", async () => {
+      currentUser.id = USER_B;
+      await daysModule.saveDay(DATE, { reflection: "Bの文章" });
+      currentUser.id = USER_A;
+      await expectRedirectTo(reflectionActionsModule.saveReflectionAction(DATE, null, formOf({ reflection: "Aの文章" })), `/days/${DATE}`);
+      expect((await daysModule.getDay(DATE))?.reflection).toBe("Aの文章");
+      currentUser.id = USER_B;
+      expect((await daysModule.getDay(DATE))?.reflection).toBe("Bの文章");
     });
   });
 });

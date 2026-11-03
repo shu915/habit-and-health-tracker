@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { buttonClass } from "@/components/button";
+import { ExerciseBadge } from "@/components/exercise-badge";
 import { exerciseIntensityLabel, exerciseKcal, exerciseTypeLabel } from "@/lib/exercise";
 import { EXERCISE_MAX_PER_DAY } from "@/lib/exercise-limits";
 import { listExercisesOfDay } from "@/lib/exercises";
@@ -37,6 +38,10 @@ export async function ExerciseList({ date, morningWeightKg }: { date: string; mo
             {rows.map(({ exercise, kcal }) => (
               // 種類名のリンクを行全体に広げる(after:absolute after:inset-0)ので、行のどこをクリックしても移動できる
               <li key={exercise.id} className="relative flex items-center gap-3 border-t border-zinc-100 px-4 py-2 text-sm first:border-t-0 hover:bg-zinc-50 dark:border-zinc-900 dark:hover:bg-zinc-900">
+                {/* 並びは食事(meal-list.tsx)と同じ: バッジ → 時刻 → 名前。幅を固定して、時刻が空でも縦にそろえる */}
+                <span className="w-14 shrink-0">
+                  <ExerciseBadge time={exercise.startTime} />
+                </span>
                 <span className="w-11 shrink-0 tabular-nums text-zinc-500">{exercise.startTime ?? ""}</span>
                 <Link href={`/days/${date}/exercises/${exercise.id}/edit`} className="font-medium after:absolute after:inset-0">
                   {exerciseTypeLabel(exercise.type)}

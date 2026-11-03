@@ -4,16 +4,18 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { BackLink } from "@/components/back-link";
 import { buttonClass } from "@/components/button";
+import { DayResult } from "@/components/day-result";
+import { DayNavigation } from "@/components/day-navigation";
+import { DayVitals } from "@/components/day-vitals";
 import { ExerciseList } from "@/components/exercise-list";
 import { MealList } from "@/components/meal-list";
 import { PositiveList } from "@/components/positive-list";
+import { ReflectionSection } from "@/components/reflection-section";
 import { isRecordableDate } from "@/lib/date";
 import { getDay } from "@/lib/days";
-import { formatDuration, formatTimeOfDay } from "@/lib/duration";
-import { sleepMinutes } from "@/lib/sleep";
 
 // 特定の日の詳細(閲覧)。編集は /days/[date]/edit。まだ記録が無い日は、記録を始めるリンクを出す
-// params は Suspense の内側で読む(cacheComponents で静的シェルを残すため)
+// params は Suspense の内側で読む(読み込み中の表示を先に出すため)
 export default function DayPage({ params }: PageProps<"/days/[date]">) {
   return (
     <Suspense fallback={<p className="text-zinc-500">読み込み中...</p>}>
@@ -21,8 +23,6 @@ export default function DayPage({ params }: PageProps<"/days/[date]">) {
     </Suspense>
   );
 }
-
-const unset = <span className="text-zinc-400">未入力</span>;
 
 async function DayContent({ params }: Pick<PageProps<"/days/[date]">, "params">) {
   const { date } = await params;
@@ -37,30 +37,22 @@ async function DayContent({ params }: Pick<PageProps<"/days/[date]">, "params">)
         <div>
           <BackLink href="/">ダッシュボードに戻る</BackLink>
           <h1 className="text-2xl font-semibold">{date}</h1>
+          <DayNavigation date={date} hrefOf={(d) => `/days/${d}`} />
         </div>
         <Link href={`/days/${date}/edit`} className={buttonClass()}>
           {day ? "編集" : "記録する"}
         </Link>
       </div>
 
+      {/* 過ぎた日だけ、摂取と消費の目安の結果を出す(今日と未来は、まだ記録が増えるので出さない) */}
+      <Suspense fallback={null}>
+        <DayResult date={date} morningWeightKg={day?.morningWeightKg ?? null} />
+      </Suspense>
+
       {!day ? (
         <p className="text-zinc-500">この日の記録はまだありません。</p>
       ) : (
-        <dl className="grid grid-cols-[9rem_1fr] gap-x-4 gap-y-3 text-sm">
-          <dt className="text-zinc-500">就寝(前の夜)</dt>
-          <dd>{formatTimeOfDay(day.sleepBedtime) ?? unset}</dd>
-          <dt className="text-zinc-500">起床</dt>
-          <dd>{formatTimeOfDay(day.sleepWakeTime) ?? unset}</dd>
-          <dt className="text-zinc-500">睡眠時間</dt>
-          <dd>{formatDuration(sleepMinutes(day.sleepBedtime, day.sleepWakeTime)) ?? unset}</dd>
-          <dt className="text-zinc-500">朝の体重</dt>
-          <dd>{day.morningWeightKg === null ? unset : `${day.morningWeightKg} kg`}</dd>
-          <dt className="text-zinc-500">朝の体脂肪率</dt>
-          <dd>{day.morningBodyFatPercent === null ? unset : `${day.morningBodyFatPercent} %`}</dd>
-          <dt className="text-zinc-500">夜の振り返り</dt>
-          {/* 改行をそのまま見せる */}
-          <dd className="max-w-xl whitespace-pre-wrap">{day.reflection === null ? unset : day.reflection}</dd>
-        </dl>
+        <DayVitals day={day} />
       )}
 
       {/* その日の食事(日の記録が無い日でも、「食事を追加」から追加できる)。一覧の読み込みは別に待つ */}
@@ -77,6 +69,14 @@ async function DayContent({ params }: Pick<PageProps<"/days/[date]">, "params">)
       <Suspense fallback={<p className="text-zinc-500">良かったことを読み込み中...</p>}>
         <PositiveList date={date} />
       </Suspense>
+
+      {/* 夜の振り返り(自由記入)。編集は別のパス */}
+      <ReflectionSection date={date} reflection={day?.reflection ?? null} />
+
+      {/* 縦に長いので、下まで読んだ人のために、上と同じ戻るリンクを置く */}
+      <div>
+        <BackLink href="/">ダッシュボードに戻る</BackLink>
+      </div>
     </div>
   );
 }

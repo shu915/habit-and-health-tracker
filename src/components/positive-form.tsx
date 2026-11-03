@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useActionState } from "react";
 import type { PositiveFormState } from "@/app/(app)/days/[date]/positive/actions";
 import { buttonClass } from "@/components/button";
+import { FormActions } from "@/components/form-actions";
 import { POSITIVE_BODY_MAX_LENGTH } from "@/lib/positive-limits";
 // zod を含む positive-schema.ts は、ブラウザ側のコードに入れないよう、型だけを読む
 import type { PositiveField } from "@/lib/positive-schema";
@@ -38,7 +39,7 @@ export function PositiveForm({ date, initial, action }: Props) {
 
   return (
     <div className="flex flex-col gap-6">
-      <p className="max-w-xl text-sm text-zinc-600 dark:text-zinc-400">
+      <p className="text-sm text-zinc-600 dark:text-zinc-400">
         今日あった良かったことを、3 つまで書きます。良かったことに加えて、なぜそう感じたかも書くと、気分を整える効果が高まりやすいと言われています(個人差があります)。
         1 つだけの日でも、書かない日でも構いません。医療上の効果を約束するものではありません。内容は AI には送りません。
       </p>
@@ -69,7 +70,7 @@ export function PositiveForm({ date, initial, action }: Props) {
                   placeholder={EXAMPLES[name]}
                   aria-invalid={error ? true : undefined}
                   aria-describedby={error ? `${id}-error` : undefined}
-                  className="w-full max-w-xl resize-none rounded-md border border-zinc-300 bg-transparent px-3 py-1.5 dark:border-zinc-700"
+                  className="w-full resize-none rounded-md border border-zinc-300 bg-transparent px-3 py-1.5 dark:border-zinc-700"
                 />
                 <p className="text-xs text-zinc-500">{POSITIVE_BODY_MAX_LENGTH} 文字まで</p>
                 {error && (
@@ -82,14 +83,14 @@ export function PositiveForm({ date, initial, action }: Props) {
           })}
         </div>
 
-        <div className="flex gap-2">
-          <button type="submit" disabled={isPending} className={buttonClass()}>
-            {isPending ? "保存中..." : "保存"}
-          </button>
-          <Link href={`/days/${date}`} className={buttonClass({ variant: "secondary" })}>
+        <FormActions>
+          <Link href={`/days/${date}`} className={buttonClass({ variant: "secondary", size: "action" })}>
             キャンセル
           </Link>
-        </div>
+          <button type="submit" disabled={isPending} className={buttonClass({ size: "action" })}>
+            {isPending ? "保存中..." : "保存"}
+          </button>
+        </FormActions>
       </form>
     </div>
   );
