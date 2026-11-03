@@ -224,6 +224,25 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
       expect(await daysModule.getFirstDayDate()).toBe("2026-10-05");
     });
 
+    it("その日の体重: 朝の体重 → それ以前の最新の朝の体重 → プロフィールの体重。他のユーザーの体重は使わない", async () => {
+      currentUser.id = USER_B;
+      await daysModule.saveDay("2026-10-20", { morningWeightKg: "99.00" });
+
+      currentUser.id = USER_A;
+      expect(await daysModule.getDayWeight("2026-10-20")).toEqual({ kg: null, source: null, earlierDate: null });
+      await profilesModule.updateProfile({ currentWeightKg: "72.00" });
+      expect(await daysModule.getDayWeight("2026-10-20")).toEqual({ kg: 72, source: "profile", earlierDate: null });
+
+      await daysModule.saveDay("2026-10-10", { morningWeightKg: "71.00" });
+      await daysModule.saveDay("2026-10-15", {}); // 体重の無い日は飛ばす
+      await daysModule.saveDay("2026-10-25", { morningWeightKg: "70.00" });
+      expect(await daysModule.getDayWeight("2026-10-15")).toEqual({ kg: 71, source: "earlier", earlierDate: "2026-10-10" });
+      expect(await daysModule.getDayWeight("2026-10-20")).toEqual({ kg: 71, source: "earlier", earlierDate: "2026-10-10" }); // 後の日(25 日)の体重は使わない
+      expect(await daysModule.getDayWeight("2026-10-25")).toEqual({ kg: 70, source: "morning", earlierDate: null });
+      expect(await daysModule.getDayWeight("2026-10-05")).toEqual({ kg: 72, source: "profile", earlierDate: null }); // それ以前に朝の体重が無い
+      await expect(daysModule.getDayWeight("2026-02-30")).rejects.toThrow("invalid date");
+    });
+
     it("不正な日付は DB に触る前にエラーにする", async () => {
       currentUser.id = USER_A;
       await expect(daysModule.saveDay("2026-02-30", {})).rejects.toThrow("invalid date");

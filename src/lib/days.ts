@@ -1,10 +1,12 @@
 import "server-only";
-import { and, asc, desc, eq, gte, lte } from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNotNull, lte } from "drizzle-orm";
 import { db } from "@/db";
 import { days } from "@/db/schema";
 import { getCurrentUserId } from "@/lib/current-user";
 import { isValidDateString } from "@/lib/date";
 import { DAY_FIELDS, type DayValues } from "@/lib/day-schema";
+import { pickWeight, type DayWeight } from "@/lib/day-weight";
+import { getProfile } from "@/lib/profiles";
 
 // 1 日の記録の読み書き。どの関数も、最初に getCurrentUserId() でログイン中のユーザーを確かめ、
 // 必ずその user_id で絞る(他のユーザーの記録が見えないことが最重要)。
@@ -32,6 +34,26 @@ export async function getFirstDayDate(): Promise<string | null> {
   const userId = await getCurrentUserId();
   const [row] = await db.select({ date: days.date }).from(days).where(eq(days.userId, userId)).orderBy(asc(days.date)).limit(1);
   return row?.date ?? null;
+}
+
+// その日以前で、朝の体重が入っている、いちばん新しい日の体重(無ければ null)
+async function latestMorningWeightOnOrBefore(date: string): Promise<{ weight: string; date: string } | null> {
+  const userId = await getCurrentUserId();
+  const [row] = await db
+    .select({ weight: days.morningWeightKg, date: days.date })
+    .from(days)
+    .where(and(eq(days.userId, userId), lte(days.date, date), isNotNull(days.morningWeightKg)))
+    .orderBy(desc(days.date))
+    .limit(1);
+  return row?.weight == null ? null : { weight: row.weight, date: row.date };
+}
+
+// その日の計算に使う体重(決め方は day-weight.ts)
+export async function getDayWeight(date: string): Promise<DayWeight> {
+  await getCurrentUserId();
+  assertValidDate(date);
+  const [day, earlier, profile] = await Promise.all([getDay(date), latestMorningWeightOnOrBefore(date), getProfile()]);
+  return pickWeight(day?.morningWeightKg ?? null, earlier, profile.currentWeightKg);
 }
 
 export async function getDay(date: string) {

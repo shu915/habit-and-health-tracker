@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { buttonClass } from "@/components/button";
 import { MealBadge } from "@/components/meal-badge";
+import { MealNutrition } from "@/components/meal-nutrition";
 import { listMealsOfDay } from "@/lib/meals";
 
 // 日の詳細に出す、その日の食事の一覧(食べた時刻の順)と、1 日の合計、「食事を追加」。行のどこでも、食事を直す画面へ移動する
@@ -21,6 +22,8 @@ export async function MealList({ date }: { date: string }) {
         <p className="text-sm text-zinc-500">この日の食事は、まだ記録されていません。</p>
       ) : (
         <>
+          {/* その日の栄養の目安との比べ(レーダーチャートと表)。食事の一覧の上 */}
+          <MealNutrition date={date} meals={meals} />
           <ul className="overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-800">
             {meals.map((meal) => (
               // 食事名のリンクを行全体に広げる(after:absolute after:inset-0)ので、行のどこをクリックしても移動できる
