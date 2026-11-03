@@ -64,6 +64,8 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
   let mealsModule: typeof import("@/lib/meals");
   let exercisesModule: typeof import("@/lib/exercises");
   let exerciseActionsModule: typeof import("@/app/(app)/days/[date]/exercises/actions");
+  let positiveModule: typeof import("@/lib/positive-entries");
+  let positiveActionsModule: typeof import("@/app/(app)/days/[date]/positive/actions");
   let aiLimitModule: typeof import("@/lib/ai-limit");
   let mealActionsModule: typeof import("@/app/(app)/days/[date]/meals/actions");
   let profilesModule: typeof import("@/lib/profiles");
@@ -88,6 +90,8 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
     mealsModule = await import("@/lib/meals");
     exercisesModule = await import("@/lib/exercises");
     exerciseActionsModule = await import("@/app/(app)/days/[date]/exercises/actions");
+    positiveModule = await import("@/lib/positive-entries");
+    positiveActionsModule = await import("@/app/(app)/days/[date]/positive/actions");
     aiLimitModule = await import("@/lib/ai-limit");
     mealActionsModule = await import("@/app/(app)/days/[date]/meals/actions");
     profilesModule = await import("@/lib/profiles");
@@ -1418,6 +1422,215 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
         await expect(exerciseActionsModule.deleteExerciseAction(saved.id)).rejects.toThrow("NEXT_REDIRECT:/login");
         expect(await exercisesOf(USER_A)).toHaveLength(1);
         expect((await exercisesOf(USER_A))[0].minutes).toBe(30);
+      });
+    });
+  });
+
+  describe("ポジティブ3行日記(lib/positive-entries.ts と positive/actions.ts)", () => {
+    const DATE = "2026-05-12";
+    const formOf = (fields: Record<string, string>) => {
+      const formData = new FormData();
+      for (const [key, value] of Object.entries(fields)) formData.set(key, value);
+      return formData;
+    };
+    const entriesOf = async (userId: string) => {
+      const { asc, eq } = await import("drizzle-orm");
+      return dbModule.db.select().from(schema.positiveEntries).where(eq(schema.positiveEntries.userId, userId)).orderBy(asc(schema.positiveEntries.position));
+    };
+    const insertEntry = (dayId: number, overrides: Record<string, unknown> = {}, userId = USER_A) =>
+      dbModule.db.insert(schema.positiveEntries).values({ userId, dayId, position: 1, body: "良かった", ...overrides });
+    const makeDay = async (date = DATE, userId = USER_A) => {
+      currentUser.id = userId;
+      return daysModule.saveDay(date, {});
+    };
+
+    describe("DB の制約", () => {
+      it("positive_entries_position_range: 位置は 1〜3 だけ通る", async () => {
+        const day = await makeDay();
+        for (const position of [1, 2, 3]) await expect(insertEntry(day.id, { position })).resolves.toBeDefined();
+        for (const position of [0, 4, -1]) await expectViolation(insertEntry(day.id, { position }), "positive_entries_position_range", String(position));
+      });
+
+      it("同じ日の同じ位置には 2 件入らない。別の日なら同じ位置でよい", async () => {
+        const day = await makeDay();
+        const other = await makeDay("2026-05-13");
+        await insertEntry(day.id, { position: 1 });
+        await expectViolation(insertEntry(day.id, { position: 1 }), "positive_entries_day_position_unique", "同じ日の同じ位置");
+        await expect(insertEntry(other.id, { position: 1 })).resolves.toBeDefined();
+      });
+
+      it("本文は 200 文字まで", async () => {
+        const day = await makeDay();
+        await expect(insertEntry(day.id, { position: 1, body: "あ".repeat(200) })).resolves.toBeDefined();
+        await expect(insertEntry(day.id, { position: 2, body: "あ".repeat(201) })).rejects.toThrow();
+      });
+
+      it("他のユーザーの日には紐づけられない(複合外部キー)", async () => {
+        const dayOfB = await makeDay(DATE, USER_B);
+        await expectViolation(insertEntry(dayOfB.id, {}, USER_A), "positive_entries_user_day_fk", "A の記録を B の日に");
+      });
+
+      it("日を消すと、その日の良かったことも消える", async () => {
+        const day = await makeDay();
+        await insertEntry(day.id);
+        const { eq } = await import("drizzle-orm");
+        await dbModule.db.delete(schema.days).where(eq(schema.days.id, day.id));
+        expect(await entriesOf(USER_A)).toEqual([]);
+      });
+    });
+
+    describe("lib/positive-entries.ts", () => {
+      it("保存すると、その日の行が無ければ作られ、一覧には書いた順に出る", async () => {
+        currentUser.id = USER_A;
+        expect(await daysModule.getDay(DATE)).toBeNull();
+        await positiveModule.savePositiveEntries(DATE, ["天気が良かった。気分が晴れた", "みそ汁がおいしかった"]);
+
+        expect(await daysModule.getDay(DATE)).not.toBeNull();
+        const list = await positiveModule.listPositiveEntriesOfDay(DATE);
+        expect(list.map((e) => [e.position, e.body])).toEqual([
+          [1, "天気が良かった。気分が晴れた"],
+          [2, "みそ汁がおいしかった"],
+        ]);
+        expect(list[0].userId).toBe(USER_A);
+      });
+
+      it("もう一度保存すると、その日の分がまとめて入れ替わる(減らせるし、空にもできる)", async () => {
+        currentUser.id = USER_A;
+        await positiveModule.savePositiveEntries(DATE, ["a", "b", "c"]);
+        await positiveModule.savePositiveEntries(DATE, ["c2", "a2"]);
+        expect((await entriesOf(USER_A)).map((e) => [e.position, e.body])).toEqual([
+          [1, "c2"],
+          [2, "a2"],
+        ]);
+
+        await positiveModule.savePositiveEntries(DATE, []);
+        expect(await entriesOf(USER_A)).toEqual([]);
+        expect(await daysModule.getDay(DATE)).not.toBeNull(); // 日の行は残す(体重などの記録があるかもしれない)
+      });
+
+      it("空で保存するだけなら、日の行を作らない", async () => {
+        currentUser.id = USER_A;
+        await positiveModule.savePositiveEntries(DATE, []);
+        expect(await daysModule.getDay(DATE)).toBeNull();
+      });
+
+      it("同じ日の別の記録(体重・睡眠・食事)には触らない", async () => {
+        currentUser.id = USER_A;
+        await daysModule.saveDay(DATE, { morningWeightKg: "60.00", reflection: "残る" });
+        await positiveModule.savePositiveEntries(DATE, ["a"]);
+        await positiveModule.savePositiveEntries(DATE, []);
+        expect(await daysModule.getDay(DATE)).toMatchObject({ morningWeightKg: "60.00", reflection: "残る" });
+      });
+
+      it("他のユーザーの記録は、一覧に出ず、保存しても入れ替わらない", async () => {
+        currentUser.id = USER_A;
+        await positiveModule.savePositiveEntries(DATE, ["Aの"]);
+
+        currentUser.id = USER_B;
+        expect(await positiveModule.listPositiveEntriesOfDay(DATE)).toEqual([]);
+        await positiveModule.savePositiveEntries(DATE, ["Bの"]);
+        await positiveModule.savePositiveEntries(DATE, []);
+
+        expect((await entriesOf(USER_A)).map((e) => e.body)).toEqual(["Aの"]);
+        expect(await entriesOf(USER_B)).toEqual([]);
+      });
+
+      it("3 件を超えると投げて、何も変えない", async () => {
+        currentUser.id = USER_A;
+        await positiveModule.savePositiveEntries(DATE, ["残る"]);
+        await expect(positiveModule.savePositiveEntries(DATE, ["1", "2", "3", "4"])).rejects.toThrow("too many entries");
+        expect((await entriesOf(USER_A)).map((e) => e.body)).toEqual(["残る"]);
+      });
+
+      it("同時に 12 回保存しても、エラーにならず、最後は 1 回分の中身がそのまま残る(位置が重ならない)", async () => {
+        currentUser.id = USER_A;
+        await daysModule.saveDay(DATE, {});
+        const sets = Array.from({ length: 12 }, (_, index) => [`s${index}-a`, `s${index}-b`, `s${index}-c`]);
+        await Promise.all(sets.map((set) => positiveModule.savePositiveEntries(DATE, set)));
+
+        const bodies = (await entriesOf(USER_A)).map((e) => e.body);
+        expect(bodies).toHaveLength(3);
+        expect(sets).toContainEqual(bodies);
+      });
+
+      it("その日の行がまだ無い状態で、同時に 12 回保存しても、エラーにならず、日の行は 1 つだけできる", async () => {
+        currentUser.id = USER_A;
+        expect(await daysModule.getDay(DATE)).toBeNull();
+        const sets = Array.from({ length: 12 }, (_, index) => [`s${index}-a`, `s${index}-b`]);
+        await Promise.all(sets.map((set) => positiveModule.savePositiveEntries(DATE, set)));
+
+        const { eq } = await import("drizzle-orm");
+        expect(await dbModule.db.select().from(schema.days).where(eq(schema.days.userId, USER_A))).toHaveLength(1);
+        const bodies = (await entriesOf(USER_A)).map((e) => e.body);
+        expect(sets).toContainEqual(bodies);
+      });
+
+      it("日付が不正なら投げる。未ログインなら /login へ送る", async () => {
+        currentUser.id = USER_A;
+        await expect(positiveModule.savePositiveEntries("2026-02-30", ["a"])).rejects.toThrow("invalid date");
+        await expect(positiveModule.listPositiveEntriesOfDay("abc")).rejects.toThrow("invalid date");
+        currentUser.id = "";
+        await expect(positiveModule.listPositiveEntriesOfDay(DATE)).rejects.toThrow("NEXT_REDIRECT:/login");
+        await expect(positiveModule.savePositiveEntries(DATE, ["a"])).rejects.toThrow("NEXT_REDIRECT:/login");
+      });
+    });
+
+    describe("Server Action", () => {
+      it("保存して、その日の詳細へ移動し、再描画を頼む。空の組はつめる", async () => {
+        currentUser.id = USER_A;
+        const form = formOf({ body1: "", body2: "散歩した。風が気持ちよかった", body3: "早く寝た" });
+        await expect(positiveActionsModule.savePositiveAction(DATE, null, form)).rejects.toThrow(`NEXT_REDIRECT:/days/${DATE}`);
+
+        expect((await entriesOf(USER_A)).map((e) => [e.position, e.body])).toEqual([
+          [1, "散歩した。風が気持ちよかった"],
+          [2, "早く寝た"],
+        ]);
+        expect(vi.mocked(revalidatePath).mock.calls.map(([path]) => path)).toEqual(["/", `/days/${DATE}`]);
+      });
+
+      it("すべて空欄で保存すると、その日の分が消える", async () => {
+        currentUser.id = USER_A;
+        await positiveModule.savePositiveEntries(DATE, ["a"]);
+        await expect(positiveActionsModule.savePositiveAction(DATE, null, formOf({ body1: "", body2: "", body3: "" }))).rejects.toThrow("NEXT_REDIRECT");
+        expect(await entriesOf(USER_A)).toEqual([]);
+      });
+
+      it("フォームに user_id や position を紛れ込ませても無視される", async () => {
+        currentUser.id = USER_A;
+        const form = formOf({ body1: "a", userId: USER_B, user_id: USER_B, dayId: "999", position: "3" });
+        await expect(positiveActionsModule.savePositiveAction(DATE, null, form)).rejects.toThrow("NEXT_REDIRECT");
+        expect(await entriesOf(USER_B)).toEqual([]);
+        expect((await entriesOf(USER_A)).map((e) => [e.position, e.body])).toEqual([[1, "a"]]);
+      });
+
+      it.each([
+        ["1 つ目が長すぎる", { body1: "あ".repeat(201) }, "body1"],
+        ["3 つ目が長すぎる", { body1: "a", body3: "い".repeat(201) }, "body3"],
+      ])("検証に失敗したら、保存せず(元の記録も消さず)、欄ごとのエラーと入力した値を返す: %s", async (_label, fields, field) => {
+        currentUser.id = USER_A;
+        await positiveModule.savePositiveEntries(DATE, ["元の記録"]);
+        const result = await positiveActionsModule.savePositiveAction(DATE, null, formOf(fields));
+
+        expect(result?.errors[field as "body1"]).toBeTruthy();
+        expect(result?.values).toMatchObject(fields);
+        expect((await entriesOf(USER_A)).map((e) => e.body)).toEqual(["元の記録"]);
+        expect(vi.mocked(redirect)).not.toHaveBeenCalled();
+      });
+
+      it("実在しない日付と、翌日より先の日付は 404。何も保存しない", async () => {
+        currentUser.id = USER_A;
+        await expect(positiveActionsModule.savePositiveAction("2026-02-30", null, formOf({ body1: "a" }))).rejects.toThrow("NEXT_NOT_FOUND");
+        await expect(positiveActionsModule.savePositiveAction("2999-01-01", null, formOf({ body1: "a" }))).rejects.toThrow("NEXT_NOT_FOUND");
+        expect(await entriesOf(USER_A)).toEqual([]);
+      });
+
+      it("未ログインなら /login へ送られ、何も変わらない", async () => {
+        currentUser.id = USER_A;
+        await positiveModule.savePositiveEntries(DATE, ["残る"]);
+
+        currentUser.id = "";
+        await expect(positiveActionsModule.savePositiveAction(DATE, null, formOf({ body1: "上書き" }))).rejects.toThrow("NEXT_REDIRECT:/login");
+        expect((await entriesOf(USER_A)).map((e) => e.body)).toEqual(["残る"]);
       });
     });
   });

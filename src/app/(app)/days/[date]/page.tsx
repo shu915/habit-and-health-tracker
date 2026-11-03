@@ -6,6 +6,7 @@ import { BackLink } from "@/components/back-link";
 import { buttonClass } from "@/components/button";
 import { ExerciseList } from "@/components/exercise-list";
 import { MealList } from "@/components/meal-list";
+import { PositiveList } from "@/components/positive-list";
 import { isRecordableDate } from "@/lib/date";
 import { getDay } from "@/lib/days";
 import { formatDuration, formatTimeOfDay } from "@/lib/duration";
@@ -70,6 +71,11 @@ async function DayContent({ params }: Pick<PageProps<"/days/[date]">, "params">)
       {/* いつもより多く動いた分の運動 */}
       <Suspense fallback={<p className="text-zinc-500">運動を読み込み中...</p>}>
         <ExerciseList date={date} morningWeightKg={day?.morningWeightKg ?? null} />
+      </Suspense>
+
+      {/* ポジティブ3行日記(良かったこと) */}
+      <Suspense fallback={<p className="text-zinc-500">良かったことを読み込み中...</p>}>
+        <PositiveList date={date} />
       </Suspense>
     </div>
   );
