@@ -96,14 +96,14 @@ export function ExerciseForm({ date, initial, action, deleteAction }: Props) {
             </div>
           </Row>
           <Row name="memo" label="メモ" error={errorOf("memo")} description={`自分用のメモ(任意、${EXERCISE_MEMO_MAX_LENGTH} 文字まで)。AI には送りません。`}>
-            <input
+            <textarea
               id="exercise-memo"
               name="memo"
-              type="text"
+              rows={3}
               autoComplete="off"
               defaultValue={valueOf("memo")}
               {...describe("memo", errorOf("memo"))}
-              className={`${INPUT_CLASS} w-full max-w-xl`}
+              className={`${INPUT_CLASS} w-full max-w-xl resize-none`}
             />
           </Row>
         </div>
