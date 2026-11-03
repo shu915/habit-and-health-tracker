@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { profiles } from "@/db/schema";
 import { getCurrentUserId } from "@/lib/current-user";
+import { todayString } from "@/lib/date";
 import { PROFILE_FIELDS, type ProfileValues } from "@/lib/profile-schema";
 
 // ログイン中のユーザーのプロフィール。行はユーザー作成時に自動で作られる(auth.ts の databaseHooks)。
@@ -24,15 +25,32 @@ export async function getProfile() {
 // 渡す値は parseProfileForm を通ったもの。user_id などの余計なキーは、ここで落とす
 export async function updateProfile(values: Partial<ProfileValues>) {
   const userId = await getCurrentUserId();
-  await getProfile(); // 行が無ければ作る
+  const existing = await getProfile(); // 行が無ければ作る
 
-  const changes: Partial<ProfileValues> = {};
+  const changes: Partial<ProfileValues> & { waistMeasuredOn?: string | null } = {};
   for (const field of PROFILE_FIELDS) {
     if (values[field] !== undefined) Object.assign(changes, { [field]: values[field] });
   }
-  if (Object.keys(changes).length === 0) return getProfile();
+  if (Object.keys(changes).length === 0) return existing;
+
+  // ウエストを保存した日: 値を変えたときだけ今日にする(ほかの項目だけを直して保存しても、ウエストを測ったことにはならない)。空にしたら null。
+  // 値が同じ月は、催促の帯(recordWaistMeasurement)で更新する
+  if (changes.currentWaistCm !== undefined && changes.currentWaistCm !== existing.currentWaistCm) {
+    changes.waistMeasuredOn = changes.currentWaistCm === null ? null : todayString();
+  }
 
   const [row] = await db.update(profiles).set(changes).where(eq(profiles.userId, userId)).returning();
+  if (!row) throw new Error("failed to update the profile");
+  return row;
+}
+
+// ウエストを測った記録として、値と日付(今日)を保存する(月末の催促の帯から)。値が前と同じでも、日付は今日になる。
+// 値は parseProfileForm を通った小数の文字列("80.5")。他の項目は変えない
+export async function recordWaistMeasurement(currentWaistCm: string) {
+  const userId = await getCurrentUserId();
+  await getProfile(); // 行が無ければ作る
+
+  const [row] = await db.update(profiles).set({ currentWaistCm, waistMeasuredOn: todayString() }).where(eq(profiles.userId, userId)).returning();
   if (!row) throw new Error("failed to update the profile");
   return row;
 }

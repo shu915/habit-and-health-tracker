@@ -44,6 +44,9 @@ export const profiles = pgTable(
     // 体重計が出す体脂肪率(%)。任意。測った値だけを入れる(式で見積もった値は入れない)
     currentBodyFatPercent: numeric("current_body_fat_percent", { precision: 4, scale: 1 }),
     currentWaistCm: numeric("current_waist_cm", { precision: 5, scale: 1 }),
+    // ウエストを保存した日(YYYY-MM-DD。サーバーの日付)。月末の催促で、今月まだ保存していないかを見る。
+    // ウエストを変えて保存する(updateProfile)か、催促の帯で更新する(recordWaistMeasurement)と今日になり、空にすると null。履歴は残らない
+    waistMeasuredOn: date("waist_measured_on", { mode: "string" }),
 
     // 以下の 4 項目(活動係数と目標 3 つ)は、ボディデータを保存したあとに「算出」するので、それまでは null。
     // 人によって違うため DB の既定値は持たない。算出は、身長・体重・年齢・性別と生活のテキストから、
@@ -213,6 +216,8 @@ export const exercises = pgTable(
     // 強さ: light / normal / hard
     intensity: varchar("intensity", { length: 10 }).notNull(),
     minutes: integer("minutes").notNull(),
+    // 始めた時刻(任意)。"HH:MM"で、00:00〜26:59(食事の食べた時刻と同じ。24 時以降は前の日の深夜)。null は「記録しない」
+    startTime: varchar("start_time", { length: 5 }),
     // 自分用のメモ(任意)。AI には送らない
     memo: varchar("memo", { length: 200 }),
 
@@ -225,6 +230,7 @@ export const exercises = pgTable(
     index("exercises_user_day_idx").on(table.userId, table.dayId),
     check("exercises_intensity_values", sql`${table.intensity} IN ('light', 'normal', 'hard')`),
     check("exercises_minutes_range", sql`${table.minutes} >= 1 AND ${table.minutes} <= 1440`),
+    check("exercises_start_time_format", sql`${table.startTime} IS NULL OR ${table.startTime} ~ '^([01][0-9]|2[0-6]):[0-5][0-9]$'`),
   ],
 );
 

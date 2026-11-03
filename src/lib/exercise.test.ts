@@ -13,8 +13,8 @@ import {
 } from "./exercise";
 
 describe("運動の種類・強さ", () => {
-  it("種類は 散歩(非定期)・室内エクササイズ・筋トレ・その他、強さは 軽め・普通・ハード", () => {
-    expect(EXERCISE_TYPES.map((type) => type.label)).toEqual(["散歩(非定期)", "室内エクササイズ", "筋トレ", "その他"]);
+  it("種類は 散歩・室内エクササイズ・筋トレ・その他、強さは 軽め・普通・ハード", () => {
+    expect(EXERCISE_TYPES.map((type) => type.label)).toEqual(["散歩", "室内エクササイズ", "筋トレ", "その他"]);
     expect(EXERCISE_INTENSITIES.map((intensity) => intensity.label)).toEqual(["軽め", "普通", "ハード"]);
   });
 

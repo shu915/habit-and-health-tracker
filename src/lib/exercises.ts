@@ -51,13 +51,13 @@ export async function saveExercise(date: string, input: ExerciseValues): Promise
 
     const [row] = await tx
       .insert(exercises)
-      .values({ type: input.type, intensity: input.intensity, minutes: input.minutes, memo: input.memo, userId, dayId: day.id })
+      .values({ type: input.type, intensity: input.intensity, minutes: input.minutes, startTime: input.startTime, memo: input.memo, userId, dayId: day.id })
       .returning();
     return row;
   });
 }
 
-// その日の運動(追加した順)。日の行が無ければ空
+// その日の運動(開始時刻の早い順。時刻なしは最後で、同じなら追加した順)。日の行が無ければ空
 export async function listExercisesOfDay(date: string): Promise<Exercise[]> {
   const userId = await getCurrentUserId();
   assertValidDate(date);
@@ -66,7 +66,7 @@ export async function listExercisesOfDay(date: string): Promise<Exercise[]> {
     .from(exercises)
     .innerJoin(days, and(eq(exercises.dayId, days.id), eq(exercises.userId, days.userId)))
     .where(and(eq(exercises.userId, userId), eq(days.userId, userId), eq(days.date, date)))
-    .orderBy(asc(exercises.id));
+    .orderBy(asc(exercises.startTime), asc(exercises.id)); // 昇順は NULL が最後
   return rows.map((row) => row.exercise);
 }
 
@@ -89,7 +89,7 @@ export async function updateExercise(id: number, input: ExerciseValues): Promise
   if (!isExerciseId(id)) return null;
   const [row] = await db
     .update(exercises)
-    .set({ type: input.type, intensity: input.intensity, minutes: input.minutes, memo: input.memo, updatedAt: new Date() })
+    .set({ type: input.type, intensity: input.intensity, minutes: input.minutes, startTime: input.startTime, memo: input.memo, updatedAt: new Date() })
     .where(and(eq(exercises.id, id), eq(exercises.userId, userId)))
     .returning();
   return row ?? null;

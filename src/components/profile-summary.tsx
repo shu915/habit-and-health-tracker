@@ -18,7 +18,7 @@ export async function ProfileSummary() {
     { label: "身長", value: profile.heightCm, unit: "cm" },
     { label: "現在の体重", value: profile.currentWeightKg, unit: "kg" },
     { label: "体脂肪率", value: profile.currentBodyFatPercent, unit: "%" },
-    { label: "ウエスト", value: profile.currentWaistCm, unit: "cm" },
+    { label: "ウエスト", value: profile.currentWaistCm, unit: "cm", detail: profile.waistMeasuredOn ? `${profile.waistMeasuredOn} に測定` : null },
     // 活動係数は目標ではなく本人の状態
     activityLevelRow(profile.activityLevel),
   ];

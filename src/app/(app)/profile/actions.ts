@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getCurrentUserId } from "@/lib/current-user";
 import { parseProfileForm, PROFILE_FIELDS, type ProfileField } from "@/lib/profile-schema";
-import { updateProfile } from "@/lib/profiles";
+import { recordWaistMeasurement, updateProfile } from "@/lib/profiles";
 
 // 検証に失敗したとき、フォームに返す状態。入力した値を返して、フォームに残す
 export type ProfileFormState = {
@@ -31,4 +31,22 @@ export async function saveProfileAction(_previous: ProfileFormState, formData: F
 
   revalidatePath("/");
   redirect("/");
+}
+
+// 月末の催促の帯から、ウエストを更新する。値は必須(空では保存しない)。成功したら、ダッシュボードを再描画する(帯が消える)
+export type WaistFormState = { error: string; value: string; submittedAt: number } | null;
+
+export async function recordWaistAction(_previous: WaistFormState, formData: FormData): Promise<WaistFormState> {
+  await getCurrentUserId();
+
+  const raw = formData.get("currentWaistCm");
+  const value = typeof raw === "string" ? raw : "";
+  const result = parseProfileForm({ currentWaistCm: value });
+  if (!result.ok) return { error: result.errors.currentWaistCm ?? "ウエストを入力してください", value, submittedAt: Date.now() };
+  const waist = result.values.currentWaistCm;
+  if (waist === null || waist === undefined) return { error: "ウエストを入力してください", value, submittedAt: Date.now() };
+
+  await recordWaistMeasurement(waist);
+  revalidatePath("/");
+  return null;
 }
