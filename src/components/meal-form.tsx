@@ -199,7 +199,7 @@ export function MealForm({ date, mode, mealId, initial }: Props) {
               rows={estimate ? 5 : 4}
               maxLength={TEXT_MAX_LENGTH}
               placeholder="例: 焼鮭1切れ、白ご飯茶碗1杯、わかめのみそ汁(量が分かれば書く)"
-              className="w-full max-w-xl rounded-md border border-zinc-300 bg-transparent px-3 py-1.5 dark:border-zinc-700"
+              className="w-full rounded-md border border-zinc-300 bg-transparent px-3 py-1.5 dark:border-zinc-700"
             />
             <p className="text-xs text-zinc-500">
               {estimate
@@ -267,6 +267,7 @@ export function MealForm({ date, mode, mealId, initial }: Props) {
               </p>
             )}
             <p className="text-xs text-zinc-500">最大 4 枚まで(同じ食事の別の角度や、別の皿)。スマホでは、撮影か、写真ライブラリから選べます。写真は保存しません(推定にだけ使います)。大きい写真は、このあと縮小して送ります。位置情報などは、縮小のときに取り除かれます。食べ物の写真だけを選んでください(他の人の顔や、個人が分かるものは、写さないでください)。</p>
+            <p className="text-xs text-zinc-500">パッケージの栄養成分表示(栄養の表)の写真だけでも推定できます。表があれば、その数値をもとにするので、いちばん正確です。このときは、食べ物そのものの写真は要りません。</p>
           </div>
         </div>
       </fieldset>

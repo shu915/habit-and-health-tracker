@@ -13,3 +13,15 @@ export function sleepMinutes(bedtime: string | null, wakeTime: string | null): n
   if (diff === 0) return null;
   return diff > 0 ? diff : diff + 24 * 60;
 }
+
+// 睡眠の中間時刻("HH:MM")。就寝と起床のちょうど真ん中(23:30 就寝 → 06:30 起床 なら 03:00)。分は四捨五入する。
+// 睡眠時間が出せないとき(どちらかが空・読めない・同じ時刻)は null
+export function sleepMidpoint(bedtime: string | null, wakeTime: string | null): string | null {
+  const minutes = sleepMinutes(bedtime, wakeTime);
+  const bed = bedtime === null ? null : splitTimeOfDay(bedtime);
+  if (minutes === null || bed === null) return null;
+
+  const mid = Math.round(bed.hours * 60 + bed.minutes + minutes / 2) % (24 * 60);
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${pad(Math.floor(mid / 60))}:${pad(mid % 60)}`;
+}

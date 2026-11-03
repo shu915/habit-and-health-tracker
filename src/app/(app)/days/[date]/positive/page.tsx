@@ -8,7 +8,7 @@ import { listPositiveEntriesOfDay } from "@/lib/positive-entries";
 import { savePositiveAction } from "./actions";
 
 // 「良かったこと」(ポジティブ3行日記)の編集。保存は positive/actions.ts
-// params は Suspense の内側で読む(cacheComponents で静的シェルを残すため)
+// params は Suspense の内側で読む(読み込み中の表示を先に出すため)
 export default function PositivePage({ params }: PageProps<"/days/[date]/positive">) {
   return (
     <Suspense fallback={<p className="text-zinc-500">読み込み中...</p>}>
@@ -30,7 +30,7 @@ async function PositiveContent({ params }: Pick<PageProps<"/days/[date]/positive
   });
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
       <div>
         <BackLink href={`/days/${date}`}>{date} の詳細に戻る</BackLink>
         <h1 className="text-2xl font-semibold">{date} の良かったこと</h1>

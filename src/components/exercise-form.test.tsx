@@ -58,10 +58,10 @@ describe("ExerciseForm", () => {
     expect(remove.className).toContain("py-2");
   });
 
-  it("二重に数えないための注意書きを出す(ふだんの運動は活動係数に含まれ、増えた分だけ記録する)", () => {
+  it("二重に数えないための注意書きを出す(活動係数に含めた仕事やふだんの運動は足さず、含めていない追加の運動だけ記録する)", () => {
     render(<ExerciseForm date={DATE} initial={EMPTY_EXERCISE} action={makeAction()} />);
-    expect(screen.getByText(/活動係数に、すでに含まれています/)).toBeTruthy();
-    expect(screen.getByText("いつもより多く動いた分だけ")).toBeTruthy();
+    expect(screen.getByText(/1 日の消費にすでに入っています/)).toBeTruthy();
+    expect(screen.getByText("活動係数に含めていない、追加の運動だけ")).toBeTruthy();
   });
 
   it("種類と強さは一覧から選ぶ(散歩・室内エクササイズ・筋トレ・その他 / 軽め・普通・ハード)。初めは未選択", () => {

@@ -39,7 +39,7 @@ export function PositiveForm({ date, initial, action }: Props) {
 
   return (
     <div className="flex flex-col gap-6">
-      <p className="max-w-xl text-sm text-zinc-600 dark:text-zinc-400">
+      <p className="text-sm text-zinc-600 dark:text-zinc-400">
         今日あった良かったことを、3 つまで書きます。良かったことに加えて、なぜそう感じたかも書くと、気分を整える効果が高まりやすいと言われています(個人差があります)。
         1 つだけの日でも、書かない日でも構いません。医療上の効果を約束するものではありません。内容は AI には送りません。
       </p>
@@ -70,7 +70,7 @@ export function PositiveForm({ date, initial, action }: Props) {
                   placeholder={EXAMPLES[name]}
                   aria-invalid={error ? true : undefined}
                   aria-describedby={error ? `${id}-error` : undefined}
-                  className="w-full max-w-xl resize-none rounded-md border border-zinc-300 bg-transparent px-3 py-1.5 dark:border-zinc-700"
+                  className="w-full resize-none rounded-md border border-zinc-300 bg-transparent px-3 py-1.5 dark:border-zinc-700"
                 />
                 <p className="text-xs text-zinc-500">{POSITIVE_BODY_MAX_LENGTH} 文字まで</p>
                 {error && (

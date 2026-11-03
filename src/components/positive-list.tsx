@@ -18,7 +18,7 @@ export async function PositiveList({ date }: { date: string }) {
       {entries.length === 0 ? (
         <p className="text-sm text-zinc-500">今日の良かったことは、まだ書かれていません。</p>
       ) : (
-        <ol className="flex max-w-xl flex-col gap-3 text-sm">
+        <ol className="flex flex-col gap-3 text-sm">
           {entries.map((entry) => (
             <li key={entry.id} className="whitespace-pre-wrap rounded-lg border border-zinc-200 px-4 py-2 dark:border-zinc-800">
               {entry.body}

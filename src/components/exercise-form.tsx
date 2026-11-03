@@ -53,10 +53,10 @@ export function ExerciseForm({ date, initial, action, deleteAction, defaultToNow
 
   return (
     <div className="flex flex-col gap-6">
-      {/* 二重に数えないための注意。ふだんの運動は、プロフィールの活動係数にすでに含まれている */}
-      <p className="max-w-xl rounded-lg bg-zinc-100 p-3 text-sm text-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
-        ふだんの散歩や軽い運動は、プロフィールの活動係数に、すでに含まれています。いつもどおりの運動は、記録しても、1 日の消費には足されません(二重に数えないため)。
-        <strong className="font-semibold">いつもより多く動いた分だけ</strong>、記録してください。
+      {/* 二重に数えないための注意。仕事やふだんの運動は、プロフィールで選んだ活動係数に織り込まれている(含めていれば足さない) */}
+      <p className="rounded-lg bg-zinc-100 p-3 text-sm text-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
+        プロフィールで選んだ活動係数に、仕事や、ふだんの運動(散歩や軽い運動など)を含めている場合、それらは 1 日の消費にすでに入っています。同じ運動を記録すると二重に数えてしまうので、足しません。
+        <strong className="font-semibold">活動係数に含めていない、追加の運動だけ</strong>を記録してください。
       </p>
 
       <form key={state?.submittedAt ?? "initial"} action={formAction} className="flex flex-col gap-6">
@@ -141,7 +141,7 @@ export function ExerciseForm({ date, initial, action, deleteAction, defaultToNow
               autoComplete="off"
               defaultValue={valueOf("memo")}
               {...describe("memo", errorOf("memo"))}
-              className={`${INPUT_CLASS} w-full max-w-xl resize-none`}
+              className={`${INPUT_CLASS} w-full resize-none`}
             />
           </Row>
         </div>
