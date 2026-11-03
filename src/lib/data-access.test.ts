@@ -68,6 +68,8 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
   let positiveModule: typeof import("@/lib/positive-entries");
   let positiveActionsModule: typeof import("@/app/(app)/days/[date]/positive/actions");
   let aiLimitModule: typeof import("@/lib/ai-limit");
+  // 全期間の記録(期間の絞り込みが要らないテスト用)
+  const listAllDays = () => daysModule.listDaysInRange("1900-01-01", "2100-12-31");
   let mealActionsModule: typeof import("@/app/(app)/days/[date]/meals/actions");
   let profilesModule: typeof import("@/lib/profiles");
   let actionsModule: typeof import("@/app/(app)/profile/actions");
@@ -126,7 +128,7 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
       await daysModule.saveDay("2026-10-29", { morningWeightKg: "70.00", reflection: "Aの日記" });
 
       currentUser.id = USER_B;
-      expect(await daysModule.listDays()).toEqual([]);
+      expect(await listAllDays()).toEqual([]);
       expect(await daysModule.getDay("2026-10-29")).toBeNull();
     });
 
@@ -148,7 +150,7 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
       const second = await daysModule.saveDay("2026-10-29", { morningWeightKg: "69.50" });
 
       expect(second.id).toBe(first.id);
-      expect(await daysModule.listDays()).toHaveLength(1);
+      expect(await listAllDays()).toHaveLength(1);
       expect(second.morningWeightKg).toBe("69.50");
     });
 
@@ -178,7 +180,7 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
 
       expect(saved.userId).toBe(USER_A);
       currentUser.id = USER_B;
-      expect(await daysModule.listDays()).toEqual([]);
+      expect(await listAllDays()).toEqual([]);
     });
 
     it("日付は新しい順に並ぶ", async () => {
@@ -187,11 +189,39 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
       await daysModule.saveDay("2026-10-29", {});
       await daysModule.saveDay("2026-10-28", {});
 
-      expect((await daysModule.listDays()).map((d) => d.date)).toEqual([
+      expect((await listAllDays()).map((d) => d.date)).toEqual([
         "2026-10-29",
         "2026-10-28",
         "2026-10-27",
       ]);
+    });
+
+    it("期間で絞った一覧は、両端を含み、他のユーザーの記録を含まない", async () => {
+      currentUser.id = USER_A;
+      for (const date of ["2026-10-06", "2026-10-07", "2026-10-20", "2026-11-03", "2026-11-04"]) {
+        await daysModule.saveDay(date, {});
+      }
+      currentUser.id = USER_B;
+      await daysModule.saveDay("2026-10-10", {});
+
+      currentUser.id = USER_A;
+      expect((await daysModule.listDaysInRange("2026-10-07", "2026-11-03")).map((d) => d.date)).toEqual([
+        "2026-11-03",
+        "2026-10-20",
+        "2026-10-07",
+      ]);
+      await expect(daysModule.listDaysInRange("2026-02-30", "2026-11-03")).rejects.toThrow("invalid date");
+    });
+
+    it("いちばん古い記録の日は、自分の記録だけから決まる(無ければ null)", async () => {
+      currentUser.id = USER_B;
+      await daysModule.saveDay("2026-01-01", {});
+
+      currentUser.id = USER_A;
+      expect(await daysModule.getFirstDayDate()).toBeNull();
+      await daysModule.saveDay("2026-10-29", {});
+      await daysModule.saveDay("2026-10-05", {});
+      expect(await daysModule.getFirstDayDate()).toBe("2026-10-05");
     });
 
     it("不正な日付は DB に触る前にエラーにする", async () => {
@@ -716,7 +746,7 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
       const second = await mealsModule.saveMeal(DATE, input({ eatenTime: "19:00" }));
 
       expect(second.dayId).toBe(first.dayId);
-      expect(await daysModule.listDays()).toHaveLength(1);
+      expect(await listAllDays()).toHaveLength(1);
       expect(await daysModule.getDay(DATE)).toMatchObject({ morningWeightKg: "70.00", reflection: "良い日" });
     });
 
@@ -800,7 +830,7 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
       const nothingWritten = async () => {
         currentUser.id = USER_A;
         expect(await mealsModule.listMealsOfDay(DATE)).toEqual([]);
-        expect(await daysModule.listDays()).toEqual([]);
+        expect(await listAllDays()).toEqual([]);
         currentUser.id = "";
       };
 
@@ -817,7 +847,7 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
       currentUser.id = USER_A;
       await expect(mealsModule.saveMeal("2026-02-30", input())).rejects.toThrow("invalid date");
       await expect(mealsModule.listMealsOfDay("abc")).rejects.toThrow("invalid date");
-      expect(await daysModule.listDays()).toEqual([]);
+      expect(await listAllDays()).toEqual([]);
     });
 
     it("範囲外の値は、DB の CHECK 制約が最後に止める(保存は失敗し、食事は残らない)", async () => {
@@ -1061,7 +1091,7 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
         await expect(mealActionsModule.saveMealAction(DATE, payload())).rejects.toThrow("NEXT_REDIRECT:/login");
         currentUser.id = USER_A;
         expect(await mealsOf(USER_A)).toEqual([]);
-        expect(await daysModule.listDays()).toEqual([]);
+        expect(await listAllDays()).toEqual([]);
       });
 
       it.each([["実在しない日付", "2026-02-30"], ["翌日より先の日付", "2100-01-01"], ["日付ではない", "abc"]])(
@@ -1892,7 +1922,7 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
       for (const weight of ["70", "69"]) {
         await expectRedirectTo(dayActionsModule.saveDayAction(DATE, null, formOf({ morningWeightKg: weight })), `/days/${DATE}`);
       }
-      expect(await daysModule.listDays()).toHaveLength(1);
+      expect(await listAllDays()).toHaveLength(1);
       expect((await daysModule.getDay(DATE))?.morningWeightKg).toBe("69.00");
     });
 
@@ -1910,7 +1940,7 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
       expect((await daysModule.getDay(DATE))?.reflection).toBe("A の日記");
       expect(await daysModule.getDay("2000-01-01")).toBeNull();
       currentUser.id = USER_B;
-      expect(await daysModule.listDays()).toEqual([]);
+      expect(await listAllDays()).toEqual([]);
     });
 
     it("不正な日付と、翌日より先の日付は 404 にして、何も保存しない", async () => {
@@ -1918,7 +1948,7 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
       for (const bad of ["2026-02-30", "abc", "0000-01-01", "2100-12-31"]) {
         await expect(dayActionsModule.saveDayAction(bad, null, formOf({ reflection: "x" }))).rejects.toThrow("NEXT_NOT_FOUND");
       }
-      expect(await daysModule.listDays()).toEqual([]);
+      expect(await listAllDays()).toEqual([]);
     });
 
     it("未ログインなら /login へ送られ、検証にも保存にも進まない(不正な入力でも、先に認証で止まる)", async () => {
@@ -1990,7 +2020,7 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
       for (const bad of ["2026-02-30", "abc", "0000-01-01", "2100-12-31"]) {
         await expect(reflectionActionsModule.saveReflectionAction(bad, null, formOf({ reflection: "x" }))).rejects.toThrow("NEXT_NOT_FOUND");
       }
-      expect(await daysModule.listDays()).toEqual([]);
+      expect(await listAllDays()).toEqual([]);
     });
 
     it("未ログインなら /login へ送られ、何も保存しない", async () => {

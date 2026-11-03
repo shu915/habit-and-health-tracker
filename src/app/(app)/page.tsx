@@ -4,7 +4,7 @@ import { ProfileSummary } from "@/components/profile-summary";
 import { WaistReminder } from "@/components/waist-reminder";
 
 // メインダッシュボード: 1日の消費カロリーの目安とプロフィール、日付ごとに1行の一覧(行をクリックすると /days/[date] の詳細へ)
-export default function DashboardPage() {
+export default function DashboardPage({ searchParams }: PageProps<"/">) {
   return (
     <div className="flex flex-col gap-8">
       <h1 className="text-2xl font-semibold">ダッシュボード</h1>
@@ -15,7 +15,7 @@ export default function DashboardPage() {
         <ProfileSummary />
       </Suspense>
       <Suspense fallback={<p className="text-zinc-500">記録を読み込み中...</p>}>
-        <DayList />
+        <DayList searchParams={searchParams} />
       </Suspense>
     </div>
   );

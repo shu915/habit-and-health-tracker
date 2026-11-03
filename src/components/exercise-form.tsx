@@ -16,7 +16,7 @@ import type { ExerciseField } from "@/lib/exercise-schema";
 // 運動の追加・編集フォーム。値はすべて文字列で送り、検証はサーバー側(exercise-schema.ts)で行う。消費カロリーは保存後に計算して出す
 export type ExerciseFormInitial = Record<ExerciseField, string>;
 
-export const EMPTY_EXERCISE: ExerciseFormInitial = { type: "", intensity: "", minutes: "", startTime: "", memo: "" };
+export const EMPTY_EXERCISE: ExerciseFormInitial = { type: "", intensity: "normal", minutes: "", startTime: "", memo: "" };
 
 const subscribeNothing = () => () => {};
 
@@ -87,7 +87,6 @@ export function ExerciseForm({ date, initial, action, deleteAction, defaultToNow
           </Row>
           <Row name="intensity" label="強さ" error={errorOf("intensity")}>
             <select id="exercise-intensity" name="intensity" defaultValue={valueOf("intensity")} {...describe("intensity", errorOf("intensity"))} className={INPUT_CLASS}>
-              <option value="">選んでください</option>
               {!EXERCISE_INTENSITIES.some((intensity) => intensity.key === valueOf("intensity")) && valueOf("intensity") !== "" && <option value={valueOf("intensity")}>{valueOf("intensity")}</option>}
               {EXERCISE_INTENSITIES.map((intensity) => (
                 <option key={intensity.key} value={intensity.key}>

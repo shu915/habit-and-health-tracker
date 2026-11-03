@@ -1,5 +1,5 @@
 import "server-only";
-import { and, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, gte, lte } from "drizzle-orm";
 import { db } from "@/db";
 import { days } from "@/db/schema";
 import { getCurrentUserId } from "@/lib/current-user";
@@ -15,9 +15,23 @@ function assertValidDate(date: string) {
   if (!isValidDateString(date)) throw new Error(`invalid date: ${date}`);
 }
 
-export async function listDays() {
+// from〜to(両端を含む)の記録のある日を、新しい順に返す。一覧は期間で区切って取るので、全件は取らない
+export async function listDaysInRange(from: string, to: string) {
   const userId = await getCurrentUserId();
-  return db.select().from(days).where(eq(days.userId, userId)).orderBy(desc(days.date));
+  assertValidDate(from);
+  assertValidDate(to);
+  return db
+    .select()
+    .from(days)
+    .where(and(eq(days.userId, userId), gte(days.date, from), lte(days.date, to)))
+    .orderBy(desc(days.date));
+}
+
+// いちばん古い記録の日(記録が無ければ null)。一覧のページの端を決めるのに使う
+export async function getFirstDayDate(): Promise<string | null> {
+  const userId = await getCurrentUserId();
+  const [row] = await db.select({ date: days.date }).from(days).where(eq(days.userId, userId)).orderBy(asc(days.date)).limit(1);
+  return row?.date ?? null;
 }
 
 export async function getDay(date: string) {
