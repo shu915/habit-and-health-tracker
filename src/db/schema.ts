@@ -229,7 +229,36 @@ export const exercises = pgTable(
 );
 
 // ==========================================
-// 5. AI Requests (AI の呼び出しの記録。回数の制限に使う)
+// 5. Positive Entries (ポジティブ3行日記: 良かったこと)
+// ==========================================
+// 良かったこと 1 件 = 1 行。1 日 3 件まで(position の CHECK と、日ごとの position の一意制約が DB で守る)。
+// 本文は 1 欄の自由記入(「できごと。それで感じたこと」)。保存は、その日の分をまとめて入れ替える(lib/positive-entries.ts)。
+// 内容は気分や出来事なので、AI には送らない(送るなら集計した形だけにする、と決めてから)
+export const positiveEntries = pgTable(
+  "positive_entries",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    dayId: integer("day_id").notNull(),
+    // 1〜3。空欄をつめた順(書いた順)
+    position: integer("position").notNull(),
+    body: varchar("body", { length: 200 }).notNull(),
+
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
+  },
+  (table) => [
+    // 持ち主(user_id)と、その日(days)の持ち主が同じであることを、DB が保証する(日が消えたら一緒に消える)
+    foreignKey({ name: "positive_entries_user_day_fk", columns: [table.userId, table.dayId], foreignColumns: [days.userId, days.id] }).onDelete("cascade"),
+    unique("positive_entries_day_position_unique").on(table.dayId, table.position),
+    check("positive_entries_position_range", sql`${table.position} >= 1 AND ${table.position} <= 3`),
+  ],
+);
+
+// ==========================================
+// 6. AI Requests (AI の呼び出しの記録。回数の制限に使う)
 // ==========================================
 // AI を呼ぶたびに 1 行を足し、直近の件数を数えて、課金が膨らむのを防ぐ(lib/ai-limit.ts)。
 // サーバーが複数に分かれても効くよう、メモリではなく DB で数える。古い行は、足すときに消す
