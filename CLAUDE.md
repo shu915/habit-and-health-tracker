@@ -88,9 +88,11 @@ Shu の生活習慣管理アプリ(友人にも使ってもらう)。食事・�
 ## コマンド
 - `npm run dev` / `build` / `check`(lint + typecheck。**テストは含まない**)/ `test`
 - DB: `docker compose up -d --wait`(ホストのポートは **5433**)、`npm run db:generate` / `db:migrate` / `db:studio`
+- ダミーデータ: `npm run db:seed-dummy`(`scripts/seed-dummy.mts`)。3 人(崩れた俺 / 優等生 / 穴だらけ)に 100 日分を入れる。AI は呼ばない。**開発用 DB(`localhost:5433` の `habit_health`)以外では、何もせずに止まる**。id が `dummy-` で始まるユーザーだけを消して入れ直す(本物のユーザーには触れない)。`-- --delete` で消すだけ。ログインは `dummy-collapsed@example.com` などにマジックリンクを送る(`ALLOWED_EMAILS` を設定しているときは、ダミーのメールも足す)。`src/` を import せず、列の名前は `schema.ts` と手で合わせる(**スキーマを変えたら、スクリプトも直し、`db:seed-dummy` が通ることを確かめる**。静かに壊れる)。ダミーは `email_verified` が true の本物のアカウントとして入るので、**データを本番へ移す前(`pg_dump` で退避する前)に `-- --delete` で消す**
 - ルート(`app/` のページ)を足す・消したら `npx next typegen`(`PageProps` の型を作り直す)
 - Better Auth の設定(`lib/auth.ts`)を変えたら、`DATABASE_URL=... BETTER_AUTH_SECRET=... npm run db:auth-schema` で `auth-schema.ts` を再生成する
 - `drizzle-kit generate` は、テーブルの削除と作成が同時にあると対話で聞いてくる(非対話では失敗する)。別のマイグレーションに分ける
+- `source .env.local` で値を読み込むと、そのターミナルに残り、`npm run dev` では `.env.local` より優先される(`ALLOWED_EMAILS` を直しても古い値のまま、ログインできない、ということが起きた)。実 API を呼ぶテストなどで読み込むときは、`( set -a; source .env.local; set +a; npm test )` のように、かっこで囲んで、サブシェルで実行する
 - `.env.local` に `BETTER_AUTH_SECRET` が無いと起動時にエラー。開発中のマジックリンクは `next dev` の端末に出る
 - `package.json` を変えて `npm install` すると、macOS の npm が lock から `@rolldown/binding-*` を落とす(`grep -c '"node_modules/@rolldown/binding-' package-lock.json` が 15 でなければ異常)。`package.json` だけを空のフォルダにコピーして `npm install --package-lock-only` した lock を取り込み、`npm ci` する
 
