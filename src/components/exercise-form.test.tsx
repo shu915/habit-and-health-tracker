@@ -64,13 +64,13 @@ describe("ExerciseForm", () => {
     expect(screen.getByText("活動係数に含めていない、追加の運動だけ")).toBeTruthy();
   });
 
-  it("種類と強さは一覧から選ぶ(散歩・室内エクササイズ・筋トレ・その他 / 軽め・普通・ハード)。初めは未選択", () => {
+  it("種類と強さは一覧から選ぶ(散歩・室内エクササイズ・筋トレ・その他 / 軽め・普通・ハード)。種類は未選択、強さは「普通」から", () => {
     render(<ExerciseForm date={DATE} initial={EMPTY_EXERCISE} action={makeAction()} />);
     const optionsOf = (select: HTMLSelectElement) => Array.from(select.options).map((option) => option.textContent);
     expect(optionsOf(control("種類") as HTMLSelectElement)).toEqual(["選んでください", "散歩", "室内エクササイズ", "筋トレ", "その他"]);
-    expect(optionsOf(control("強さ") as HTMLSelectElement)).toEqual(["選んでください", "軽め", "普通", "ハード"]);
+    expect(optionsOf(control("強さ") as HTMLSelectElement)).toEqual(["軽め", "普通", "ハード"]);
     expect(control("種類").value).toBe("");
-    expect(control("強さ").value).toBe("");
+    expect(control("強さ").value).toBe("normal");
     expect(control("時間").value).toBe("");
     expect(control("メモ").value).toBe("");
   });
