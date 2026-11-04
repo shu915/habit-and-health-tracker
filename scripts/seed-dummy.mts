@@ -202,7 +202,6 @@ type Persona = {
     activityLevel: string | null;
     targetWeightKg: number | null;
     targetCalories: number | null;
-    targetProteinG: number | null;
     targetSleepMinutes: number;
     targetSleepMidpoint: string;
   };
@@ -349,7 +348,7 @@ const PERSONAS: Persona[] = [
     name: "ダミー(崩れた俺)",
     email: "dummy-collapsed@example.com",
     seed: 1001,
-    profile: { gender: "male", age: 35, heightCm: 172, currentWeightKg: 83, currentBodyFatPercent: 27.5, currentWaistCm: 93, waistMeasuredOn: threeMonthsAgo, activityLevel: "1.200", targetWeightKg: 74, targetCalories: 1800, targetProteinG: 110, targetSleepMinutes: 450, targetSleepMidpoint: "03:15" },
+    profile: { gender: "male", age: 35, heightCm: 172, currentWeightKg: 83, currentBodyFatPercent: 27.5, currentWaistCm: 93, waistMeasuredOn: threeMonthsAgo, activityLevel: "1.200", targetWeightKg: 74, targetCalories: 1800, targetSleepMinutes: 450, targetSleepMidpoint: "03:15" },
     plan: collapsed,
   },
   {
@@ -357,7 +356,7 @@ const PERSONAS: Persona[] = [
     name: "ダミー(優等生)",
     email: "dummy-model@example.com",
     seed: 2002,
-    profile: { gender: "female", age: 29, heightCm: 162, currentWeightKg: 54.5, currentBodyFatPercent: 22.5, currentWaistCm: 68.5, waistMeasuredOn: lastMonthEnd, activityLevel: "1.550", targetWeightKg: 52, targetCalories: 1750, targetProteinG: 90, targetSleepMinutes: 450, targetSleepMidpoint: "02:45" },
+    profile: { gender: "female", age: 29, heightCm: 162, currentWeightKg: 54.5, currentBodyFatPercent: 22.5, currentWaistCm: 68.5, waistMeasuredOn: lastMonthEnd, activityLevel: "1.550", targetWeightKg: 52, targetCalories: 1750, targetSleepMinutes: 450, targetSleepMidpoint: "02:45" },
     plan: model,
   },
   {
@@ -365,7 +364,7 @@ const PERSONAS: Persona[] = [
     name: "ダミー(穴だらけ)",
     email: "dummy-gappy@example.com",
     seed: 3003,
-    profile: { gender: "other", age: 45, heightCm: 175, currentWeightKg: 84, currentBodyFatPercent: null, currentWaistCm: null, waistMeasuredOn: null, activityLevel: null, targetWeightKg: null, targetCalories: null, targetProteinG: null, targetSleepMinutes: 450, targetSleepMidpoint: "03:15" },
+    profile: { gender: "other", age: 45, heightCm: 175, currentWeightKg: 84, currentBodyFatPercent: null, currentWaistCm: null, waistMeasuredOn: null, activityLevel: null, targetWeightKg: null, targetCalories: null, targetSleepMinutes: 450, targetSleepMidpoint: "03:15" },
     plan: gappy,
   },
 ];
@@ -384,9 +383,9 @@ async function seed(client: pg.Client, persona: Persona): Promise<Counts> {
     await client.query('INSERT INTO "user" (id, name, email, email_verified) VALUES ($1, $2, $3, true)', [persona.id, persona.name, persona.email]);
     const p = persona.profile;
     await client.query(
-      `INSERT INTO profiles (user_id, gender, age, height_cm, current_weight_kg, current_body_fat_percent, current_waist_cm, waist_measured_on, activity_level, target_weight_kg, target_calories, target_protein_g, target_sleep_minutes, target_sleep_midpoint)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
-      [persona.id, p.gender, p.age, p.heightCm, p.currentWeightKg, p.currentBodyFatPercent, p.currentWaistCm, p.waistMeasuredOn, p.activityLevel, p.targetWeightKg, p.targetCalories, p.targetProteinG, p.targetSleepMinutes, p.targetSleepMidpoint],
+      `INSERT INTO profiles (user_id, gender, age, height_cm, current_weight_kg, current_body_fat_percent, current_waist_cm, waist_measured_on, activity_level, target_weight_kg, target_calories, target_sleep_minutes, target_sleep_midpoint)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+      [persona.id, p.gender, p.age, p.heightCm, p.currentWeightKg, p.currentBodyFatPercent, p.currentWaistCm, p.waistMeasuredOn, p.activityLevel, p.targetWeightKg, p.targetCalories, p.targetSleepMinutes, p.targetSleepMidpoint],
     );
 
     for (let i = 0; i < DAYS; i++) {
@@ -395,9 +394,9 @@ async function seed(client: pg.Client, persona: Persona): Promise<Counts> {
       if (plan === null) continue;
 
       const inserted = await client.query<{ id: number }>(
-        `INSERT INTO days (user_id, date, morning_weight_kg, morning_body_fat_percent, sleep_bedtime, sleep_wake_time, reflection)
-         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-        [persona.id, date, plan.weightKg, plan.bodyFat, plan.bedtime, plan.wake, plan.reflection],
+        `INSERT INTO days (user_id, date, morning_weight_kg, morning_body_fat_percent, sleep_bedtime, sleep_wake_time, reflection, profile_target_calories, profile_activity_level)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
+        [persona.id, date, plan.weightKg, plan.bodyFat, plan.bedtime, plan.wake, plan.reflection, p.targetCalories, p.activityLevel],
       );
       const dayId = inserted.rows[0].id;
       counts.days++;

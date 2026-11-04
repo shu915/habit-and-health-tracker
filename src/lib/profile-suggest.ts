@@ -4,10 +4,8 @@ import {
   CALORIE_STEP,
   dailyEnergy,
   MIN_CALORIES,
-  PROTEIN_G_PER_KG,
   standardWeightKg,
   suggestTargetCalories,
-  suggestTargetProtein,
   suggestTargetWeight,
   WEIGHT_LOSS_RATE,
   OVERWEIGHT_BMI,
@@ -25,7 +23,7 @@ import type { ProfileField } from "@/lib/profile-schema";
 export type FormValues = Partial<Record<ProfileField, string>>;
 
 // 提案できる項目。この順に計算する(あとの項目は、前の項目の結果を使う)
-export const SUGGESTABLE_FIELDS = ["targetWeightKg", "targetCalories", "targetProteinG"] as const;
+export const SUGGESTABLE_FIELDS = ["targetWeightKg", "targetCalories"] as const;
 export type SuggestableField = (typeof SUGGESTABLE_FIELDS)[number];
 
 // 10 進数の数字だけを数値にする。読めなければ null(未入力として扱う)
@@ -129,7 +127,7 @@ export function suggestTargets(values: FormValues, selected: readonly Suggestabl
       targetWeightKg = suggestedWeight.kg;
     }
   } else if (targetWeightKg === null && suggestedWeight && !targetWeightInvalid) {
-    // 目標体重が空のまま、カロリーやタンパク質だけ提案するときは、同じ方針の目標体重を仮定する
+    // 目標体重が空のまま、カロリーだけ提案するときは、同じ方針の目標体重を仮定する
     targetWeightKg = suggestedWeight.kg;
     targetWeightAssumed = true;
   }
@@ -176,18 +174,6 @@ export function suggestTargets(values: FormValues, selected: readonly Suggestabl
             : `現在の体重での消費 ${tdeeNow} kcal より、${-diff} kcal 多い量です`;
         result.notes.targetCalories = `${reason}${assumption}。${comparison}`;
       }
-    }
-  }
-
-  // --- 目標タンパク質 ---
-  if (wants("targetProteinG")) {
-    if (targetWeightInvalid) {
-      result.errors.targetProteinG = `目標体重の値（${(values.targetWeightKg ?? "").trim()}）は使えません。${PROFILE_LIMITS.targetWeightKg.app.min}〜${PROFILE_LIMITS.targetWeightKg.app.max}kg の数字に直すか、空にしてから提案してください。`;
-    } else if (targetWeightKg === null) {
-      result.errors.targetProteinG = "目標タンパク質の提案には、目標体重（または現在の体重と身長）が必要です。";
-    } else {
-      result.values.targetProteinG = String(suggestTargetProtein(targetWeightKg));
-      result.notes.targetProteinG = `目標体重 ${targetWeightKg}kg × ${PROTEIN_G_PER_KG} g/kg${assumption}`;
     }
   }
 

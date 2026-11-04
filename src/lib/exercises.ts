@@ -3,6 +3,7 @@ import { and, asc, count, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { days, exercises } from "@/db/schema";
 import { getCurrentUserId } from "@/lib/current-user";
+import { insertDayIfMissing } from "@/lib/day-row";
 import { isValidDateString } from "@/lib/date";
 import { EXERCISE_MAX_PER_DAY, isExerciseId } from "@/lib/exercise-limits";
 import type { ExerciseValues } from "@/lib/exercise-schema";
@@ -34,7 +35,7 @@ export async function saveExercise(date: string, input: ExerciseValues): Promise
   assertValidDate(date);
 
   return db.transaction(async (tx) => {
-    await tx.insert(days).values({ userId, date }).onConflictDoNothing({ target: [days.userId, days.date] });
+    await insertDayIfMissing(tx, userId, date);
     const [day] = await tx
       .select({ id: days.id })
       .from(days)

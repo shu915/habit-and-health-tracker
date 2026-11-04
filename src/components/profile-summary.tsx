@@ -25,7 +25,6 @@ export async function ProfileSummary() {
   const goals: Row[] = [
     { label: "目標体重", value: profile.targetWeightKg, unit: "kg" },
     { label: "目標カロリー", value: profile.targetCalories, unit: "kcal" },
-    { label: "目標タンパク質", value: profile.targetProteinG, unit: "g" },
   ];
   const sleep: Row[] = [
     { label: "睡眠時間の目標", value: formatDuration(profile.targetSleepMinutes) },

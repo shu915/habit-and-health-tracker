@@ -58,7 +58,6 @@ export const profiles = pgTable(
     // 目標値(静的ベンチマーク)
     targetWeightKg: numeric("target_weight_kg", { precision: 5, scale: 2 }),
     targetCalories: integer("target_calories"),
-    targetProteinG: numeric("target_protein_g", { precision: 5, scale: 1 }),
 
     // 睡眠の目標設定(分換算 & 基準中央値)。成人の一般的な目安を既定値にする
     // 空(null)にもできる。null は「睡眠の機能を使わない」で、睡眠の目標との比較を飛ばす。
@@ -84,7 +83,6 @@ export const profiles = pgTable(
     check("profiles_activity_level_range", sql`${table.activityLevel} BETWEEN 1 AND 3`),
     check("profiles_target_weight_kg_range", sql`${table.targetWeightKg} > 0 AND ${table.targetWeightKg} < 500`),
     check("profiles_target_calories_range", sql`${table.targetCalories} > 0 AND ${table.targetCalories} <= 10000`),
-    check("profiles_target_protein_g_range", sql`${table.targetProteinG} >= 0 AND ${table.targetProteinG} <= 1000`),
     check("profiles_target_sleep_minutes_range", sql`${table.targetSleepMinutes} > 0 AND ${table.targetSleepMinutes} <= 1440`),
     // "HH:MM"(00:00〜23:59)
     check("profiles_target_sleep_midpoint_format", sql`${table.targetSleepMidpoint} ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'`),
@@ -114,6 +112,12 @@ export const days = pgTable(
     // 睡眠時間などは、この 2 つから計算する(列には保存しない)
     sleepBedtime: varchar("sleep_bedtime", { length: 5 }),
     sleepWakeTime: varchar("sleep_wake_time", { length: 5 }),
+
+    // その日が初めて保存されたときの、プロフィールの値の写し(過去の日を、当時の目標で見るため)。範囲の CHECK は、写し元の profiles が持つ。
+    // null は「写した時にプロフィールが未設定だった」か「写しが無い」で、読む側は今のプロフィールで補う(lib/days.ts の getDayBasis)。
+    // 日の行を作る所では必ず lib/day-row.ts の insertDayIfMissing を使い、書き換えるのは作るときだけ(saveDay の更新では触らない)
+    profileTargetCalories: integer("profile_target_calories"),
+    profileActivityLevel: numeric("profile_activity_level", { precision: 4, scale: 3 }),
 
     // 今日の気づき(反省・気づき・明日への一言。自由記入で、あとで AI がフィードバックする対象)。AI の返事はここに書かず、別テーブルに置く
     reflection: text("reflection"),

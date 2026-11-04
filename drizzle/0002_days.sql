@@ -6,6 +6,8 @@ CREATE TABLE "days" (
 	"morning_body_fat_percent" numeric(4, 1),
 	"sleep_bedtime" varchar(5),
 	"sleep_wake_time" varchar(5),
+	"profile_target_calories" integer,
+	"profile_activity_level" numeric(4, 3),
 	"reflection" text,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL,

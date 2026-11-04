@@ -1,14 +1,12 @@
 // 1 日の食事の栄養を、目標に対する割合(%)にする。レーダーチャートと、その横の表の元になる(AI は使わない)。
 // 目標は一般的な参考値で、医療上の指示ではない。カロリーはプロフィールの目標に、その日の運動の消費を足した値。
-// たんぱく質はプロフィールの目標、脂質・糖質はカロリーの目標から、塩分は下の定数から出す
+// 目標カロリー(プロフィールの値)以外は、すべてこの値から割合で決める(性別・年齢・体重に左右されない)
 
+export const PROTEIN_ENERGY_RATIO = 0.2; // たんぱく質: 目標カロリーの 20%(1g = 4kcal)。日本人の食事摂取基準のエネルギー比の目標量(13〜20% の上限側)に合わせた。2025 年版の年齢別の値は未確認
 export const FAT_ENERGY_RATIO = 0.25; // 脂質: 目標カロリーの 25%(1g = 9kcal)
 export const CARB_ENERGY_RATIO = 0.5; // 糖質: 目標カロリーの 50%(1g = 4kcal)
-// 塩分(食塩相当量)の目標: 男性 7.5g・女性 6.5g 未満。性別が未設定・その他は中間の 7.0g
-export const SALT_LIMIT_G = { male: 7.5, female: 6.5, other: 7.0 } as const;
-// 食物繊維の目標量(以上、日本人の食事摂取基準 2025 年版)。男性は 18〜29 歳 20g・30〜64 歳 22g・65〜74 歳 21g・75 歳以上 20g、
-// 女性は 18〜74 歳 18g・75 歳以上 17g。年齢が未設定のときは、その性別の代表値(男性 21g・女性 18g)。性別が未設定・その他は中間の 19.5g
-export const FIBER_GOAL_OTHER_G = 19.5;
+export const FIBER_GOAL_G = 20; // 食物繊維: 一律 20g 以上(2025 年版の目標量は男性 18〜22g・女性 17〜18g の範囲。その中ほど)
+export const SALT_LIMIT_G = 7.5; // 塩分(食塩相当量): 一律 7.5g 未満(目標量は男性 7.5g・女性 6.5g。現実に届きやすいよう高いほうに合わせた)
 export const CHART_MAX_PERCENT = 150; // 描画は 150% で頭打ちにする(塩分が 3 倍でも、形がつぶれない)。表は実際の値を出す
 
 export type RadarMeal = {
@@ -22,11 +20,8 @@ export type RadarMeal = {
 
 export type RadarInput = {
   meals: readonly RadarMeal[];
-  targetKcal: number | null; // プロフィールの目標カロリー
+  targetKcal: number | null; // プロフィールの目標カロリー(その日に固定した値)
   exerciseKcal: number; // その日の追加の運動の消費。カロリーの目標に足す(動いた分は、多く食べてよい)
-  targetProteinG: number | null;
-  gender: string | null;
-  age: number | null; // 食物繊維の目標を、年齢で出し分ける
 };
 
 // reach: 届いたほうがよい / near: 近いほどよい / limit: 超えないほうがよい
@@ -56,30 +51,17 @@ export type MealRadar = {
 const num = (value: string | null): number => (value === null ? 0 : Number(value));
 const round1 = (value: number) => Math.round(value * 10) / 10;
 
-export function fiberGoalG(gender: string | null, age: number | null): number {
-  if (gender === "male") {
-    if (age === null || age < 18) return 21;
-    return age <= 29 ? 20 : age <= 64 ? 22 : age <= 74 ? 21 : 20;
-  }
-  if (gender === "female") return age !== null && age >= 75 ? 17 : 18;
-  return FIBER_GOAL_OTHER_G;
-}
-
-export function saltLimitG(gender: string | null): number {
-  return gender === "male" ? SALT_LIMIT_G.male : gender === "female" ? SALT_LIMIT_G.female : SALT_LIMIT_G.other;
-}
-
-export function mealRadar({ meals, targetKcal, exerciseKcal, targetProteinG, gender, age }: RadarInput): MealRadar {
+export function mealRadar({ meals, targetKcal, exerciseKcal }: RadarInput): MealRadar {
   // その日のカロリーの目標: 目標カロリー + 運動の消費。脂質・糖質の目標も、この値から出す
   const allowanceKcal = targetKcal === null ? null : targetKcal + exerciseKcal;
   const sum = (pick: (meal: RadarMeal) => number) => round1(meals.reduce((total, meal) => total + pick(meal), 0));
   const references: Record<RadarKey, number | null> = {
     kcal: allowanceKcal,
-    protein: targetProteinG,
+    protein: targetKcal === null ? null : round1((targetKcal * PROTEIN_ENERGY_RATIO) / 4), // 運動の分は足さない(動いても、たんぱく質の目標は変えない)
     fat: allowanceKcal === null ? null : round1((allowanceKcal * FAT_ENERGY_RATIO) / 9),
     carb: allowanceKcal === null ? null : round1((allowanceKcal * CARB_ENERGY_RATIO) / 4),
-    fiber: fiberGoalG(gender, age),
-    salt: saltLimitG(gender),
+    fiber: FIBER_GOAL_G,
+    salt: SALT_LIMIT_G,
   };
   const defs: { key: RadarKey; label: string; unit: string; direction: RadarDirection; actual: number }[] = [
     { key: "kcal", label: "カロリー", unit: "kcal", direction: "near", actual: sum((m) => m.kcal) },

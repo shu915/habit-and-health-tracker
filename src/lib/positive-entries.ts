@@ -3,6 +3,7 @@ import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { days, positiveEntries } from "@/db/schema";
 import { getCurrentUserId } from "@/lib/current-user";
+import { insertDayIfMissing } from "@/lib/day-row";
 import { isValidDateString } from "@/lib/date";
 import { POSITIVE_MAX_PER_DAY } from "@/lib/positive-limits";
 
@@ -24,7 +25,7 @@ export async function savePositiveEntries(date: string, bodies: string[]): Promi
   if (bodies.length > POSITIVE_MAX_PER_DAY) throw new Error(`too many entries: ${bodies.length}`);
 
   await db.transaction(async (tx) => {
-    if (bodies.length > 0) await tx.insert(days).values({ userId, date }).onConflictDoNothing({ target: [days.userId, days.date] });
+    if (bodies.length > 0) await insertDayIfMissing(tx, userId, date);
     const [day] = await tx
       .select({ id: days.id })
       .from(days)

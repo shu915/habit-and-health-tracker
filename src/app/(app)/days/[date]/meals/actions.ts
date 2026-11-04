@@ -5,6 +5,7 @@ import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 import { consumeAiRequest } from "@/lib/ai-limit";
 import { getCurrentUserId } from "@/lib/current-user";
+import { requireRecordingProfile } from "@/lib/recording-gate";
 import { isRecordableDate } from "@/lib/date";
 import { checkEstimateInput, estimateMeal } from "@/lib/estimate-meal";
 import { buildEstimate, type ParseResult } from "@/lib/meal-estimate";
@@ -61,6 +62,7 @@ function toMealInput(raw: unknown): { ok: true; input: MealInput } | SaveMealRes
 export async function saveMealAction(date: string, raw: unknown): Promise<SaveMealResult> {
   await getCurrentUserId();
   if (!isRecordableDate(date)) notFound();
+  await requireRecordingProfile(date); // 日の行が無く、未設定なら、プロフィールの編集へ
 
   const result = toMealInput(raw);
   if (!result.ok) return result;

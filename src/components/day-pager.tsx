@@ -13,14 +13,14 @@ export function DayPager({ page, lastPage }: { page: number; lastPage: number })
       <div className="min-w-32">
         {page > 1 && (
           <Link href={hrefOf(page - 1)} className={buttonClass({ variant: "secondary" })}>
-            ← 新しい {DAYS_PER_PAGE} 日
+            ← 新しい {DAYS_PER_PAGE} 件
           </Link>
         )}
       </div>
       <div className="flex min-w-32 justify-end">
         {page < lastPage && (
           <Link href={hrefOf(page + 1)} className={buttonClass({ variant: "secondary" })}>
-            前の {DAYS_PER_PAGE} 日 →
+            前の {DAYS_PER_PAGE} 件 →
           </Link>
         )}
       </div>

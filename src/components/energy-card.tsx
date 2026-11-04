@@ -53,6 +53,7 @@ export function EnergyCard({ profile }: { profile: ProfileEnergyInput }) {
         基礎代謝 {number(overview.bmrKcal)} kcal × 活動係数 {overview.activityLevel}
         {overview.activityName ? `（${overview.activityName}）` : ""}。{method}
       </p>
+      <p className="text-xs text-zinc-500">いつもの運動は活動係数に含まれています。追加の運動の分は含みません（日の詳細の「この日の結果」で足します）。</p>
       {targetCalories !== null && targetDiffKcal !== null && (
         <p className="mt-1 text-sm">
           目標カロリー <span className="font-medium tabular-nums">{number(targetCalories)} kcal</span>
