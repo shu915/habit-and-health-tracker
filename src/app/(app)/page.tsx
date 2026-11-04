@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { BodyTrend } from "@/components/body-trend";
 import { DayList } from "@/components/day-list";
 import { ProfileSummary } from "@/components/profile-summary";
 import { WaistReminder } from "@/components/waist-reminder";
@@ -13,6 +14,10 @@ export default function DashboardPage({ searchParams }: PageProps<"/">) {
       </Suspense>
       <Suspense fallback={<p className="text-zinc-500">プロフィールを読み込み中...</p>}>
         <ProfileSummary />
+      </Suspense>
+      {/* 体重・体脂肪率の推移(置き場所は、ほかのグラフができてから決め直す) */}
+      <Suspense fallback={<p className="text-zinc-500">推移を読み込み中...</p>}>
+        <BodyTrend searchParams={searchParams} />
       </Suspense>
       <Suspense fallback={<p className="text-zinc-500">記録を読み込み中...</p>}>
         <DayList searchParams={searchParams} />
