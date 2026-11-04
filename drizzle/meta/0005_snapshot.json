@@ -1,6 +1,6 @@
 {
-  "id": "876b2dd9-b182-4a63-9227-605f677e1195",
-  "prevId": "5c157923-5e5e-4fd8-9fd5-fe38dddc8978",
+  "id": "a9ad607c-e04e-48d3-a39d-4c0b06590c6c",
+  "prevId": "3aa38c72-8e9a-46b8-8e2c-5497b1944ec8",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -47,6 +47,18 @@
         "sleep_wake_time": {
           "name": "sleep_wake_time",
           "type": "varchar(5)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "profile_target_calories": {
+          "name": "profile_target_calories",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "profile_activity_level": {
+          "name": "profile_activity_level",
+          "type": "numeric(4, 3)",
           "primaryKey": false,
           "notNull": false
         },
@@ -641,12 +653,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "target_protein_g": {
-          "name": "target_protein_g",
-          "type": "numeric(5, 1)",
-          "primaryKey": false,
-          "notNull": false
-        },
         "target_sleep_minutes": {
           "name": "target_sleep_minutes",
           "type": "integer",
@@ -727,10 +733,6 @@
         "profiles_target_calories_range": {
           "name": "profiles_target_calories_range",
           "value": "\"profiles\".\"target_calories\" > 0 AND \"profiles\".\"target_calories\" <= 10000"
-        },
-        "profiles_target_protein_g_range": {
-          "name": "profiles_target_protein_g_range",
-          "value": "\"profiles\".\"target_protein_g\" >= 0 AND \"profiles\".\"target_protein_g\" <= 1000"
         },
         "profiles_target_sleep_minutes_range": {
           "name": "profiles_target_sleep_minutes_range",

@@ -115,6 +115,14 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
     ]);
   });
 
+  // 記録を始められるプロフィール(目標カロリーと活動係数が決まっている)。日を作る Server Action のテストの前提
+  const readyProfiles = async () => {
+    await dbModule.db
+      .insert(schema.profiles)
+      .values([USER_A, USER_B].map((userId) => ({ userId, targetCalories: 1800, activityLevel: "1.375" })))
+      .onConflictDoNothing();
+  };
+
   afterAll(async () => {
     if (!dbModule) return; // beforeAll で接続先の確認に失敗した場合は、片づけるものが無い
     const { inArray } = await import("drizzle-orm");
@@ -241,6 +249,81 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
       expect(await daysModule.getDayWeight("2026-10-25")).toEqual({ kg: 70, source: "morning", earlierDate: null });
       expect(await daysModule.getDayWeight("2026-10-05")).toEqual({ kg: 72, source: "profile", earlierDate: null }); // それ以前に朝の体重が無い
       await expect(daysModule.getDayWeight("2026-02-30")).rejects.toThrow("invalid date");
+    });
+
+    it("日の行を作ったときのプロフィールの目標・活動係数を写し、あとでプロフィールを直しても過去の日は変わらない", async () => {
+      currentUser.id = USER_A;
+      await profilesModule.updateProfile({ targetCalories: 1800, activityLevel: "1.375", currentBodyFatPercent: "30.0" });
+      await daysModule.saveDay("2026-10-20", { morningBodyFatPercent: "22.5" });
+
+      await profilesModule.updateProfile({ targetCalories: 1500, activityLevel: "1.55", currentBodyFatPercent: "28.0" });
+      await daysModule.saveDay("2026-10-20", { reflection: "更新しても写しは変わらない" }); // 更新では写し直さない
+      await daysModule.saveDay("2026-10-21", {}); // 新しい日は、直したあとの値を写す
+
+      const old = await daysModule.getDayBasis("2026-10-20");
+      expect(old.profile.targetCalories).toBe(1800);
+      expect(old.profile.activityLevel).toBe("1.375");
+      expect(old.bodyFat).toEqual({ value: 22.5, source: "morning", earlierDate: null }); // 体脂肪率はその日の朝の値
+      expect(old.profile.currentBodyFatPercent).toBe("22.5");
+
+      const next = await daysModule.getDayBasis("2026-10-21");
+      expect(next.profile.targetCalories).toBe(1500);
+      expect(next.profile.activityLevel).toBe("1.550");
+      expect(next.bodyFat).toEqual({ value: 22.5, source: "earlier", earlierDate: "2026-10-20" });
+    });
+
+    it("プロフィールの目標カロリー・活動係数を直すと、書きかけの日(今日)の写しも新しくなる。過ぎた日は当時のまま", async () => {
+      const { defaultMealDayAndTime } = await import("./meal-time");
+      const today = defaultMealDayAndTime().date;
+      currentUser.id = USER_A;
+      await profilesModule.updateProfile({ targetCalories: 1800, activityLevel: "1.375" });
+      await daysModule.saveDay("2026-10-24", {});
+      await daysModule.saveDay(today, {});
+
+      await profilesModule.updateProfile({ targetCalories: 1500, activityLevel: "1.55" });
+      expect((await daysModule.getDayBasis(today)).profile.targetCalories).toBe(1500);
+      expect((await daysModule.getDayBasis(today)).profile.activityLevel).toBe("1.550");
+      expect((await daysModule.getDayBasis("2026-10-24")).profile.targetCalories).toBe(1800); // 過ぎた日は変わらない
+
+      // 関係ない項目だけを直しても、写しは書き換わらない(写しを直接ずらしておき、ずれが残ることで確かめる)
+      const { and, eq } = await import("drizzle-orm");
+      const todayRow = and(eq(schema.days.userId, USER_A), eq(schema.days.date, today));
+      await dbModule.db.update(schema.days).set({ profileTargetCalories: 999, profileActivityLevel: "1.900" }).where(todayRow);
+      await profilesModule.updateProfile({ age: 40 });
+      expect((await daysModule.getDayBasis(today)).profile.targetCalories).toBe(999);
+      // 目標カロリーだけを直しても、活動係数の写しは書き換わらない
+      await profilesModule.updateProfile({ targetCalories: 1400 });
+      const basis = (await daysModule.getDayBasis(today)).profile;
+      expect(basis.targetCalories).toBe(1400);
+      expect(basis.activityLevel).toBe("1.900");
+    });
+
+    it("目標カロリーを空にして保存すると、書きかけの日の写しも空になり、今のプロフィール(空)で補われる", async () => {
+      const { defaultMealDayAndTime } = await import("./meal-time");
+      const today = defaultMealDayAndTime().date;
+      currentUser.id = USER_A;
+      await profilesModule.updateProfile({ targetCalories: 1800 });
+      await daysModule.saveDay(today, {});
+      await profilesModule.updateProfile({ targetCalories: null });
+      expect((await daysModule.getDayBasis(today)).profile.targetCalories).toBeNull();
+      const { and, eq } = await import("drizzle-orm");
+      const [row] = await dbModule.db.select().from(schema.days).where(and(eq(schema.days.userId, USER_A), eq(schema.days.date, today)));
+      expect(row.profileTargetCalories).toBeNull();
+    });
+
+    it("画面の保存(saveDayUnlessEmpty): 行が無い日を空のまま保存しても、行を作らない(目標が早く固まらない)", async () => {
+      currentUser.id = USER_A;
+      await profilesModule.updateProfile({ targetCalories: 1800 });
+      expect(await daysModule.saveDayUnlessEmpty("2026-10-23", { morningWeightKg: null, reflection: null })).toBeNull();
+      expect(await daysModule.getDay("2026-10-23")).toBeNull();
+
+      await profilesModule.updateProfile({ targetCalories: 1500 });
+      await daysModule.saveDayUnlessEmpty("2026-10-23", { morningWeightKg: "70.00" }); // 中身があれば作り、そのときの目標を写す
+      expect((await daysModule.getDayBasis("2026-10-23")).profile.targetCalories).toBe(1500);
+
+      // すでに行がある日は、空に直す保存も通る
+      const cleared = await daysModule.saveDayUnlessEmpty("2026-10-23", { morningWeightKg: null });
+      expect(cleared?.morningWeightKg).toBeNull();
     });
 
     it("不正な日付は DB に触る前にエラーにする", async () => {
@@ -735,6 +818,24 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
     });
     const DATE = "2026-04-10";
 
+    it("食事から日の行ができたときも、プロフィールの値を写す。写しが null の日は今のプロフィールで補う", async () => {
+      currentUser.id = USER_A;
+      await profilesModule.updateProfile({ targetCalories: 1900, activityLevel: "1.2" });
+      await mealsModule.saveMeal("2026-10-22", input());
+      await profilesModule.updateProfile({ targetCalories: 1600, activityLevel: "1.725" });
+      expect((await daysModule.getDayBasis("2026-10-22")).profile.targetCalories).toBe(1900);
+
+      // 写しが無い(null)日は、今の値になる
+      const { and, eq } = await import("drizzle-orm");
+      await dbModule.db
+        .update(schema.days)
+        .set({ profileTargetCalories: null, profileActivityLevel: null })
+        .where(and(eq(schema.days.userId, USER_A), eq(schema.days.date, "2026-10-22")));
+      const basis = await daysModule.getDayBasis("2026-10-22");
+      expect(basis.profile.targetCalories).toBe(1600);
+      expect(basis.profile.activityLevel).toBe("1.725");
+    });
+
     it("保存すると、その日の days の行が無ければ空で作られ、合計が列の形で入る", async () => {
       currentUser.id = USER_A;
       const meal = await mealsModule.saveMeal(DATE, input());
@@ -1094,6 +1195,7 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
     });
 
     describe("saveMealAction", () => {
+      beforeEach(readyProfiles);
       it("保存して、画面の再取得を依頼し、その日の詳細へ移動する。合計は、届いた値ではなく内訳から計算し直す", async () => {
         currentUser.id = USER_A;
         // 画面から、嘘の合計(kcal: 1)を紛れ込ませても、使われない
@@ -1394,6 +1496,7 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
     });
 
     describe("Server Action", () => {
+      beforeEach(readyProfiles);
       it("追加: 保存してその日の詳細へ移動し、再描画を頼む。メモの空欄は null", async () => {
         currentUser.id = USER_A;
         await expect(exerciseActionsModule.saveExerciseAction(DATE, null, validForm())).rejects.toThrow(`NEXT_REDIRECT:/days/${DATE}`);
@@ -1817,6 +1920,7 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
     });
 
     describe("Server Action", () => {
+      beforeEach(readyProfiles);
       it("保存して、その日の詳細へ移動し、再描画を頼む。空の組はつめる", async () => {
         currentUser.id = USER_A;
         const form = formOf({ body1: "", body2: "散歩した。風が気持ちよかった", body3: "早く寝た" });
@@ -1876,7 +1980,72 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
     });
   });
 
+  describe("プロフィール未設定のとき(目標カロリーか活動係数が空)は、記録の保存がプロフィールの編集へ送る", () => {
+    const form = (fields: Record<string, string>) => {
+      const formData = new FormData();
+      for (const [name, value] of Object.entries(fields)) formData.set(name, value);
+      return formData;
+    };
+    const DATE = "2026-10-30";
+    const actions = () => [
+      () => dayActionsModule.saveDayAction(DATE, null, form({ morningWeightKg: "70" })),
+      () => reflectionActionsModule.saveReflectionAction(DATE, null, form({ reflection: "気づき" })),
+      () => positiveActionsModule.savePositiveAction(DATE, null, form({ body1: "良かった" })),
+      () => exerciseActionsModule.saveExerciseAction(DATE, null, form({ type: "walk", intensity: "normal", minutes: "30" })),
+      () => mealActionsModule.saveMealAction(DATE, {}),
+    ];
+
+    it("プロフィールの行が無いときも、どの保存も /profile/edit へ送られ、日の行は作られない", async () => {
+      currentUser.id = USER_A;
+      for (const attempt of actions()) await expect(attempt()).rejects.toThrow("NEXT_REDIRECT:/profile/edit"); // 順に呼ぶ(先に作ると、await 前の reject が未処理になる)
+      expect(await dbModule.db.select().from(schema.days)).toEqual([]);
+    });
+
+    it("目標カロリーだけ、または活動係数だけでも、送られる", async () => {
+      currentUser.id = USER_A;
+      await profilesModule.updateProfile({ targetCalories: 1800 });
+      await expect(dayActionsModule.saveDayAction(DATE, null, form({ morningWeightKg: "70" }))).rejects.toThrow("NEXT_REDIRECT:/profile/edit");
+      await profilesModule.updateProfile({ targetCalories: null, activityLevel: "1.375" });
+      await expect(dayActionsModule.saveDayAction(DATE, null, form({ morningWeightKg: "70" }))).rejects.toThrow("NEXT_REDIRECT:/profile/edit");
+      expect(await dbModule.db.select().from(schema.days)).toEqual([]);
+    });
+
+    it("日の行がすでにある日は、未設定でも塞がない(新しく作らないので、編集や追加はできる)", async () => {
+      currentUser.id = USER_A;
+      await daysModule.saveDay(DATE, { morningWeightKg: "70.00" }); // 未設定のまま、保存関数で行を作っておく(別経路・旧データを想定)
+      await expect(dayActionsModule.saveDayAction(DATE, null, form({ morningWeightKg: "69" }))).rejects.toThrow(`NEXT_REDIRECT:/days/${DATE}`);
+      expect((await daysModule.getDay(DATE))?.morningWeightKg).toBe("69.00");
+      // 別の日(行が無い)は、塞がれる
+      await expect(dayActionsModule.saveDayAction("2026-10-31", null, form({ morningWeightKg: "70" }))).rejects.toThrow("NEXT_REDIRECT:/profile/edit");
+    });
+
+    it("requireRecordingProfile: 未設定で行が無ければ /profile/edit へ。設定済み、または行があれば通る", async () => {
+      const { requireRecordingProfile } = await import("./recording-gate");
+      currentUser.id = USER_A;
+      await expect(requireRecordingProfile(DATE)).rejects.toThrow("NEXT_REDIRECT:/profile/edit");
+      await profilesModule.updateProfile({ targetCalories: 1800, activityLevel: "1.375" });
+      await expect(requireRecordingProfile(DATE)).resolves.toBeUndefined();
+      await profilesModule.updateProfile({ targetCalories: null });
+      await expect(requireRecordingProfile(DATE)).rejects.toThrow("NEXT_REDIRECT:/profile/edit");
+      await daysModule.saveDay(DATE, {});
+      await expect(requireRecordingProfile(DATE)).resolves.toBeUndefined();
+    });
+
+    it("不正な日付は、未設定でも 404 になる(ゲートより先に日付を確かめる)", async () => {
+      currentUser.id = USER_A;
+      await expect(dayActionsModule.saveDayAction("2026-02-30", null, form({ morningWeightKg: "70" }))).rejects.toThrow("NEXT_NOT_FOUND");
+    });
+
+    it("両方そろえれば保存できる", async () => {
+      currentUser.id = USER_A;
+      await profilesModule.updateProfile({ targetCalories: 1800, activityLevel: "1.375" });
+      await expect(dayActionsModule.saveDayAction(DATE, null, form({ morningWeightKg: "70" }))).rejects.toThrow(`NEXT_REDIRECT:/days/${DATE}`);
+      expect(await dbModule.db.select().from(schema.days)).toHaveLength(1);
+    });
+  });
+
   describe("saveDayAction", () => {
+    beforeEach(readyProfiles);
     const DATE = "2026-10-30";
     const formOf = (fields: Record<string, string>) => {
       const formData = new FormData();
@@ -1984,6 +2153,7 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
   });
 
   describe("saveReflectionAction", () => {
+    beforeEach(readyProfiles);
     const DATE = "2026-10-30";
     const formOf = (fields: Record<string, string>) => {
       const formData = new FormData();

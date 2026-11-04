@@ -4,6 +4,7 @@ import { connection } from "next/server";
 import { BackLink } from "@/components/back-link";
 import { EMPTY_EXERCISE, ExerciseForm } from "@/components/exercise-form";
 import { isRecordableDate } from "@/lib/date";
+import { requireRecordingProfile } from "@/lib/recording-gate";
 import { saveExerciseAction } from "../actions";
 
 // 運動の追加(いつもより多く動いた分)。保存は exercises/actions.ts
@@ -20,6 +21,7 @@ async function NewExerciseContent({ params }: Pick<PageProps<"/days/[date]/exerc
   const { date } = await params;
   await connection(); // 「今日」(new Date())を使うので、事前描画ではなくリクエスト時に実行する
   if (!isRecordableDate(date)) notFound();
+  await requireRecordingProfile(date); // 日の行が無く、目標カロリーか活動係数が未設定なら、プロフィールの編集へ
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">

@@ -25,7 +25,6 @@ const initial: ProfileFormInitial = {
   activityLevel: "1.375",
   targetWeightKg: "",
   targetCalories: "",
-  targetProteinG: "",
   targetSleepMinutes: "450",
   targetSleepMidpoint: "03:15",
 };
@@ -173,22 +172,19 @@ describe("ProfileForm: 目標値の提案(各欄の「提案」ボタン)", () =
     expect(valueOf("目標体重")).toBe("93.5");
     expect(screen.getByText(/現在の体重 98.3kg の 5% 減/)).toBeTruthy();
     expect(valueOf("目標カロリー")).toBe(""); // 押していない欄は空のまま
-    expect(valueOf("目標タンパク質")).toBe("");
     expect(saveProfileAction).not.toHaveBeenCalled(); // 入力欄を埋めただけで、保存していない
   });
 
-  it("3 つを順に押すと、前の結果を使って提案される", async () => {
+  it("2 つを順に押すと、前の結果を使って提案される", async () => {
     const user = userEvent.setup();
     render(<ProfileForm initial={initial} />);
 
     await user.click(suggestButton("目標体重"));
     await user.click(suggestButton("目標カロリー"));
-    await user.click(suggestButton("目標タンパク質"));
 
     expect(valueOf("目標体重")).toBe("93.5");
     expect(valueOf("目標カロリー")).toBe("2400");
-    expect(valueOf("目標タンパク質")).toBe("112");
-    expect(screen.getAllByText(/提案の根拠:/)).toHaveLength(3); // 先に押した欄の根拠も残る
+    expect(screen.getAllByText(/提案の根拠:/)).toHaveLength(2); // 先に押した欄の根拠も残る
     expect(screen.getByText(/基礎代謝 1743 × 1.375/)).toBeTruthy();
   });
 
@@ -221,11 +217,11 @@ describe("ProfileForm: 目標値の提案(各欄の「提案」ボタン)", () =
     render(<ProfileForm initial={initial} />);
 
     await user.type(screen.getByLabelText("目標体重"), "85");
-    await user.click(suggestButton("目標タンパク質"));
+    await user.click(suggestButton("目標カロリー"));
 
     expect(valueOf("目標体重")).toBe("85");
-    expect(valueOf("目標タンパク質")).toBe("102"); // 85 × 1.2
-    expect(screen.getByText(/目標体重 85kg × 1.2 g\/kg/)).toBeTruthy();
+    expect(valueOf("目標カロリー")).toBe("2250"); // 85kg の基礎代謝 1618 × 1.375 = 2225 → 2250
+    expect(screen.getByText(/目標体重 85kg で釣り合うカロリー/)).toBeTruthy();
   });
 
   it("材料が足りない項目は、値を入れず、理由を出す", async () => {
@@ -285,10 +281,10 @@ describe("ProfileForm: 目標値の提案(各欄の「提案」ボタン)", () =
     render(<ProfileForm initial={initial} />);
 
     await user.click(suggestButton("目標体重"));
-    await user.click(suggestButton("目標タンパク質"));
+    await user.click(suggestButton("目標カロリー"));
     expect(screen.getAllByText(/提案の根拠:/)).toHaveLength(2);
 
-    await user.type(screen.getByLabelText("目標タンパク質"), "0"); // 値を直す
+    await user.type(screen.getByLabelText("目標カロリー"), "0"); // 値を直す
     expect(screen.getAllByText(/提案の根拠:/)).toHaveLength(1);
     expect(screen.getByText(/現在の体重 98.3kg の 5% 減/)).toBeTruthy();
   });

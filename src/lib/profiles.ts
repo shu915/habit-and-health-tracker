@@ -1,9 +1,10 @@
 import "server-only";
-import { eq } from "drizzle-orm";
+import { and, eq, gte } from "drizzle-orm";
 import { db } from "@/db";
-import { profiles } from "@/db/schema";
+import { days, profiles } from "@/db/schema";
 import { getCurrentUserId } from "@/lib/current-user";
 import { todayString } from "@/lib/date";
+import { defaultMealDayAndTime } from "@/lib/meal-time";
 import { PROFILE_FIELDS, type ProfileValues } from "@/lib/profile-schema";
 
 // ログイン中のユーザーのプロフィール。行はユーザー作成時に自動で作られる(auth.ts の databaseHooks)。
@@ -39,9 +40,23 @@ export async function updateProfile(values: Partial<ProfileValues>) {
     changes.waistMeasuredOn = changes.currentWaistCm === null ? null : todayString();
   }
 
-  const [row] = await db.update(profiles).set(changes).where(eq(profiles.userId, userId)).returning();
-  if (!row) throw new Error("failed to update the profile");
-  return row;
+  return db.transaction(async (tx) => {
+    const [row] = await tx.update(profiles).set(changes).where(eq(profiles.userId, userId)).returning();
+    if (!row) throw new Error("failed to update the profile");
+
+    // 目標カロリーか活動係数を直したら、書きかけの日(今の食事の日と、それより先)の写しも新しい値にそろえる。
+    // 過ぎた日は、当時の値のまま(触らない)。今日の目標を昼に直しても、夜まで朝の値で比べられるのを防ぐ
+    const stamps: Partial<typeof days.$inferInsert> = {};
+    if (changes.targetCalories !== undefined) stamps.profileTargetCalories = row.targetCalories;
+    if (changes.activityLevel !== undefined) stamps.profileActivityLevel = row.activityLevel;
+    if (Object.keys(stamps).length > 0) {
+      await tx
+        .update(days)
+        .set(stamps)
+        .where(and(eq(days.userId, userId), gte(days.date, defaultMealDayAndTime().date)));
+    }
+    return row;
+  });
 }
 
 // ウエストを測った記録として、値と日付(今日)を保存する(月末の催促の帯から)。値が前と同じでも、日付は今日になる。

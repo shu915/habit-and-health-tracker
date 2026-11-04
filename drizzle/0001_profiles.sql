@@ -10,7 +10,6 @@ CREATE TABLE "profiles" (
 	"activity_level" numeric(4, 3),
 	"target_weight_kg" numeric(5, 2),
 	"target_calories" integer,
-	"target_protein_g" numeric(5, 1),
 	"target_sleep_minutes" integer DEFAULT 450,
 	"target_sleep_midpoint" varchar(5) DEFAULT '03:15',
 	"created_at" timestamp DEFAULT now() NOT NULL,
@@ -23,7 +22,6 @@ CREATE TABLE "profiles" (
 	CONSTRAINT "profiles_activity_level_range" CHECK ("profiles"."activity_level" BETWEEN 1 AND 3),
 	CONSTRAINT "profiles_target_weight_kg_range" CHECK ("profiles"."target_weight_kg" > 0 AND "profiles"."target_weight_kg" < 500),
 	CONSTRAINT "profiles_target_calories_range" CHECK ("profiles"."target_calories" > 0 AND "profiles"."target_calories" <= 10000),
-	CONSTRAINT "profiles_target_protein_g_range" CHECK ("profiles"."target_protein_g" >= 0 AND "profiles"."target_protein_g" <= 1000),
 	CONSTRAINT "profiles_target_sleep_minutes_range" CHECK ("profiles"."target_sleep_minutes" > 0 AND "profiles"."target_sleep_minutes" <= 1440),
 	CONSTRAINT "profiles_target_sleep_midpoint_format" CHECK ("profiles"."target_sleep_midpoint" ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$')
 );

@@ -3,9 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { notFound, redirect } from "next/navigation";
 import { getCurrentUserId } from "@/lib/current-user";
+import { requireRecordingProfile } from "@/lib/recording-gate";
 import { isRecordableDate } from "@/lib/date";
 import { DAY_FIELDS, parseDayForm, type DayField } from "@/lib/day-schema";
-import { saveDay } from "@/lib/days";
+import { saveDayUnlessEmpty } from "@/lib/days";
 
 // 検証に失敗したとき、フォームに返す状態。入力した値を返して、フォームに残す
 export type DayFormState = {
@@ -19,6 +20,7 @@ export async function saveDayAction(date: string, _previous: DayFormState, formD
   // 最初に認証を確かめる。ログインしていなければ /login へ送られ、検証にも保存にも進まない
   await getCurrentUserId();
   if (!isRecordableDate(date)) notFound(); // 実在しない日付と、翌日より先の日付
+  await requireRecordingProfile(date); // 日の行が無く、未設定なら、プロフィールの編集へ
 
   const values: Partial<Record<DayField, string>> = {};
   for (const field of DAY_FIELDS) {
@@ -30,7 +32,7 @@ export async function saveDayAction(date: string, _previous: DayFormState, formD
   if (!result.ok) return { errors: result.errors, values, submittedAt: Date.now() };
 
   // フォームに無かった項目は変更されない(result.values には、送られた項目だけが入っている)
-  await saveDay(date, result.values);
+  await saveDayUnlessEmpty(date, result.values);
 
   revalidatePath("/");
   revalidatePath(`/days/${date}`);

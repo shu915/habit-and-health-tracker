@@ -21,8 +21,6 @@ const base: DayResultInput = {
   exercises: [],
   weightKg: 70,
   energy: ready,
-  targetProteinG: 100,
-  targetCalories: 2000,
 };
 
 // 2026-11-03 の昼(ローカル時間)
@@ -105,31 +103,8 @@ describe("dayResult", () => {
     }
   });
 
-  it("たんぱく質は小数 1 桁に丸め、目標を持ち回る", () => {
-    const result = dayResult({ ...base, meals: [{ kcal: 100, proteinG: "0.1" }, { kcal: 100, proteinG: "0.2" }], targetProteinG: null });
+  it("たんぱく質は小数 1 桁に丸める", () => {
+    const result = dayResult({ ...base, meals: [{ kcal: 100, proteinG: "0.1" }, { kcal: 100, proteinG: "0.2" }] });
     expect(result.proteinG).toBe(0.3);
-    expect(result.targetProteinG).toBeNull();
-  });
-});
-
-describe("dayResult の目標となるカロリー", () => {
-  it("目標カロリーに、その日の追加の運動の消費を足す(現実の消費の目安とは別の値)", () => {
-    const result = dayResult({ ...base, exercises: [{ type: "walk", intensity: "normal", minutes: 60 }] });
-    expect(result.target?.baseKcal).toBe(2000);
-    expect(result.target?.exerciseKcal).toBeGreaterThan(0);
-    expect(result.target?.totalKcal).toBe(2000 + (result.target?.exerciseKcal ?? 0));
-    expect(result.burn?.tdeeKcal).toBe(2400); // 消費の目安は別
-    expect(result.target?.exerciseKcal).toBe(result.burn?.exerciseKcal);
-  });
-
-  it("運動が無ければ目標カロリーのまま。目標が未設定なら null", () => {
-    expect(dayResult(base).target).toEqual({ baseKcal: 2000, exerciseKcal: 0, totalKcal: 2000 });
-    expect(dayResult({ ...base, targetCalories: null }).target).toBeNull();
-  });
-
-  it("消費の目安が出せない(プロフィール不足)日でも、目標は出る", () => {
-    const result = dayResult({ ...base, energy: { kind: "missing", missing: ["身長"] } });
-    expect(result.burn).toBeNull();
-    expect(result.target?.totalKcal).toBe(2000);
   });
 });

@@ -3,6 +3,7 @@ import { and, asc, desc, eq, max } from "drizzle-orm";
 import { db } from "@/db";
 import { days, meals } from "@/db/schema";
 import { getCurrentUserId } from "@/lib/current-user";
+import { insertDayIfMissing } from "@/lib/day-row";
 import { isValidDateString } from "@/lib/date";
 import { estimatedItemSchema, type EstimatedItem } from "@/lib/meal-estimate-schema";
 import type { MealTotals } from "@/lib/meal-estimate";
@@ -62,7 +63,7 @@ export async function saveMeal(date: string, input: MealInput): Promise<Meal> {
   assertValidDate(date);
 
   return db.transaction(async (tx) => {
-    await tx.insert(days).values({ userId, date }).onConflictDoNothing({ target: [days.userId, days.date] });
+    await insertDayIfMissing(tx, userId, date);
     const [day] = await tx
       .select({ id: days.id })
       .from(days)

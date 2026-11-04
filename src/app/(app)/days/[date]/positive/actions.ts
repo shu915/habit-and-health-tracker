@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { notFound, redirect } from "next/navigation";
 import { getCurrentUserId } from "@/lib/current-user";
+import { requireRecordingProfile } from "@/lib/recording-gate";
 import { isRecordableDate } from "@/lib/date";
 import { savePositiveEntries } from "@/lib/positive-entries";
 import { parsePositiveForm, POSITIVE_FIELDS, type PositiveField } from "@/lib/positive-schema";
@@ -21,6 +22,7 @@ export type PositiveFormState = {
 export async function savePositiveAction(date: string, _previous: PositiveFormState, formData: FormData): Promise<PositiveFormState> {
   await getCurrentUserId();
   if (!isRecordableDate(date)) notFound();
+  await requireRecordingProfile(date); // 日の行が無く、未設定なら、プロフィールの編集へ
 
   const values: Partial<Record<PositiveField, string>> = {};
   for (const field of POSITIVE_FIELDS) {

@@ -4,6 +4,7 @@ import { connection } from "next/server";
 import { BackLink } from "@/components/back-link";
 import { EMPTY_POSITIVE, PositiveForm, type PositiveFormInitial } from "@/components/positive-form";
 import { isRecordableDate } from "@/lib/date";
+import { requireRecordingProfile } from "@/lib/recording-gate";
 import { listPositiveEntriesOfDay } from "@/lib/positive-entries";
 import { savePositiveAction } from "./actions";
 
@@ -21,6 +22,7 @@ async function PositiveContent({ params }: Pick<PageProps<"/days/[date]/positive
   const { date } = await params;
   await connection(); // 「今日」(new Date())を使うので、事前描画ではなくリクエスト時に実行する
   if (!isRecordableDate(date)) notFound();
+  await requireRecordingProfile(date); // 日の行が無く、目標カロリーか活動係数が未設定なら、プロフィールの編集へ
 
   const entries = await listPositiveEntriesOfDay(date);
   const initial: PositiveFormInitial = { ...EMPTY_POSITIVE };

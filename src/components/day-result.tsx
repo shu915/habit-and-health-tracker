@@ -1,10 +1,9 @@
 import { dayResult, isFinishedDay } from "@/lib/day-result";
 import { energyOverview } from "@/lib/energy-overview";
 import { listExercisesOfDay } from "@/lib/exercises";
-import { getDayWeight } from "@/lib/days";
-import type { DayWeight } from "@/lib/day-weight";
+import { getDayBasis } from "@/lib/days";
+import type { DayMeasure, DayWeight } from "@/lib/day-weight";
 import { listMealsOfDay } from "@/lib/meals";
-import { getProfile } from "@/lib/profiles";
 
 // 過ぎた日の結果(摂取と消費の目安、その差)。今日と未来は、まだ記録が増えるので出さない(isFinishedDay)。
 // 数字は推定どうしの比べで、保存せず、表示のたびに記録から計算する
@@ -15,15 +14,13 @@ const signed = (value: number) => (value === 0 ? "±0" : `${value > 0 ? "+" : "�
 export async function DayResult({ date }: { date: string }) {
   if (!isFinishedDay(date)) return null;
 
-  const [meals, exercises, profile, weight] = await Promise.all([listMealsOfDay(date), listExercisesOfDay(date), getProfile(), getDayWeight(date)]);
+  const [meals, exercises, { profile, weight, bodyFat }] = await Promise.all([listMealsOfDay(date), listExercisesOfDay(date), getDayBasis(date)]);
   const result = dayResult({
     meals,
     exercises,
     weightKg: weight.kg,
-    // 基礎代謝も、その日の体重で計算する(朝の体重 → それ以前の最新 → プロフィールの順)
-    energy: energyOverview({ ...profile, currentWeightKg: weight.kg === null ? null : String(weight.kg) }),
-    targetProteinG: profile.targetProteinG === null ? null : Number(profile.targetProteinG),
-    targetCalories: profile.targetCalories,
+    // 基礎代謝も、その日の体重・体脂肪率・活動係数で計算する(getDayBasis。過ぎた日を今のプロフィールで書き換えない)
+    energy: energyOverview(profile),
   });
 
   return (
@@ -34,22 +31,9 @@ export async function DayResult({ date }: { date: string }) {
         <p className="text-sm text-zinc-500">食事の記録がありません。</p>
       ) : (
         <>
-          {/* 数字を横に並べる(狭い画面では 2 列)。説明は数字の下に小さく */}
-          <dl className="grid grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-4">
+          {/* 実際の収支(食べた − 使った = 差。左から右へ計算の順)。目標との比べは、栄養のレーダー(meal-nutrition.tsx)が担当する */}
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-3">
             <Tile label="摂取" value={number(result.intakeKcal)} unit="kcal" caption={`記録した食事 ${result.mealCount} 回の合計`} />
-
-            {result.target && (
-              <Tile
-                label="目標となるカロリー"
-                value={number(result.target.totalKcal)}
-                unit="kcal"
-                caption={
-                  result.target.exerciseKcal > 0
-                    ? `目標カロリー ${number(result.target.baseKcal)} + 追加の運動 ${number(result.target.exerciseKcal)}`
-                    : "プロフィールの目標カロリー(追加の運動なし)"
-                }
-              />
-            )}
 
             {result.burn && (
               <Tile
@@ -69,15 +53,10 @@ export async function DayResult({ date }: { date: string }) {
                 label="差(摂取 − 消費の目安)"
                 value={signed(result.diffKcal)}
                 unit="kcal"
-                caption={`${result.diffKcal < 0 ? "消費より少ない" : result.diffKcal > 0 ? "消費より多い" : "同じ"}(目標とは比べません)`}
+                caption={result.diffKcal < 0 ? "消費より少ない" : result.diffKcal > 0 ? "消費より多い" : "同じ"}
               />
             )}
           </dl>
-
-          <p className="text-sm">
-            <span className="text-zinc-500">たんぱく質 </span>
-            {result.proteinG} g{result.targetProteinG !== null && <span className="text-zinc-500">(目標 {result.targetProteinG} g)</span>}
-          </p>
         </>
       )}
 
@@ -88,7 +67,7 @@ export async function DayResult({ date }: { date: string }) {
         <p className="text-xs text-zinc-500">体重が分からない運動は、消費に足していません。</p>
       )}
       <p className="text-xs text-zinc-400">
-        推定どうしの目安(誤差は 1 割前後あります)で、医療上の指示ではありません。消費の目安は、{weightNote(weight)}と、今のプロフィールの活動係数で計算しています。活動係数を直すと、過去の日の数字も変わります。
+        推定どうしの目安(誤差は 1 割前後あります)で、医療上の指示ではありません。消費の目安は、{weightNote(weight)}{bodyFatNote(bodyFat)}と、その日に記録したときのプロフィールの活動係数で計算しています。過ぎた日は、あとでプロフィールを直しても数字は変わりません。
       </p>
     </section>
   );
@@ -113,4 +92,12 @@ function weightNote(weight: DayWeight): string {
   if (weight.source === "morning") return `その日の朝の体重 ${weight.kg} kg`;
   if (weight.source === "earlier") return `体重 ${weight.kg} kg(その日の朝の体重が無いため、${weight.earlierDate} の朝の体重)`;
   return `体重 ${weight.kg} kg(朝の体重の記録が無いため、プロフィールの体重)`;
+}
+
+// 体脂肪率の出どころ。基礎代謝の式は、体脂肪率があると除脂肪体重で計算する
+function bodyFatNote(bodyFat: DayMeasure): string {
+  if (bodyFat.value === null) return "";
+  if (bodyFat.source === "morning") return `、その日の朝の体脂肪率 ${bodyFat.value}%`;
+  if (bodyFat.source === "earlier") return `、体脂肪率 ${bodyFat.value}%(${bodyFat.earlierDate} の朝の値)`;
+  return `、体脂肪率 ${bodyFat.value}%(プロフィールの値)`;
 }

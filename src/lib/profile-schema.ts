@@ -36,7 +36,6 @@ const fields = z.object({
   ),
   targetWeightKg: decimal("目標体重(kg)", "targetWeightKg"),
   targetCalories: integer("目標カロリー(kcal)", "targetCalories"),
-  targetProteinG: decimal("目標タンパク質(g)", "targetProteinG"),
   // 睡眠の目標。空欄は null(睡眠の機能を使わない)。新しいユーザーには、DB の既定値(450 分 / 03:15)が入る
   // 画面では「時間」「分」で入力する(裏で分に変換して送る)ので、メッセージも時間で書く
   targetSleepMinutes: integer(

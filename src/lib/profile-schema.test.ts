@@ -30,7 +30,6 @@ describe("parseProfileForm", () => {
       activityLevel: null,
       targetWeightKg: null,
       targetCalories: null,
-      targetProteinG: null,
       targetSleepMinutes: 450,
       targetSleepMidpoint: "03:15",
     });
@@ -54,7 +53,6 @@ describe("parseProfileForm", () => {
         activityLevel: "1.375",
         targetWeightKg: "74",
         targetCalories: "1800",
-        targetProteinG: "110",
         targetSleepMinutes: "420",
         targetSleepMidpoint: "03:30",
       }),
@@ -68,7 +66,6 @@ describe("parseProfileForm", () => {
       activityLevel: "1.375",
       targetWeightKg: "74.00",
       targetCalories: 1800,
-      targetProteinG: "110.0",
       targetSleepMinutes: 420,
       targetSleepMidpoint: "03:30",
     });
@@ -81,7 +78,7 @@ describe("parseProfileForm", () => {
   });
 
   it("各項目の範囲(profile-limits.ts の app)の端は通り、直外は拒否する", () => {
-    const fieldsWithRange = ["age", "heightCm", "currentWeightKg", "currentBodyFatPercent", "currentWaistCm", "targetWeightKg", "targetCalories", "targetProteinG", "targetSleepMinutes"] as const;
+    const fieldsWithRange = ["age", "heightCm", "currentWeightKg", "currentBodyFatPercent", "currentWaistCm", "targetWeightKg", "targetCalories", "targetSleepMinutes"] as const;
     for (const field of fieldsWithRange) {
       const { app, scale } = PROFILE_LIMITS[field];
       const step = 10 ** -scale;

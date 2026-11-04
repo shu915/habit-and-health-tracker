@@ -30,7 +30,6 @@ export type LimitedField =
   | "activityLevel"
   | "targetWeightKg"
   | "targetCalories"
-  | "targetProteinG"
   | "targetSleepMinutes";
 
 export const PROFILE_LIMITS: Record<LimitedField, Limit> = {
@@ -56,7 +55,6 @@ export const PROFILE_LIMITS: Record<LimitedField, Limit> = {
     db: { min: 0, max: 500, minExclusive: true, maxExclusive: true },
   },
   targetCalories: { scale: 0, app: { min: 500, max: 10000 }, db: { min: 0, max: 10000, minExclusive: true } },
-  targetProteinG: { scale: 1, app: { min: 0, max: 500 }, db: { min: 0, max: 1000 } },
   targetSleepMinutes: { scale: 0, app: { min: 120, max: 1080 }, db: { min: 0, max: 1440, minExclusive: true } },
 };
 

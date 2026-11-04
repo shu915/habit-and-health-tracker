@@ -17,7 +17,6 @@ export const STANDARD_BMI = 22; // 標準体重の BMI(参考として表示す�
 export const MIN_CALORIES = 1200; // 目標カロリーの絶対的な下限(目標体重の消費がこれより低い人のため)
 export const WEIGHT_STEP_KG = 0.5; // 提案する目標体重は、きりのいい数字(0.5kg 単位)に丸める
 export const CALORIE_STEP = 50; // 提案する目標カロリーは、きりのいい数字(50 kcal 単位)に丸める
-export const PROTEIN_G_PER_KG = 1.2; // 目標タンパク質: 目標体重 1kg あたり。国の目標量(エネルギー比 20% 以下)に近く、筋トレをする減量でも足りる量。1.4 にしたら高めで、実際に届かなかったため下げた
 
 export type BmrMethod = "katch-mcardle" | "mifflin-st-jeor";
 export type BmrResult =
@@ -90,9 +89,4 @@ export function suggestTargetCalories(input: { tdeeAtTargetKcal: number }): Targ
   const kcal = roundToStep(input.tdeeAtTargetKcal, CALORIE_STEP);
   if (kcal < MIN_CALORIES) return { kcal: MIN_CALORIES, reason: "floor-min" };
   return { kcal, reason: "balance" };
-}
-
-// 目標タンパク質(g)。目標体重 1kg あたり 1.2g。整数に丸める
-export function suggestTargetProtein(targetWeightKg: number): number {
-  return Math.round(targetWeightKg * PROTEIN_G_PER_KG);
 }

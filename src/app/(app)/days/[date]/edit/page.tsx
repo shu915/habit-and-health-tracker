@@ -5,6 +5,7 @@ import { BackLink } from "@/components/back-link";
 import { DayNavigation } from "@/components/day-navigation";
 import { DayForm, type DayFormInitial } from "@/components/day-form";
 import { isRecordableDate } from "@/lib/date";
+import { requireRecordingProfile } from "@/lib/recording-gate";
 import { getDay } from "@/lib/days";
 import { saveDayAction } from "./actions";
 
@@ -22,6 +23,7 @@ async function DayEditContent({ params }: Pick<PageProps<"/days/[date]/edit">, "
   const { date } = await params;
   await connection(); // 「今日」(new Date())を使うので、事前描画ではなくリクエスト時に実行する
   if (!isRecordableDate(date)) notFound();
+  await requireRecordingProfile(date); // 日の行が無く、目標カロリーか活動係数が未設定なら、プロフィールの編集へ
 
   const day = await getDay(date);
   // DB の値(numeric は文字列、null は空欄)を、フォームの初期値(文字列)にする

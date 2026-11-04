@@ -6,7 +6,6 @@ import {
   MIN_CALORIES,
   standardWeightKg,
   suggestTargetCalories,
-  suggestTargetProtein,
   suggestTargetWeight,
   type BodyData,
 } from "./nutrition";
@@ -107,12 +106,5 @@ describe("suggestTargetCalories", () => {
   it("絶対的な下限(1200 kcal)を下回らない", () => {
     expect(suggestTargetCalories({ tdeeAtTargetKcal: 1105 })).toEqual({ kcal: MIN_CALORIES, reason: "floor-min" });
     expect(suggestTargetCalories({ tdeeAtTargetKcal: 1200 })).toEqual({ kcal: 1200, reason: "balance" });
-  });
-});
-
-describe("suggestTargetProtein", () => {
-  it("目標体重 × 1.2 g/kg を整数に丸める", () => {
-    expect(suggestTargetProtein(93.5)).toBe(112); // 112.2
-    expect(suggestTargetProtein(70)).toBe(84);
   });
 });

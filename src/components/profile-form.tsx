@@ -47,7 +47,6 @@ const BODY_FIELDS: FieldDef[] = [
 const GOAL_FIELDS: FieldDef[] = [
   { name: "targetWeightKg", label: "目標体重", kind: "text", unit: "kg", inputMode: "decimal", range: formatRange("targetWeightKg"), description: "達成したい体重です。" },
   { name: "targetCalories", label: "目標カロリー", kind: "text", unit: "kcal", inputMode: "numeric", range: formatRange("targetCalories"), description: "1日に食べる量の目標です。" },
-  { name: "targetProteinG", label: "目標タンパク質", kind: "text", unit: "g", inputMode: "decimal", range: formatRange("targetProteinG"), description: "1日に摂る量。目安は体重1kgあたり1〜1.6g。" },
 ];
 
 const SLEEP_FIELDS: FieldDef[] = [

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { notFound, redirect } from "next/navigation";
 import { getCurrentUserId } from "@/lib/current-user";
+import { requireRecordingProfile } from "@/lib/recording-gate";
 import { isRecordableDate } from "@/lib/date";
 import { isExerciseId } from "@/lib/exercise-limits";
 import { EXERCISE_FIELDS, parseExerciseForm, type ExerciseField } from "@/lib/exercise-schema";
@@ -32,6 +33,7 @@ function readValues(formData: FormData): Partial<Record<ExerciseField, string>> 
 export async function saveExerciseAction(date: string, _previous: ExerciseFormState, formData: FormData): Promise<ExerciseFormState> {
   await getCurrentUserId();
   if (!isRecordableDate(date)) notFound();
+  await requireRecordingProfile(date); // 日の行が無く、未設定なら、プロフィールの編集へ
 
   const values = readValues(formData);
   const result = parseExerciseForm(values);

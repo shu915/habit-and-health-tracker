@@ -12,9 +12,6 @@ const radar = mealRadar({
   meals: [{ kcal: 1800, proteinG: "80.0", fatG: "50.0", netCarbG: "230.0", fiberG: "15.0", saltG: "9.0" }],
   targetKcal: 2000,
   exerciseKcal: 0,
-  targetProteinG: 90,
-  gender: "female",
-  age: 39,
 });
 
 describe("MealRadarChart: サーバーの HTML の引き継ぎ", () => {
