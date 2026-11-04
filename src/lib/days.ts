@@ -4,7 +4,7 @@ import { and, asc, count, desc, eq, gt, gte, isNotNull, lt, lte } from "drizzle-
 import { db } from "@/db";
 import { days } from "@/db/schema";
 import { getCurrentUserId } from "@/lib/current-user";
-import { isValidDateString } from "@/lib/date";
+import { isValidDateString, shiftDate } from "@/lib/date";
 import { DAY_FIELDS, type DayValues } from "@/lib/day-schema";
 import { DAYS_PER_PAGE } from "@/lib/day-pages";
 import { insertDayIfMissing } from "@/lib/day-row";
@@ -32,7 +32,7 @@ export async function listDaysInRange(from: string, to: string) {
     .orderBy(desc(days.date));
 }
 
-// from〜to(両端を含む)の、日付と朝の体重・体脂肪率・睡眠の時刻だけ(推移のグラフ用。日記の本文などの列は読まない)。古い順
+// from〜to(両端を含む)の、日付と朝の体重・体脂肪率・睡眠の時刻・その日に固定した目標カロリーだけ(推移のグラフ用。日記の本文などの列は読まない)。古い順
 export async function listDayMeasures(from: string, to: string) {
   const userId = await getCurrentUserId();
   assertValidDate(from);
@@ -44,10 +44,31 @@ export async function listDayMeasures(from: string, to: string) {
       morningBodyFatPercent: days.morningBodyFatPercent,
       sleepBedtime: days.sleepBedtime,
       sleepWakeTime: days.sleepWakeTime,
+      profileTargetCalories: days.profileTargetCalories,
     })
     .from(days)
     .where(and(eq(days.userId, userId), gte(days.date, from), lte(days.date, to)))
     .orderBy(asc(days.date));
+}
+
+// その日より前(その日は含まない)で、朝の体重が入っている、いちばん新しい日の体重(無ければ null)。期間の最初の日の体重を決めるのに使う(推移のグラフ用)
+export async function getMorningWeightBefore(date: string): Promise<{ weight: string; date: string } | null> {
+  await getCurrentUserId();
+  assertValidDate(date);
+  return latestMorningOnOrBefore(days.morningWeightKg, shiftDate(date, -1));
+}
+
+// その日より前(その日は含まない)で、固定した目標カロリーが入っている、いちばん新しい日の目標(無ければ null)。日の行が無い日の、目標の線を引き継ぐのに使う(推移のグラフ用)
+export async function getStampedTargetBefore(date: string): Promise<number | null> {
+  const userId = await getCurrentUserId();
+  assertValidDate(date);
+  const [row] = await db
+    .select({ target: days.profileTargetCalories })
+    .from(days)
+    .where(and(eq(days.userId, userId), lt(days.date, date), isNotNull(days.profileTargetCalories)))
+    .orderBy(desc(days.date))
+    .limit(1);
+  return row?.target ?? null;
 }
 
 // 記録のある日の数(一覧のページ数を決める)

@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, count, eq } from "drizzle-orm";
+import { and, asc, count, eq, gte, lte } from "drizzle-orm";
 import { db } from "@/db";
 import { days, exercises } from "@/db/schema";
 import { getCurrentUserId } from "@/lib/current-user";
@@ -69,6 +69,19 @@ export async function listExercisesOfDay(date: string): Promise<Exercise[]> {
     .where(and(eq(exercises.userId, userId), eq(days.userId, userId), eq(days.date, date)))
     .orderBy(asc(exercises.startTime), asc(exercises.id)); // 昇順は NULL が最後
   return rows.map((row) => row.exercise);
+}
+
+// from〜to(両端を含む)の運動の、日付・種類・強さ・時間だけ(消費の計算用。メモは読まない)。古い日から、同じ日は追加した順。推移のグラフ用
+export async function listExercisesInRange(from: string, to: string): Promise<{ date: string; type: string; intensity: string; minutes: number }[]> {
+  const userId = await getCurrentUserId();
+  assertValidDate(from);
+  assertValidDate(to);
+  return db
+    .select({ date: days.date, type: exercises.type, intensity: exercises.intensity, minutes: exercises.minutes })
+    .from(exercises)
+    .innerJoin(days, and(eq(exercises.dayId, days.id), eq(exercises.userId, days.userId)))
+    .where(and(eq(exercises.userId, userId), eq(days.userId, userId), gte(days.date, from), lte(days.date, to)))
+    .orderBy(asc(days.date), asc(exercises.id));
 }
 
 // 1 件(自分の運動だけ)。無い・他のユーザーのものは null

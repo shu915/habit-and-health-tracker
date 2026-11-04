@@ -1,0 +1,54 @@
+import { TrendChart } from "@/components/trend-chart";
+import { latestAverage, latestRecorded, type TrendPoint } from "@/lib/trend";
+
+// 体重・体脂肪率のカード(1 つの測定値。見出しに最新の記録と 7 日平均、図、表の形の代替)。syncId: 同じ値の図どうしは、ホバーが連動する
+export function TrendCard({ title, unit, digits, points, syncId }: { title: string; unit: string; digits: number; points: TrendPoint[]; syncId: string }) {
+  const format = (value: number) => value.toLocaleString("ja-JP", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  const latest = latestRecorded(points);
+  const average = latestAverage(points);
+  const recorded = points.filter((p) => p.value !== null).length;
+
+  return (
+    <div className="flex flex-col gap-2 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
+      <div>
+        <h3 className="text-sm font-medium text-zinc-500">{title}</h3>
+        {latest ? (
+          <p>
+            <span className="text-2xl font-semibold">{format(latest.value ?? 0)}</span> <span className="text-sm text-zinc-500">{unit}</span>
+            <span className="ml-2 text-xs text-zinc-500">{latest.date} の記録{average?.average != null && ` ・ 7 日平均 ${format(average.average)} ${unit}`}</span>
+          </p>
+        ) : (
+          <p className="text-sm text-zinc-500">この期間の記録がありません。</p>
+        )}
+      </div>
+
+      {recorded > 0 && <TrendChart title={title} unit={unit} digits={digits} points={points} syncId={syncId} />}
+
+      {recorded > 0 && (
+        <details className="text-xs">
+          <summary className="cursor-pointer text-zinc-500">表で見る</summary>
+          <div className="mt-2 max-h-60 overflow-auto">
+            <table className="w-full text-left tabular-nums">
+              <thead className="text-zinc-500">
+                <tr>
+                  <th className="py-1 font-normal">日付</th>
+                  <th className="py-1 text-right font-normal">その日</th>
+                  <th className="py-1 text-right font-normal">7 日平均</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...points].reverse().map((p) => (
+                  <tr key={p.date} className="border-t border-zinc-100 dark:border-zinc-900">
+                    <td className="py-1">{p.date}</td>
+                    <td className="py-1 text-right">{p.value === null ? "-" : `${format(p.value)} ${unit}`}</td>
+                    <td className="py-1 text-right">{p.average === null ? "-" : `${format(p.average)} ${unit}`}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </details>
+      )}
+    </div>
+  );
+}

@@ -232,11 +232,44 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
 
       const rows = await daysModule.listDayMeasures("2026-10-10", "2026-10-15");
       expect(rows).toEqual([
-        { date: "2026-10-10", morningWeightKg: "99.00", morningBodyFatPercent: null, sleepBedtime: null, sleepWakeTime: null },
-        { date: "2026-10-12", morningWeightKg: "98.00", morningBodyFatPercent: "32.0", sleepBedtime: "23:30", sleepWakeTime: "06:30" },
+        { date: "2026-10-10", morningWeightKg: "99.00", morningBodyFatPercent: null, sleepBedtime: null, sleepWakeTime: null, profileTargetCalories: null },
+        { date: "2026-10-12", morningWeightKg: "98.00", morningBodyFatPercent: "32.0", sleepBedtime: "23:30", sleepWakeTime: "06:30", profileTargetCalories: null },
       ]);
-      expect(Object.keys(rows[0]).sort()).toEqual(["date", "morningBodyFatPercent", "morningWeightKg", "sleepBedtime", "sleepWakeTime"]); // reflection などは読まない
+      expect(Object.keys(rows[0]).sort()).toEqual(["date", "morningBodyFatPercent", "morningWeightKg", "profileTargetCalories", "sleepBedtime", "sleepWakeTime"]); // reflection などは読まない
       await expect(daysModule.listDayMeasures("2026-02-30", "2026-10-15")).rejects.toThrow("invalid date");
+    });
+
+    it("その日より前の朝の体重: 自分の記録だけから、いちばん新しい日を返す(その日自身は含めない)", async () => {
+      currentUser.id = USER_B;
+      await daysModule.saveDay("2026-10-14", { morningWeightKg: "50.00" });
+
+      currentUser.id = USER_A;
+      expect(await daysModule.getMorningWeightBefore("2026-10-15")).toBeNull();
+      await daysModule.saveDay("2026-10-10", { morningWeightKg: "99.00" });
+      await daysModule.saveDay("2026-10-12", {}); // 体重の無い日は飛ばす
+      await daysModule.saveDay("2026-10-15", { morningWeightKg: "97.00" });
+
+      expect(await daysModule.getMorningWeightBefore("2026-10-15")).toEqual({ weight: "99.00", date: "2026-10-10" }); // 当日(97.00)は含めない
+      expect(await daysModule.getMorningWeightBefore("2026-10-10")).toBeNull();
+      await expect(daysModule.getMorningWeightBefore("2026-02-30")).rejects.toThrow("invalid date");
+    });
+
+    it("その日より前の固定した目標: 自分の記録だけから、いちばん新しい日の目標を返す(その日自身は含めない。固定した値が無い日は飛ばす)", async () => {
+      currentUser.id = USER_B;
+      await profilesModule.updateProfile({ targetCalories: 1000, activityLevel: "1.2" });
+      await daysModule.saveDay("2026-10-14", {});
+
+      currentUser.id = USER_A;
+      expect(await daysModule.getStampedTargetBefore("2026-10-15")).toBeNull();
+      await profilesModule.updateProfile({ targetCalories: 1800, activityLevel: "1.375" });
+      await daysModule.saveDay("2026-10-10", {});
+      await profilesModule.updateProfile({ targetCalories: 1500 }); // 過ぎた日の写しは変わらない
+      await daysModule.saveDay("2026-10-15", {});
+
+      expect(await daysModule.getStampedTargetBefore("2026-10-15")).toBe(1800); // 10-15 自身(1500)は含めない
+      expect(await daysModule.getStampedTargetBefore("2026-10-16")).toBe(1500);
+      expect(await daysModule.getStampedTargetBefore("2026-10-10")).toBeNull();
+      await expect(daysModule.getStampedTargetBefore("2026-02-30")).rejects.toThrow("invalid date");
     });
 
     it("前後の記録の日: いちばん近い記録のある日を返す(自分の記録だけ。date 自身や、記録の無い日でもよい)", async () => {
@@ -879,6 +912,24 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
       expect(basis.profile.activityLevel).toBe("1.725");
     });
 
+    it("日ごとの摂取: 食事の kcal を日ごとに足して、食事のある日だけを古い順に返す(自分の食事だけ)", async () => {
+      currentUser.id = USER_B;
+      await mealsModule.saveMeal("2026-04-11", input({ totals: { kcal: 5000, proteinG: 1, fatG: 1, netCarbG: 1, fiberG: null, saltG: null } }));
+
+      currentUser.id = USER_A;
+      await mealsModule.saveMeal("2026-04-12", input({ totals: { kcal: 500, proteinG: 1, fatG: 1, netCarbG: 1, fiberG: null, saltG: null } }));
+      await mealsModule.saveMeal("2026-04-12", input({ eatenTime: "19:00", totals: { kcal: 700, proteinG: 1, fatG: 1, netCarbG: 1, fiberG: null, saltG: null } }));
+      await mealsModule.saveMeal("2026-04-10", input());
+      await daysModule.saveDay("2026-04-11", {}); // 食事の無い日は、行を返さない
+      await mealsModule.saveMeal("2026-04-30", input()); // 期間の外
+
+      expect(await mealsModule.listDailyIntake("2026-04-10", "2026-04-15")).toEqual([
+        { date: "2026-04-10", kcal: 432 },
+        { date: "2026-04-12", kcal: 1200 },
+      ]);
+      await expect(mealsModule.listDailyIntake("2026-02-30", "2026-04-15")).rejects.toThrow("invalid date");
+    });
+
     it("保存すると、その日の days の行が無ければ空で作られ、合計が列の形で入る", async () => {
       currentUser.id = USER_A;
       const meal = await mealsModule.saveMeal(DATE, input());
@@ -1426,6 +1477,24 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
     });
 
     describe("lib/exercises.ts", () => {
+      it("期間の運動: 日付・種類・強さ・時間だけを、期間で絞って古い順に返す(自分の運動だけ。メモは読まない)", async () => {
+        currentUser.id = USER_B;
+        await exercisesModule.saveExercise("2026-05-11", input);
+
+        currentUser.id = USER_A;
+        await exercisesModule.saveExercise("2026-05-12", { ...input, minutes: 20, memo: "秘密のメモ" });
+        await exercisesModule.saveExercise("2026-05-10", { ...input, type: "strength", intensity: "hard", minutes: 45 });
+        await exercisesModule.saveExercise("2026-05-20", input); // 期間の外
+
+        const rows = await exercisesModule.listExercisesInRange("2026-05-10", "2026-05-15");
+        expect(rows).toEqual([
+          { date: "2026-05-10", type: "strength", intensity: "hard", minutes: 45 },
+          { date: "2026-05-12", type: "walk", intensity: "normal", minutes: 20 },
+        ]);
+        expect(Object.keys(rows[0]).sort()).toEqual(["date", "intensity", "minutes", "type"]); // memo は読まない
+        await expect(exercisesModule.listExercisesInRange("2026-02-30", "2026-05-15")).rejects.toThrow("invalid date");
+      });
+
       it("追加すると、その日の行が無ければ作られ、一覧には追加した順に出る", async () => {
         currentUser.id = USER_A;
         expect(await daysModule.getDay(DATE)).toBeNull();
