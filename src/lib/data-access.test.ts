@@ -221,6 +221,22 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
       await expect(daysModule.listDaysInRange("2026-02-30", "2026-11-03")).rejects.toThrow("invalid date");
     });
 
+    it("前後の記録の日: いちばん近い記録のある日を返す(自分の記録だけ。date 自身や、記録の無い日でもよい)", async () => {
+      currentUser.id = USER_B;
+      await daysModule.saveDay("2026-10-12", {});
+
+      currentUser.id = USER_A;
+      expect(await daysModule.getAdjacentDays("2026-10-10")).toEqual({ previous: null, next: null });
+      for (const date of ["2026-10-05", "2026-10-10", "2026-10-20"]) await daysModule.saveDay(date, {});
+
+      expect(await daysModule.getAdjacentDays("2026-10-10")).toEqual({ previous: "2026-10-05", next: "2026-10-20" }); // 記録のある日自身
+      expect(await daysModule.getAdjacentDays("2026-10-07")).toEqual({ previous: "2026-10-05", next: "2026-10-10" }); // 記録の無い日(間)
+      expect(await daysModule.getAdjacentDays("2026-10-05")).toEqual({ previous: null, next: "2026-10-10" }); // いちばん古い日
+      expect(await daysModule.getAdjacentDays("2026-10-20")).toEqual({ previous: "2026-10-10", next: null }); // いちばん新しい日
+      expect(await daysModule.getAdjacentDays("2026-11-01")).toEqual({ previous: "2026-10-20", next: null });
+      await expect(daysModule.getAdjacentDays("2026-02-30")).rejects.toThrow("invalid date");
+    });
+
     it("一覧: 記録のある日の件数と、新しい日から 14 件ずつのページは、自分の記録だけから決まる", async () => {
       currentUser.id = USER_B;
       await daysModule.saveDay("2026-01-01", {});

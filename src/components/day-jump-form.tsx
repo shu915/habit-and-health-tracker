@@ -5,9 +5,8 @@ import { useState, useSyncExternalStore } from "react";
 import { buttonClass } from "@/components/button";
 import { isValidDateString, todayString } from "@/lib/date";
 
-// ダッシュボードの「日付を選んで編集」: 日を選んで、その日の編集ページへ移動する(初期値は今日)。
-// 新規か編集かは分けない。その日の記録がすでにあれば編集ページに入力済みの値が出て、無ければ空のフォームが出る
-// (同じ日を二重に作らない)。未来の日付は選べない
+// ダッシュボードの「日付を選んで開く」: 日を選んで、その日の詳細ページへ移動する(初期値は今日)。一覧に出ない古い日を、日付で指して開くための入口。
+// 記録のある日は詳細にまとまって見え、無い日は詳細の「記録する」から始める(同じ日を二重に作らない)。未来の日付は選べない
 // 今日の日付は途中で変わらない扱い(ページを開き直せば更新される)ので、購読する対象は無い
 const subscribeNothing = () => () => {};
 
@@ -30,7 +29,7 @@ export function DayJumpForm() {
       return;
     }
     setError(null);
-    router.push(`/days/${date}/edit`);
+    router.push(`/days/${date}`);
   }
 
   // noValidate: ブラウザ標準のチェック(環境ごとの文言)ではなく、下の自前のメッセージで統一する
@@ -38,7 +37,7 @@ export function DayJumpForm() {
     <form onSubmit={handleSubmit} noValidate className="flex flex-col items-end gap-1">
       <div className="flex items-center gap-2">
         <label htmlFor="day-jump-date" className="sr-only">
-          編集する日
+          開く日
         </label>
         <input
           id="day-jump-date"
@@ -51,7 +50,7 @@ export function DayJumpForm() {
           className="rounded-md border border-zinc-300 bg-transparent px-3 py-1.5 text-sm dark:border-zinc-700"
         />
         <button type="submit" className={buttonClass()}>
-          編集
+          開く
         </button>
       </div>
       {error && (

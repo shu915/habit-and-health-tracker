@@ -18,8 +18,8 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-const dateInput = () => screen.getByLabelText("編集する日") as HTMLInputElement;
-const submit = () => screen.getByRole("button", { name: "編集" });
+const dateInput = () => screen.getByLabelText("開く日") as HTMLInputElement;
+const submit = () => screen.getByRole("button", { name: "開く" });
 
 describe("DayJumpForm", () => {
   it("日付の初期値は今日で、未来の日付は選べない(max が今日)", () => {
@@ -28,19 +28,19 @@ describe("DayJumpForm", () => {
     expect(dateInput().max).toBe("2026-10-30");
   });
 
-  it("そのまま押すと、今日の編集ページへ移動する", async () => {
+  it("そのまま押すと、今日の詳細ページへ移動する", async () => {
     const user = userEvent.setup();
     render(<DayJumpForm />);
     await user.click(submit());
-    expect(push).toHaveBeenCalledWith("/days/2026-10-30/edit");
+    expect(push).toHaveBeenCalledWith("/days/2026-10-30");
   });
 
-  it("過去の日付を選ぶと、その日の編集ページへ移動する", async () => {
+  it("過去の日付を選ぶと、その日の詳細ページへ移動する", async () => {
     const user = userEvent.setup();
     render(<DayJumpForm />);
     fireEvent.change(dateInput(), { target: { value: "2026-10-01" } });
     await user.click(submit());
-    expect(push).toHaveBeenCalledWith("/days/2026-10-01/edit");
+    expect(push).toHaveBeenCalledWith("/days/2026-10-01");
   });
 
   it("未来の日付は、移動せずにエラーを出す", async () => {
@@ -62,7 +62,7 @@ describe("DayJumpForm", () => {
 
     fireEvent.change(dateInput(), { target: { value: "2026-10-29" } });
     await user.click(submit());
-    expect(push).toHaveBeenCalledWith("/days/2026-10-29/edit");
+    expect(push).toHaveBeenCalledWith("/days/2026-10-29");
     expect(screen.queryByRole("alert")).toBeNull();
   });
 });

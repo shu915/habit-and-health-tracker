@@ -1,8 +1,11 @@
+import Link from "next/link";
+import { buttonClass } from "@/components/button";
 import { formatDuration, formatTimeOfDay } from "@/lib/duration";
 import { sleepMidpoint, sleepMinutes } from "@/lib/sleep";
 
-// 日の詳細に出す、朝の記録の 2 つの枠: 睡眠(睡眠時間と中間時刻を大きく、就寝・起床を小さく)と、朝の体。
-// 広い画面では左右に並べ、狭い画面では縦に並べる。未入力は「未入力」
+// 日の詳細に出す「朝の記録」: 見出しと、書く・直すボタン(何を編集するかが分かるよう、見出しの右に置く。食事・運動などの枠と同じ形)、
+// 睡眠(睡眠時間と中間時刻を大きく、就寝・起床を小さく)と、朝の体の 2 つの枠。広い画面では左右に並べ、狭い画面では縦に並べる。未入力は「未入力」。
+// day が null(その日の行が無い)ときは、枠は出さず、案内だけ出す
 type Day = {
   sleepBedtime: string | null;
   sleepWakeTime: string | null;
@@ -13,14 +16,31 @@ type Day = {
 const unset = <span className="text-zinc-400">未入力</span>;
 const card = "flex flex-col gap-3 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800";
 
-export function DayVitals({ day }: { day: Day }) {
+export function DayVitals({ date, day }: { date: string; day: Day | null }) {
+  // 朝の項目が 1 つでも入っていれば「編集」、無ければ「記録する」(食事だけの日は、朝の記録がまだ無い)
+  const hasMorning = day !== null && (day.sleepBedtime !== null || day.sleepWakeTime !== null || day.morningWeightKg !== null || day.morningBodyFatPercent !== null);
+
+  return (
+    <section aria-label="朝の記録" className="flex flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold">朝の記録</h2>
+        <Link href={`/days/${date}/edit`} className={buttonClass()}>
+          {hasMorning ? "編集" : "記録する"}
+        </Link>
+      </div>
+      {day === null ? <p className="text-sm text-zinc-500">この日の記録はまだありません。</p> : <VitalCards day={day} />}
+    </section>
+  );
+}
+
+function VitalCards({ day }: { day: Day }) {
   const duration = formatDuration(sleepMinutes(day.sleepBedtime, day.sleepWakeTime));
   const midpoint = formatTimeOfDay(sleepMidpoint(day.sleepBedtime, day.sleepWakeTime));
 
   return (
     <div className="grid gap-4 md:grid-cols-2">
       <section aria-label="睡眠" className={card}>
-        <h2 className="text-sm font-medium text-zinc-500">睡眠</h2>
+        <h3 className="text-sm font-medium text-zinc-500">睡眠</h3>
         <dl className="grid grid-cols-2 gap-4">
           <div>
             <dt className="text-xs text-zinc-500">睡眠時間</dt>
@@ -44,7 +64,7 @@ export function DayVitals({ day }: { day: Day }) {
       </section>
 
       <section aria-label="朝の体" className={card}>
-        <h2 className="text-sm font-medium text-zinc-500">朝の体</h2>
+        <h3 className="text-sm font-medium text-zinc-500">朝の体</h3>
         <dl className="grid grid-cols-2 gap-4">
           <div>
             <dt className="text-xs text-zinc-500">体重</dt>

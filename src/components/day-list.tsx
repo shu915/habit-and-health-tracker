@@ -27,11 +27,11 @@ export async function DayList({ searchParams }: { searchParams: Promise<{ page?:
             </p>
           )}
         </div>
-        {/* 一覧の見出しの右に置く: 日付を選んで「編集」。記録がある日は編集、無い日は新規作成になる(初期値は今日) */}
+        {/* 一覧の見出しの右に置く: 日付を選んで「開く」(その日の詳細へ。初期値は今日)。一覧に出ない古い日も、ここから開く */}
         <DayJumpForm />
       </div>
       {rows.length === 0 ? ( // 記録ゼロ。件数を数えたあとで行が消えて、ページが空になったときも、空の表を出さない
-        <p className="text-sm text-zinc-500">まだ記録がありません。右上の日付を選んで「編集」から始めてください。</p>
+        <p className="text-sm text-zinc-500">まだ記録がありません。右上の日付を選んで「開く」から始めてください。</p>
       ) : (
         <>
           <div className="overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800">

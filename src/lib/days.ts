@@ -1,6 +1,6 @@
 import "server-only";
 import { cache } from "react";
-import { and, count, desc, eq, gte, isNotNull, lte } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, gte, isNotNull, lt, lte } from "drizzle-orm";
 import { db } from "@/db";
 import { days } from "@/db/schema";
 import { getCurrentUserId } from "@/lib/current-user";
@@ -37,6 +37,17 @@ export async function countDays(): Promise<number> {
   const userId = await getCurrentUserId();
   const [row] = await db.select({ total: count() }).from(days).where(eq(days.userId, userId));
   return row?.total ?? 0;
+}
+
+// その日の前後で、記録のある日(いちばん近い日)。前後の日への移動に使う。無ければ null。date 自身は含めない(記録があってもなくてもよい)
+export async function getAdjacentDays(date: string): Promise<{ previous: string | null; next: string | null }> {
+  const userId = await getCurrentUserId();
+  assertValidDate(date);
+  const [[before], [after]] = await Promise.all([
+    db.select({ date: days.date }).from(days).where(and(eq(days.userId, userId), lt(days.date, date))).orderBy(desc(days.date)).limit(1),
+    db.select({ date: days.date }).from(days).where(and(eq(days.userId, userId), gt(days.date, date))).orderBy(asc(days.date)).limit(1),
+  ]);
+  return { previous: before?.date ?? null, next: after?.date ?? null };
 }
 
 // 一覧の 1 ページ分(page は 1 から)。記録のある日を、新しい日から DAYS_PER_PAGE 件ずつ
