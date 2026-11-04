@@ -221,22 +221,22 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
       await expect(daysModule.listDaysInRange("2026-02-30", "2026-11-03")).rejects.toThrow("invalid date");
     });
 
-    it("推移用の取得: 日付と朝の体重・体脂肪率だけを、期間で絞って古い順に返す(自分の記録だけ。本文などの列は含まない)", async () => {
+    it("推移用の取得: 日付と朝の体重・体脂肪率・睡眠の時刻だけを、期間で絞って古い順に返す(自分の記録だけ。本文などの列は含まない)", async () => {
       currentUser.id = USER_B;
       await daysModule.saveDay("2026-10-12", { morningWeightKg: "50.00" });
 
       currentUser.id = USER_A;
-      await daysModule.saveDay("2026-10-12", { morningWeightKg: "98.00", morningBodyFatPercent: "32.0", reflection: "メモ" });
+      await daysModule.saveDay("2026-10-12", { morningWeightKg: "98.00", morningBodyFatPercent: "32.0", sleepBedtime: "23:30", sleepWakeTime: "06:30", reflection: "メモ" });
       await daysModule.saveDay("2026-10-10", { morningWeightKg: "99.00" });
       await daysModule.saveDay("2026-10-20", { morningWeightKg: "97.00" });
 
-      const rows = await daysModule.listBodyMeasures("2026-10-10", "2026-10-15");
+      const rows = await daysModule.listDayMeasures("2026-10-10", "2026-10-15");
       expect(rows).toEqual([
-        { date: "2026-10-10", morningWeightKg: "99.00", morningBodyFatPercent: null },
-        { date: "2026-10-12", morningWeightKg: "98.00", morningBodyFatPercent: "32.0" },
+        { date: "2026-10-10", morningWeightKg: "99.00", morningBodyFatPercent: null, sleepBedtime: null, sleepWakeTime: null },
+        { date: "2026-10-12", morningWeightKg: "98.00", morningBodyFatPercent: "32.0", sleepBedtime: "23:30", sleepWakeTime: "06:30" },
       ]);
-      expect(Object.keys(rows[0]).sort()).toEqual(["date", "morningBodyFatPercent", "morningWeightKg"]); // reflection などは読まない
-      await expect(daysModule.listBodyMeasures("2026-02-30", "2026-10-15")).rejects.toThrow("invalid date");
+      expect(Object.keys(rows[0]).sort()).toEqual(["date", "morningBodyFatPercent", "morningWeightKg", "sleepBedtime", "sleepWakeTime"]); // reflection などは読まない
+      await expect(daysModule.listDayMeasures("2026-02-30", "2026-10-15")).rejects.toThrow("invalid date");
     });
 
     it("前後の記録の日: いちばん近い記録のある日を返す(自分の記録だけ。date 自身や、記録の無い日でもよい)", async () => {
