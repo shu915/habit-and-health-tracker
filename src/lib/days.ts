@@ -32,13 +32,19 @@ export async function listDaysInRange(from: string, to: string) {
     .orderBy(desc(days.date));
 }
 
-// from〜to(両端を含む)の、日付と朝の体重・体脂肪率だけ(推移のグラフ用。日記の本文などの列は読まない)。古い順
-export async function listBodyMeasures(from: string, to: string) {
+// from〜to(両端を含む)の、日付と朝の体重・体脂肪率・睡眠の時刻だけ(推移のグラフ用。日記の本文などの列は読まない)。古い順
+export async function listDayMeasures(from: string, to: string) {
   const userId = await getCurrentUserId();
   assertValidDate(from);
   assertValidDate(to);
   return db
-    .select({ date: days.date, morningWeightKg: days.morningWeightKg, morningBodyFatPercent: days.morningBodyFatPercent })
+    .select({
+      date: days.date,
+      morningWeightKg: days.morningWeightKg,
+      morningBodyFatPercent: days.morningBodyFatPercent,
+      sleepBedtime: days.sleepBedtime,
+      sleepWakeTime: days.sleepWakeTime,
+    })
     .from(days)
     .where(and(eq(days.userId, userId), gte(days.date, from), lte(days.date, to)))
     .orderBy(asc(days.date));
