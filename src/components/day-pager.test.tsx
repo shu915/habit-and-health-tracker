@@ -11,21 +11,21 @@ describe("DayPager", () => {
     expect(screen.queryByRole("link")).toBeNull();
   });
 
-  it("1 ページ目は「前の 14 日」だけ(?page=2)", () => {
+  it("1 ページ目は「前の 14 件」だけ(?page=2)", () => {
     render(<DayPager page={1} lastPage={3} />);
-    expect(screen.getByRole("link", { name: /前の 14 日/ }).getAttribute("href")).toBe("/?page=2#day-list");
+    expect(screen.getByRole("link", { name: /前の 14 件/ }).getAttribute("href")).toBe("/?page=2#day-list");
     expect(screen.queryByRole("link", { name: /新しい/ })).toBeNull();
   });
 
   it("途中のページは両方出し、新しいほうは 1 ページ目なら /(page なし)", () => {
     render(<DayPager page={2} lastPage={3} />);
-    expect(screen.getByRole("link", { name: /新しい 14 日/ }).getAttribute("href")).toBe("/#day-list");
-    expect(screen.getByRole("link", { name: /前の 14 日/ }).getAttribute("href")).toBe("/?page=3#day-list");
+    expect(screen.getByRole("link", { name: /新しい 14 件/ }).getAttribute("href")).toBe("/#day-list");
+    expect(screen.getByRole("link", { name: /前の 14 件/ }).getAttribute("href")).toBe("/?page=3#day-list");
   });
 
-  it("最後のページは「新しい 14 日」だけ", () => {
+  it("最後のページは「新しい 14 件」だけ", () => {
     render(<DayPager page={3} lastPage={3} />);
-    expect(screen.getByRole("link", { name: /新しい 14 日/ }).getAttribute("href")).toBe("/?page=2#day-list");
+    expect(screen.getByRole("link", { name: /新しい 14 件/ }).getAttribute("href")).toBe("/?page=2#day-list");
     expect(screen.queryByRole("link", { name: /前の/ })).toBeNull();
   });
 });

@@ -1,11 +1,12 @@
 import "server-only";
 import { cache } from "react";
-import { and, asc, desc, eq, gte, isNotNull, lte } from "drizzle-orm";
+import { and, count, desc, eq, gte, isNotNull, lte } from "drizzle-orm";
 import { db } from "@/db";
 import { days } from "@/db/schema";
 import { getCurrentUserId } from "@/lib/current-user";
 import { isValidDateString } from "@/lib/date";
 import { DAY_FIELDS, type DayValues } from "@/lib/day-schema";
+import { DAYS_PER_PAGE } from "@/lib/day-pages";
 import { insertDayIfMissing } from "@/lib/day-row";
 import { pickMeasure, pickWeight, type DayWeight } from "@/lib/day-weight";
 import { getProfile } from "@/lib/profiles";
@@ -31,11 +32,24 @@ export async function listDaysInRange(from: string, to: string) {
     .orderBy(desc(days.date));
 }
 
-// いちばん古い記録の日(記録が無ければ null)。一覧のページの端を決めるのに使う
-export async function getFirstDayDate(): Promise<string | null> {
+// 記録のある日の数(一覧のページ数を決める)
+export async function countDays(): Promise<number> {
   const userId = await getCurrentUserId();
-  const [row] = await db.select({ date: days.date }).from(days).where(eq(days.userId, userId)).orderBy(asc(days.date)).limit(1);
-  return row?.date ?? null;
+  const [row] = await db.select({ total: count() }).from(days).where(eq(days.userId, userId));
+  return row?.total ?? 0;
+}
+
+// 一覧の 1 ページ分(page は 1 から)。記録のある日を、新しい日から DAYS_PER_PAGE 件ずつ
+export async function listDaysPage(page: number) {
+  const userId = await getCurrentUserId();
+  if (!Number.isInteger(page) || page < 1) throw new Error(`invalid page: ${page}`);
+  return db
+    .select()
+    .from(days)
+    .where(eq(days.userId, userId))
+    .orderBy(desc(days.date))
+    .limit(DAYS_PER_PAGE)
+    .offset((page - 1) * DAYS_PER_PAGE);
 }
 
 // その日以前で、朝の値(体重か体脂肪率)が入っている、いちばん新しい日の値(無ければ null)

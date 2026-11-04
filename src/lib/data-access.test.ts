@@ -221,15 +221,24 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
       await expect(daysModule.listDaysInRange("2026-02-30", "2026-11-03")).rejects.toThrow("invalid date");
     });
 
-    it("いちばん古い記録の日は、自分の記録だけから決まる(無ければ null)", async () => {
+    it("一覧: 記録のある日の件数と、新しい日から 14 件ずつのページは、自分の記録だけから決まる", async () => {
       currentUser.id = USER_B;
       await daysModule.saveDay("2026-01-01", {});
 
       currentUser.id = USER_A;
-      expect(await daysModule.getFirstDayDate()).toBeNull();
-      await daysModule.saveDay("2026-10-29", {});
-      await daysModule.saveDay("2026-10-05", {});
-      expect(await daysModule.getFirstDayDate()).toBe("2026-10-05");
+      expect(await daysModule.countDays()).toBe(0);
+      expect(await daysModule.listDaysPage(1)).toEqual([]);
+      for (let day = 1; day <= 20; day++) await daysModule.saveDay(`2026-09-${String(day).padStart(2, "0")}`, {});
+
+      expect(await daysModule.countDays()).toBe(20);
+      const first = await daysModule.listDaysPage(1);
+      expect(first).toHaveLength(14);
+      expect(first[0].date).toBe("2026-09-20"); // 新しい日から
+      expect(first[13].date).toBe("2026-09-07");
+      const second = await daysModule.listDaysPage(2);
+      expect(second.map((d) => d.date)).toEqual(["2026-09-06", "2026-09-05", "2026-09-04", "2026-09-03", "2026-09-02", "2026-09-01"]);
+      expect(await daysModule.listDaysPage(3)).toEqual([]);
+      await expect(daysModule.listDaysPage(0)).rejects.toThrow("invalid page");
     });
 
     it("その日の体重: 朝の体重 → それ以前の最新の朝の体重 → プロフィールの体重。他のユーザーの体重は使わない", async () => {
