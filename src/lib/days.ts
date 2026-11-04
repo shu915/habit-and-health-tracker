@@ -32,6 +32,18 @@ export async function listDaysInRange(from: string, to: string) {
     .orderBy(desc(days.date));
 }
 
+// from〜to(両端を含む)の、日付と朝の体重・体脂肪率だけ(推移のグラフ用。日記の本文などの列は読まない)。古い順
+export async function listBodyMeasures(from: string, to: string) {
+  const userId = await getCurrentUserId();
+  assertValidDate(from);
+  assertValidDate(to);
+  return db
+    .select({ date: days.date, morningWeightKg: days.morningWeightKg, morningBodyFatPercent: days.morningBodyFatPercent })
+    .from(days)
+    .where(and(eq(days.userId, userId), gte(days.date, from), lte(days.date, to)))
+    .orderBy(asc(days.date));
+}
+
 // 記録のある日の数(一覧のページ数を決める)
 export async function countDays(): Promise<number> {
   const userId = await getCurrentUserId();
