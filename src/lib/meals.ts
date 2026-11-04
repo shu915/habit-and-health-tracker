@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, max } from "drizzle-orm";
+import { and, asc, desc, eq, gte, lte, max, sum } from "drizzle-orm";
 import { db } from "@/db";
 import { days, meals } from "@/db/schema";
 import { getCurrentUserId } from "@/lib/current-user";
@@ -103,6 +103,21 @@ export async function getMeal(id: number): Promise<{ meal: Meal; date: string } 
     .where(and(eq(meals.id, id), eq(meals.userId, userId)))
     .limit(1);
   return row ? { meal: toMeal(row.meal), date: row.date } : null;
+}
+
+// from〜to(両端を含む)の、日ごとの摂取カロリー(その日の食事の kcal の合計)。食事のある日だけ(無い日は行を返さない)。古い順。推移のグラフ用
+export async function listDailyIntake(from: string, to: string): Promise<{ date: string; kcal: number }[]> {
+  const userId = await getCurrentUserId();
+  assertValidDate(from);
+  assertValidDate(to);
+  const rows = await db
+    .select({ date: days.date, kcal: sum(meals.kcal) })
+    .from(meals)
+    .innerJoin(days, and(eq(meals.dayId, days.id), eq(meals.userId, days.userId)))
+    .where(and(eq(meals.userId, userId), eq(days.userId, userId), gte(days.date, from), lte(days.date, to)))
+    .groupBy(days.date)
+    .orderBy(asc(days.date));
+  return rows.map((row) => ({ date: row.date, kcal: Number(row.kcal) }));
 }
 
 // 食事を直す(自分の食事だけ。日は変えない)。無い・他のユーザーのものは null
