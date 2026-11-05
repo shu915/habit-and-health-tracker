@@ -1,6 +1,6 @@
 import "server-only";
 import { cache } from "react";
-import { and, asc, desc, eq, gte, lte, max, sum } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, lte, max, sum } from "drizzle-orm";
 import { db } from "@/db";
 import { days, meals } from "@/db/schema";
 import { getCurrentUserId } from "@/lib/current-user";
@@ -24,7 +24,6 @@ function assertValidDate(date: string) {
 export type MealInput = {
   eatenTime: string; // "HH:MM"(00:00〜26:59)
   dishName: string;
-  alias: string | null;
   description: string;
   items: EstimatedItem[];
   totals: MealTotals;
@@ -46,7 +45,6 @@ function columnsOf(input: MealInput) {
   return {
     eatenTime: input.eatenTime,
     dishName: input.dishName,
-    alias: input.alias,
     description: input.description,
     kcal: totals.kcal,
     proteinG: totals.proteinG.toFixed(1),
@@ -107,19 +105,20 @@ export async function getMeal(id: number): Promise<{ meal: Meal; date: string } 
   return row ? { meal: toMeal(row.meal), date: row.date } : null;
 }
 
-// from〜to(両端を含む)の、日ごとの摂取カロリー(その日の食事の kcal の合計)。食事のある日だけ(無い日は行を返さない)。古い順。推移のグラフ用
-export async function listDailyIntake(from: string, to: string): Promise<{ date: string; kcal: number }[]> {
+// from〜to(両端を含む)の、日ごとの摂取カロリー(その日の食事の kcal の合計)と食事の回数。食事のある日だけ(無い日は行を返さない)。古い順。推移のグラフ・レポート用
+// (食事が 1 回だけの日は、記録が不完全な可能性があるので、バッジの判定から外すために、回数も返す)
+export async function listDailyIntake(from: string, to: string): Promise<{ date: string; kcal: number; mealCount: number }[]> {
   const userId = await getCurrentUserId();
   assertValidDate(from);
   assertValidDate(to);
   const rows = await db
-    .select({ date: days.date, kcal: sum(meals.kcal) })
+    .select({ date: days.date, kcal: sum(meals.kcal), mealCount: count() })
     .from(meals)
     .innerJoin(days, and(eq(meals.dayId, days.id), eq(meals.userId, days.userId)))
     .where(and(eq(meals.userId, userId), eq(days.userId, userId), gte(days.date, from), lte(days.date, to)))
     .groupBy(days.date)
     .orderBy(asc(days.date));
-  return rows.map((row) => ({ date: row.date, kcal: Number(row.kcal) }));
+  return rows.map((row) => ({ date: row.date, kcal: Number(row.kcal), mealCount: row.mealCount }));
 }
 
 // 食事を直す(自分の食事だけ。日は変えない)。無い・他のユーザーのものは null
@@ -145,7 +144,7 @@ export async function deleteMeal(id: number): Promise<boolean> {
   return rows.length > 0;
 }
 
-// AI に渡す、過去の料理名(dish_name)。最近使った順に、重複なしで limit 件。alias は入れない
+// AI に渡す、過去の料理名(dish_name)。最近使った順に、重複なしで limit 件
 export async function listRecentDishNames(limit = 100): Promise<string[]> {
   const userId = await getCurrentUserId();
   const rows = await db

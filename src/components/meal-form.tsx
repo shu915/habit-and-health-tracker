@@ -11,7 +11,7 @@ import { ProcessingIndicator } from "@/components/processing-indicator";
 import { joinTimeOfDay } from "@/lib/duration";
 import { resizeImageToDataUrl } from "@/lib/image-resize";
 import type { MealEstimate } from "@/lib/meal-estimate";
-import { ALIAS_MAX_LENGTH, MAX_PHOTOS, TEXT_MAX_LENGTH } from "@/lib/meal-limits";
+import { MAX_PHOTOS, TEXT_MAX_LENGTH } from "@/lib/meal-limits";
 import { defaultMealDayAndTime, mealLabel, MEAL_DAY_START_HOUR } from "@/lib/meal-time";
 import { shiftDate, todayString } from "@/lib/date";
 
@@ -27,7 +27,7 @@ type Props = {
   date: string;
   mode: "new" | "edit";
   mealId?: number; // 編集のときの食事の id
-  initial?: { eatenTime: string; alias: string; estimate: MealEstimate }; // 編集のときの、保存済みの値
+  initial?: { eatenTime: string; estimate: MealEstimate }; // 編集のときの、保存済みの値
 };
 
 type Photo = { id: number; dataUrl: string };
@@ -64,7 +64,6 @@ export function MealForm({ date, mode, mealId, initial }: Props) {
   const [estimatedText, setEstimatedText] = useState(initial?.estimate.description ?? ""); // 推定したときの説明(直したかどうかを見る)
   const [estimateError, setEstimateError] = useState<string | null>(null);
 
-  const [alias, setAlias] = useState(initial?.alias ?? "");
   const [saveErrors, setSaveErrors] = useState<SaveMealResult["errors"]>({});
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
@@ -125,7 +124,7 @@ export function MealForm({ date, mode, mealId, initial }: Props) {
     if (!estimate) return;
     setSaveErrors({});
     // 合計は送らない(保存する側が、内訳から計算し直す)
-    const payload = { eatenTime: time, alias, estimate: { dishName: estimate.dishName, description: estimate.description, items: estimate.items } };
+    const payload = { eatenTime: time, estimate: { dishName: estimate.dishName, description: estimate.description, items: estimate.items } };
     startSave(async () => {
       const result = mode === "edit" && mealId !== undefined ? await updateMealAction(mealId, payload) : await saveMealAction(date, payload);
       setSaveErrors(result.errors); // 成功すると、サーバーが移動させるので、ここへは戻らない
@@ -298,25 +297,6 @@ export function MealForm({ date, mode, mealId, initial }: Props) {
       {estimate && !estimating && (
         <section aria-label="AI の推定" className="flex flex-col gap-4">
           <EstimateResult estimate={estimate} stale={descriptionChanged} />
-
-          <div className="grid grid-cols-[9rem_1fr] items-start gap-x-4 gap-y-1 text-sm">
-            <label htmlFor="meal-alias" className="pt-1.5 text-zinc-500">
-              別名(任意)
-            </label>
-            <div className="flex flex-col gap-1">
-              <input
-                id="meal-alias"
-                type="text"
-                value={alias}
-                onChange={(event) => setAlias(event.target.value)}
-                maxLength={ALIAS_MAX_LENGTH}
-                autoComplete="off"
-                className="w-full max-w-xs rounded-md border border-zinc-300 bg-transparent px-3 py-1.5 dark:border-zinc-700"
-              />
-              <p className="text-xs text-zinc-500">一覧には、別名があれば別名で出ます(料理名は AI が付けたものです)。</p>
-              {saveErrors.alias && <p className="text-xs text-red-600">{saveErrors.alias}</p>}
-            </div>
-          </div>
 
           {saveErrors.form && (
             <p role="alert" className="text-sm text-red-600">

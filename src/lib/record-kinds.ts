@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq, gte, isNotNull, lte, or, sql } from "drizzle-orm";
+import { and, eq, gte, isNotNull, lte, min, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { days, exercises, meals, positiveEntries } from "@/db/schema";
 import { getCurrentUserId } from "@/lib/current-user";
@@ -8,6 +8,13 @@ import type { RecordKind } from "@/lib/record-calendar";
 
 function assertValidDate(date: string) {
   if (!isValidDateString(date)) throw new Error(`invalid date: ${date}`);
+}
+
+// 記録のある、いちばん古い日(その人の days の行の、いちばん古い日。無ければ null)。月次レポートで選べる月の下限に使う
+export async function getEarliestRecordedDate(): Promise<string | null> {
+  const userId = await getCurrentUserId();
+  const [row] = await db.select({ date: min(days.date) }).from(days).where(eq(days.userId, userId));
+  return row?.date ?? null;
 }
 
 // 期間(from〜to)の、日ごとの「記録した種類」(記録のカレンダーの元)。ログイン中のユーザーの分だけ。

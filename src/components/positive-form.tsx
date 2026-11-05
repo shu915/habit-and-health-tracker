@@ -41,7 +41,7 @@ export function PositiveForm({ date, initial, action }: Props) {
     <div className="flex flex-col gap-6">
       <p className="text-sm text-zinc-600 dark:text-zinc-400">
         今日あった良かったことを、3 つまで書きます。良かったことに加えて、なぜそう感じたかも書くと、気分を整える効果が高まりやすいと言われています(個人差があります)。
-        1 つだけの日でも、書かない日でも構いません。医療上の効果を約束するものではありません。内容は AI には送りません。
+        1 つだけの日でも、書かない日でも構いません。医療上の効果を約束するものではありません。AI レポートを作るときだけ、同意したうえで、AI に送って分析します。
       </p>
 
       <form key={state?.submittedAt ?? "initial"} action={formAction} className="flex flex-col gap-6">

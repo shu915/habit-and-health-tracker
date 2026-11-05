@@ -20,9 +20,8 @@ export const MEAL_LIMITS: Record<MealLimitedField, Limit> = {
 // 食べた時刻の時の上限。深夜 3 時までは前の日の食事として入れるので、26 時(26:59)まで書ける
 export const MEAL_TIME_MAX_HOUR = 26;
 
-// 料理名(dish_name)と別名(alias)の文字数の上限(列の長さと同じ)
+// 料理名(dish_name)の文字数の上限(列の長さと同じ)
 export const DISH_NAME_MAX_LENGTH = 100;
-export const ALIAS_MAX_LENGTH = 100;
 
 // 食事の推定に送る入力の上限(サーバーの検証と、ブラウザ側の写真の縮小で共有する)
 export const TEXT_MAX_LENGTH = 2000; // 食べたものの文章の文字数

@@ -18,7 +18,8 @@ import { deleteMeal, getMeal, listRecentDishNames, saveMeal, updateMeal, type Me
 
 const estimateInputSchema = z.object({ text: z.string(), imageDataUrls: z.array(z.string()).optional() });
 
-// AI で推定する(何も保存しない)。順序: 認証 → 入力の検証 → 回数の制限 → 過去の料理名 → AI
+// AI で推定する(何も保存しない)。順序: 認証 → 入力の検証 → 回数の制限 → 過去の料理名 → AI。
+// 失敗(接続・AI のエラー・読めない返事)は、回数に数えない(数えた分を戻す)。「食べ物でない」の判定は、費用が出ているので数える
 export async function estimateMealAction(raw: unknown): Promise<ParseResult> {
   await getCurrentUserId();
 
@@ -30,8 +31,15 @@ export async function estimateMealAction(raw: unknown): Promise<ParseResult> {
   const limit = await consumeAiRequest();
   if (!limit.ok) return limit;
 
-  const knownDishNames = await listRecentDishNames(100);
-  return estimateMeal({ text: checked.text, imageDataUrls: checked.imageDataUrls, knownDishNames });
+  try {
+    const knownDishNames = await listRecentDishNames(100);
+    const result = await estimateMeal({ text: checked.text, imageDataUrls: checked.imageDataUrls, knownDishNames });
+    if (!result.ok && !result.notMeal) await limit.release();
+    return result;
+  } catch (error) {
+    await limit.release(); // 想定外の失敗でも、数えた分は戻す
+    throw error;
+  }
 }
 
 export type SaveMealResult = { ok: false; errors: MealSaveErrors };
@@ -50,7 +58,6 @@ function toMealInput(raw: unknown): { ok: true; input: MealInput } | SaveMealRes
     input: {
       eatenTime: parsed.values.eatenTime,
       dishName: estimate.dishName,
-      alias: parsed.values.alias,
       description: estimate.description,
       items: estimate.items,
       totals: estimate.totals,

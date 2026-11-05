@@ -163,8 +163,6 @@ export const meals = pgTable(
 
     // AI が付けた料理名(グルーピングの鍵)。表記ゆれは、過去の dish_name の一覧を AI に渡して揃える。人は直さない
     dishName: varchar("dish_name", { length: 100 }).notNull(),
-    // 人が付ける別名(表示用。あれば dish_name より優先して出す)。AI に渡す名前の一覧には入れない
-    alias: varchar("alias", { length: 100 }),
     // 入力した内容(写真から読み取った内容を含む)を、AI が意味を変えずに読みやすく整えた説明文(写真そのものは保存しない)。再推定の入力にもなる
     description: text("description"),
 
@@ -222,7 +220,7 @@ export const exercises = pgTable(
     minutes: integer("minutes").notNull(),
     // 始めた時刻(任意)。"HH:MM"で、00:00〜26:59(食事の食べた時刻と同じ。24 時以降は前の日の深夜)。null は「記録しない」
     startTime: varchar("start_time", { length: 5 }),
-    // 自分用のメモ(任意)。AI には送らない
+    // 自分用のメモ(任意)。AI には、レポートの作成のときだけ、利用者が同意したうえで送る(docs/ai-feedback.md)
     memo: varchar("memo", { length: 200 }),
 
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -243,7 +241,7 @@ export const exercises = pgTable(
 // ==========================================
 // 良かったこと 1 件 = 1 行。1 日 3 件まで(position の CHECK と、日ごとの position の一意制約が DB で守る)。
 // 本文は 1 欄の自由記入(「できごと。それで感じたこと」)。保存は、その日の分をまとめて入れ替える(lib/positive-entries.ts)。
-// 内容は気分や出来事なので、AI には送らない(送るなら集計した形だけにする、と決めてから)
+// 内容は気分や出来事。AI には、レポートの作成のときだけ、利用者が同意したうえで、全文を送る(docs/ai-feedback.md。ai_consents)
 export const positiveEntries = pgTable(
   "positive_entries",
   {
@@ -282,4 +280,62 @@ export const aiRequests = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => [index("ai_requests_user_created_idx").on(table.userId, table.createdAt)],
+);
+
+// ==========================================
+// 7. AI Consents (AI フィードバックへの同意。docs/ai-feedback.md)
+// ==========================================
+// 日記・良かったこと・運動のメモを含む記録を、AI の提供元に送ることへの同意。1 人 1 行(同意していなければ、行が無い)。
+// 最初の 1 回だけ、チェックを入れてもらい、2 回目からは、その同意に付随する。version は、同意した文面のバージョン(lib/report-consent-text.ts)。
+// 文面を変えたらバージョンを上げて、また聞く。撤回は、行を消す。プロフィールではなく、AI の側に持つ(lib/report-consent.ts)
+export const aiConsents = pgTable("ai_consents", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => user.id, { onDelete: "cascade" }),
+  version: integer("version").notNull(),
+  consentedAt: timestamp("consented_at").defaultNow().notNull(),
+});
+
+// ==========================================
+// 8. Reports (AI フィードバックのレポート。docs/ai-feedback.md)
+// ==========================================
+// 1 件 = 1 レポート。AI の返事(content)・バッジ・作った時点の元の数字(snapshot)を、JSON で保存する。
+// グラフは snapshot から描き直す(作った時点の数字なので、あとで記録を直しても、文章・バッジ・グラフがずれない)。画像は保存しない。
+// snapshot には、日記や食事の名前の文章を入れない(日記を消しても残ってしまうため)。
+// 種類: four-weeks(随時。直近 4 週間)/ monthly(定期。過去の、どの暦の月でも。period_start が月の 1 日)。monthly は同じ月を 1 回だけ作る(一意制約)。
+// (直近 1 週間のレポートは、2026-11-05 にやめた。先月だけだった種類は、どの月でも選べる monthly に広げた。)
+// 今すぐは、種類ごとに最新の 1 件だけを残す(できたとき、前の分を消す。lib/reports.ts)。今すぐは、1 日に 1 回まで(lib/report-period.ts)
+export const reports = pgTable(
+  "reports",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    kind: varchar("kind", { length: 16 }).notNull(),
+    periodStart: date("period_start", { mode: "string" }).notNull(),
+    periodEnd: date("period_end", { mode: "string" }).notNull(),
+    // 状態: creating(作成中。数字のスナップショットとバッジは、作成を押した時点で保存し、AI の返事を待つ)/ done(できた)/ failed(失敗。理由は error_message)。
+    // 作成を押したら、先に creating の行を保存して、すぐ返す。AI の呼び出しは、返事を返したあとに裏で続ける(lib/report-generate.ts)。
+    // creating のまま一定時間(STALE_AFTER_MINUTES)たった行は、裏の処理が殺されたとみなして、failed にする(lib/reports.ts)。永遠に「作成中」のまま残さない
+    status: varchar("status", { length: 8 }).notNull().default("done"),
+    errorMessage: text("error_message"),
+    // AI の返事。creating・failed の間は空(null)
+    content: jsonb("content"),
+    badges: jsonb("badges").notNull(),
+    snapshot: jsonb("snapshot").notNull(),
+    // 同意した文面のバージョン(作ったときの、ai_consents.version)
+    consentVersion: integer("consent_version").notNull(),
+
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("reports_user_created_idx").on(table.userId, table.createdAt),
+    unique("reports_user_kind_period_unique").on(table.userId, table.kind, table.periodStart),
+    check("reports_kind_check", sql`${table.kind} IN ('four-weeks', 'monthly')`),
+    check("reports_status_check", sql`${table.status} IN ('creating', 'done', 'failed')`),
+    // できた(done)レポートには、AI の返事が入っている
+    check("reports_done_has_content", sql`${table.status} <> 'done' OR ${table.content} IS NOT NULL`),
+    check("reports_period_order", sql`${table.periodStart} <= ${table.periodEnd}`),
+  ],
 );

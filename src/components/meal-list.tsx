@@ -31,7 +31,7 @@ export async function MealList({ date }: { date: string }) {
                 </span>
                 <span className="w-11 shrink-0 tabular-nums text-zinc-500">{meal.eatenTime}</span>
                 <Link href={`/days/${date}/meals/${meal.id}/edit`} className="min-w-0 flex-1 truncate font-medium after:absolute after:inset-0">
-                  {meal.alias ?? meal.dishName}
+                  {meal.dishName}
                 </Link>
                 <span className="tabular-nums">{meal.kcal} kcal</span>
                 <span aria-hidden className="text-zinc-400">

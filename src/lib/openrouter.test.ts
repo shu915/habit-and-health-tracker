@@ -57,7 +57,7 @@ describe("completeJson", () => {
       json_schema: { name: "test_schema", strict: true, schema: { type: "object" } },
     });
     expect(body.reasoning).toEqual({ effort: "low" });
-    // 食事の内容と写真(健康情報)を、保持・学習に使う提供元へ送らない
+    // 食事の内容と写真(健康情報)を、学習に使う提供元へ送らない(提供元での一時的な保持は残りうる)
     expect(body.provider).toEqual({ require_parameters: true, data_collection: "deny" });
     expect(body.max_tokens).toBe(8000);
   });

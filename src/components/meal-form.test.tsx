@@ -159,7 +159,7 @@ describe("MealForm: 午前 3 時より前の案内(深夜の食事は前の日�
 
   it("編集の画面では、案内は出ない", () => {
     setNow(2026, 9, 30, 1, 30);
-    render(<MealForm date="2026-10-30" mode="edit" mealId={1} initial={{ eatenTime: "12:00", alias: "", estimate }} />);
+    render(<MealForm date="2026-10-30" mode="edit" mealId={1} initial={{ eatenTime: "12:00", estimate }} />);
     expect(screen.queryByRole("note")).toBeNull();
   });
 
@@ -505,14 +505,13 @@ describe("MealForm: 保存", () => {
     expect(button("推定し直す").className).toContain("bg-zinc-900");
   });
 
-  it("推定しただけでは、何も保存されない。「この内容で保存」を押すと、日付・時刻・別名・推定(合計は含めない)を送る", async () => {
+  it("推定しただけでは、何も保存されない。「この内容で保存」を押すと、日付・時刻・推定(合計は含めない)を送る", async () => {
     const user = userEvent.setup();
     actions.saveMealAction.mockResolvedValue({ ok: false, errors: {} });
     render(<MealForm date={DATE} mode="new" />);
     await estimated(user);
     expect(actions.saveMealAction).not.toHaveBeenCalled();
 
-    await user.type(field("別名(任意)"), "ホテルの鮭");
     await user.click(button("この内容で保存"));
 
     expect(actions.saveMealAction).toHaveBeenCalledTimes(1);
@@ -520,7 +519,6 @@ describe("MealForm: 保存", () => {
     expect(date).toBe(DATE);
     expect(payload).toEqual({
       eatenTime: "12:05",
-      alias: "ホテルの鮭",
       estimate: { dishName: "焼鮭定食", description: "焼鮭1切れ、白ご飯、みそ汁", items: estimate.items },
     });
     expect(JSON.stringify(payload)).not.toContain("totals"); // 合計は送らない(保存する側が計算し直す)
@@ -566,9 +564,9 @@ describe("MealForm: 保存", () => {
 });
 
 describe("MealForm: 編集", () => {
-  const initial = { eatenTime: "13:30", alias: "ホテルの鮭", estimate };
+  const initial = { eatenTime: "13:30", estimate };
 
-  it("保存済みの内容から始まる(時刻・別名・推定・説明)。保存すると、更新の Action を呼ぶ", async () => {
+  it("保存済みの内容から始まる(時刻・推定・説明)。保存すると、更新の Action を呼ぶ", async () => {
     const user = userEvent.setup();
     actions.updateMealAction.mockResolvedValue({ ok: false, errors: {} });
     render(<MealForm date={DATE} mode="edit" mealId={7} initial={initial} />);
@@ -577,12 +575,12 @@ describe("MealForm: 編集", () => {
     expect(field("食べた時刻（分）").value).toBe("30");
     expect(screen.getByText("昼食")).toBeTruthy();
     expect(field("説明").value).toBe("焼鮭1切れ、白ご飯、みそ汁");
-    expect(field("別名(任意)").value).toBe("ホテルの鮭");
+    expect(screen.queryByLabelText("別名(任意)")).toBeNull(); // 別名の機能は、なくした
     expect(screen.getByRole("heading", { name: "焼鮭定食" })).toBeTruthy();
 
     await user.click(button("この内容で保存"));
     expect(actions.saveMealAction).not.toHaveBeenCalled();
-    expect(actions.updateMealAction).toHaveBeenCalledWith(7, expect.objectContaining({ eatenTime: "13:30", alias: "ホテルの鮭" }));
+    expect(actions.updateMealAction).toHaveBeenCalledWith(7, expect.objectContaining({ eatenTime: "13:30" }));
   });
 
   it("削除は、確認を挟む。「やめる」で戻れ、「削除する」で削除の Action を呼ぶ", async () => {

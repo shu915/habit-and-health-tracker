@@ -5,50 +5,57 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1793778302875,
+      "when": 1793853831509,
       "tag": "0000_auth",
       "breakpoints": true
     },
     {
       "idx": 1,
       "version": "7",
-      "when": 1793778303671,
+      "when": 1793853832475,
       "tag": "0001_profiles",
       "breakpoints": true
     },
     {
       "idx": 2,
       "version": "7",
-      "when": 1793778304513,
+      "when": 1793853833314,
       "tag": "0002_days",
       "breakpoints": true
     },
     {
       "idx": 3,
       "version": "7",
-      "when": 1793778305308,
+      "when": 1793853834147,
       "tag": "0003_meals",
       "breakpoints": true
     },
     {
       "idx": 4,
       "version": "7",
-      "when": 1793778306122,
+      "when": 1793853835054,
       "tag": "0004_exercises",
       "breakpoints": true
     },
     {
       "idx": 5,
       "version": "7",
-      "when": 1793778307115,
+      "when": 1793853836040,
       "tag": "0005_positive_entries",
       "breakpoints": true
     },
     {
       "idx": 6,
       "version": "7",
-      "when": 1793778308088,
+      "when": 1793853837047,
       "tag": "0006_ai_requests",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793853846296,
+      "tag": "0007_reports",
       "breakpoints": true
     }
   ]

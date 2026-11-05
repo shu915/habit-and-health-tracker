@@ -16,7 +16,8 @@ export type MealTotals = {
 
 export type MealEstimate = MealEstimateResponse & { totals: MealTotals };
 
-export type ParseResult = { ok: true; estimate: MealEstimate } | { ok: false; message: string };
+// notMeal: AI が「食べ物でない」と判定した失敗(費用が出ていて、悪用の入口になるので、回数制限では、数える)。ほかの失敗(接続・AI のエラー・読めない返事)は、数えない
+export type ParseResult = { ok: true; estimate: MealEstimate } | { ok: false; message: string; notMeal?: true };
 
 const round1 = (value: number) => Math.round(value * 10) / 10;
 
@@ -107,7 +108,7 @@ export function parseEstimate(content: string, knownDishNames: readonly string[]
 
   const { isMeal, notMealReason, ...meal } = parsed.data;
   // 食事として扱えない入力(食べ物でないもの、人や動物の写真など)は、推定を作らず、理由を返す(何も保存されない)
-  if (!isMeal) return { ok: false, message: notMealMessage(notMealReason) };
+  if (!isMeal) return { ok: false, message: notMealMessage(notMealReason), notMeal: true };
   // 食事なのに、品目も料理名も無い返事は、使えない
   if (meal.items.length === 0 || meal.dishName === "") {
     console.error("[meal-estimate] 食事なのに品目か料理名が空");
