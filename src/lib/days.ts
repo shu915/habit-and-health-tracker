@@ -45,6 +45,7 @@ export async function listDayMeasures(from: string, to: string) {
       sleepBedtime: days.sleepBedtime,
       sleepWakeTime: days.sleepWakeTime,
       profileTargetCalories: days.profileTargetCalories,
+      profileActivityLevel: days.profileActivityLevel,
     })
     .from(days)
     .where(and(eq(days.userId, userId), gte(days.date, from), lte(days.date, to)))
@@ -56,6 +57,13 @@ export async function getMorningWeightBefore(date: string): Promise<{ weight: st
   await getCurrentUserId();
   assertValidDate(date);
   return latestMorningOnOrBefore(days.morningWeightKg, shiftDate(date, -1));
+}
+
+// その日より前(その日は含まない)で、朝の体脂肪率が入っている、いちばん新しい日の値(無ければ null)。消費の目安の基礎代謝に使う(推移のグラフ用)
+export async function getMorningBodyFatBefore(date: string): Promise<{ weight: string; date: string } | null> {
+  await getCurrentUserId();
+  assertValidDate(date);
+  return latestMorningOnOrBefore(days.morningBodyFatPercent, shiftDate(date, -1));
 }
 
 // その日より前(その日は含まない)で、固定した目標カロリーが入っている、いちばん新しい日の目標(無ければ null)。日の行が無い日の、目標の線を引き継ぐのに使う(推移のグラフ用)

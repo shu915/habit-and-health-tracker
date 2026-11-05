@@ -1,11 +1,12 @@
 import Link from "next/link";
+import { CalorieBalanceCard } from "@/components/calorie-balance-card";
 import { CalorieCard } from "@/components/calorie-card";
 import type { CalorieChartPoint } from "@/components/calorie-chart";
 import { SleepCard } from "@/components/sleep-card";
 import { TrendCard } from "@/components/trend-card";
 import { shiftDate, todayString } from "@/lib/date";
 import { buildCalorieTrend, latestBefore } from "@/lib/calorie-trend";
-import { getMorningWeightBefore, getStampedTargetBefore, listDayMeasures } from "@/lib/days";
+import { getMorningBodyFatBefore, getMorningWeightBefore, getStampedTargetBefore, listDayMeasures } from "@/lib/days";
 import { isFinishedDay } from "@/lib/day-result";
 import { listExercisesInRange } from "@/lib/exercises";
 import { listDailyIntake } from "@/lib/meals";
@@ -26,11 +27,12 @@ export async function TrendSection({ searchParams }: { searchParams: Promise<{ r
   const from = shiftDate(today, -(range - 1) - (MOVING_AVERAGE_DAYS - 1));
   const start = shiftDate(today, -(range - 1));
   const tomorrow = shiftDate(today, 1);
-  const [rows, intake, exercises, weightBeforeFrom, targetBeforeFrom, profile] = await Promise.all([
+  const [rows, intake, exercises, weightBeforeFrom, bodyFatBeforeFrom, targetBeforeFrom, profile] = await Promise.all([
     listDayMeasures(from, tomorrow),
     listDailyIntake(start, tomorrow),
     listExercisesInRange(start, tomorrow),
     getMorningWeightBefore(from),
+    getMorningBodyFatBefore(from),
     getStampedTargetBefore(from),
     getProfile(),
   ]);
@@ -48,7 +50,7 @@ export async function TrendSection({ searchParams }: { searchParams: Promise<{ r
   const priorMorningWeight = latestBefore(rows, dates[0], (d) => (d.morningWeightKg === null ? null : { weight: d.morningWeightKg, date: d.date }), weightBeforeFrom);
   const priorStampedTargetKcal = latestBefore(rows, dates[0], (d) => d.profileTargetCalories, targetBeforeFrom);
   const calories: CalorieChartPoint[] = buildCalorieTrend(dates, {
-    rows: rows.map((d) => ({ date: d.date, morningWeightKg: d.morningWeightKg, stampedTargetKcal: d.profileTargetCalories })),
+    rows: rows.map((d) => ({ date: d.date, morningWeightKg: d.morningWeightKg, stampedTargetKcal: d.profileTargetCalories, morningBodyFatPercent: d.morningBodyFatPercent, stampedActivityLevel: d.profileActivityLevel })),
     intake: new Map(intake.map((d) => [d.date, d.kcal])),
     exercises,
     priorMorningWeight,
@@ -56,6 +58,14 @@ export async function TrendSection({ searchParams }: { searchParams: Promise<{ r
     profileTargetKcal: profile.targetCalories,
     isFinishedDay,
     profileWeightKg: profile.currentWeightKg,
+    energy: {
+      gender: profile.gender,
+      age: profile.age,
+      heightCm: profile.heightCm,
+      profileBodyFatPercent: profile.currentBodyFatPercent,
+      profileActivityLevel: profile.activityLevel,
+      priorMorningBodyFat: latestBefore(rows, dates[0], (d) => (d.morningBodyFatPercent === null ? null : { weight: d.morningBodyFatPercent, date: d.date }), bodyFatBeforeFrom),
+    },
   }).map((point) => ({ ...point, inProgress: !isFinishedDay(point.date) }));
   const sleep = buildSleepTrend(dates, new Map(rows.map((d) => [d.date, { bedtime: d.sleepBedtime, wakeTime: d.sleepWakeTime }])));
 
@@ -75,10 +85,10 @@ export async function TrendSection({ searchParams }: { searchParams: Promise<{ r
         <div className="md:col-span-2">
           <CalorieCard points={calories} syncId={SYNC_ID} />
         </div>
+        <div className="md:col-span-2">
+          <CalorieBalanceCard points={calories} syncId={SYNC_ID} />
+        </div>
       </div>
-      <p className="text-xs text-zinc-500">
-        睡眠: 帯は就寝(上)から起床(下)まで、細い線は中間時刻です。体重・体脂肪率: 点はその日の朝の記録、線は過去 {MOVING_AVERAGE_DAYS} 日の移動平均(記録が 2 日分以上あるとき)です。体重計の値は水分などで日々ぶれるので、傾向は線で見ます。カロリー: 棒は食事の合計、破線は目標となるカロリー(目標カロリー + その日の運動)で、食事の記録が無い日は棒を出しません。薄い棒は、まだ増える今日の分です。
-      </p>
     </section>
   );
 }

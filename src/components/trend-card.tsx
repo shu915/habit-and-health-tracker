@@ -1,5 +1,5 @@
 import { TrendChart } from "@/components/trend-chart";
-import { latestAverage, latestRecorded, type TrendPoint } from "@/lib/trend";
+import { latestAverage, latestRecorded, MOVING_AVERAGE_DAYS, type TrendPoint } from "@/lib/trend";
 
 // 体重・体脂肪率のカード(1 つの測定値。見出しに最新の記録と 7 日平均、図、表の形の代替)。syncId: 同じ値の図どうしは、ホバーが連動する
 export function TrendCard({ title, unit, digits, points, syncId }: { title: string; unit: string; digits: number; points: TrendPoint[]; syncId: string }) {
@@ -11,7 +11,7 @@ export function TrendCard({ title, unit, digits, points, syncId }: { title: stri
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
       <div>
-        <h3 className="text-sm font-medium text-zinc-500">{title}</h3>
+        <h3 className="text-base font-semibold">{title}</h3>
         {latest ? (
           <p>
             <span className="text-2xl font-semibold">{format(latest.value ?? 0)}</span> <span className="text-sm text-zinc-500">{unit}</span>
@@ -23,6 +23,7 @@ export function TrendCard({ title, unit, digits, points, syncId }: { title: stri
       </div>
 
       {recorded > 0 && <TrendChart title={title} unit={unit} digits={digits} points={points} syncId={syncId} />}
+      {recorded > 0 && <p className="text-xs text-zinc-500">点はその日の朝の記録、線は過去 {MOVING_AVERAGE_DAYS} 日の移動平均(記録が 2 日分以上あるとき)です。日々ぶれるので、傾向は線で見ます。</p>}
 
       {recorded > 0 && (
         <details className="text-xs">
