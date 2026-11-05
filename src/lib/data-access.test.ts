@@ -68,6 +68,7 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
   let exercisesModule: typeof import("@/lib/exercises");
   let exerciseActionsModule: typeof import("@/app/(app)/days/[date]/exercises/actions");
   let positiveModule: typeof import("@/lib/positive-entries");
+  let recordKindsModule: typeof import("@/lib/record-kinds");
   let positiveActionsModule: typeof import("@/app/(app)/days/[date]/positive/actions");
   let aiLimitModule: typeof import("@/lib/ai-limit");
   // 全期間の記録(期間の絞り込みが要らないテスト用)
@@ -97,6 +98,7 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
     exercisesModule = await import("@/lib/exercises");
     exerciseActionsModule = await import("@/app/(app)/days/[date]/exercises/actions");
     positiveModule = await import("@/lib/positive-entries");
+    recordKindsModule = await import("@/lib/record-kinds");
     positiveActionsModule = await import("@/app/(app)/days/[date]/positive/actions");
     aiLimitModule = await import("@/lib/ai-limit");
     mealActionsModule = await import("@/app/(app)/days/[date]/meals/actions");
@@ -490,6 +492,49 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
       currentUser.id = USER_A;
       await expect(daysModule.saveDay("2026-10-29", { morningWeightKg: "500.00" })).rejects.toThrow();
       await expect(daysModule.saveDay("2026-10-29", { morningWeightKg: "0.00" })).rejects.toThrow();
+    });
+  });
+
+  describe("記録のカレンダーの元(lib/record-kinds.ts)", () => {
+    const meal: import("@/lib/meals").MealInput = {
+      eatenTime: "12:30",
+      dishName: "焼鮭定食",
+      alias: null,
+      description: "焼鮭と白ご飯",
+      items: [{ name: "焼鮭", amount: "1切れ", kcal: 150, proteinG: 18, fatG: 8, carbohydrateG: 0, fiberG: 0, saltG: 1.4 }],
+      totals: { kcal: 432, proteinG: 24.3, fatG: 9.5, netCarbG: 57.7, fiberG: 1.2, saltG: 2.6 },
+    };
+
+    it("日ごとに、記録した種類(朝の記録・食事・運動・良かったこと・今日の気づき)を返す。期間で絞る。空白だけの気づきと、何も入っていない日は数えない", async () => {
+      currentUser.id = USER_A;
+      await profilesModule.updateProfile({ targetCalories: 1800, activityLevel: "1.375" });
+      await daysModule.saveDay("2026-10-10", { morningWeightKg: "70.00" }); // 朝の記録だけ
+      await daysModule.saveDay("2026-10-11", { sleepBedtime: "23:00", reflection: "よく眠れた" }); // 朝(睡眠)+気づき
+      await daysModule.saveDay("2026-10-12", { reflection: "   " }); // 空白だけの気づきは数えない(行はあるが何も無い日)
+      await mealsModule.saveMeal("2026-10-13", meal); // 食事だけ(日の行は食事が作る)
+      await exercisesModule.saveExercise("2026-10-13", { type: "walk", intensity: "normal", minutes: 30, startTime: null, memo: null });
+      await positiveModule.savePositiveEntries("2026-10-14", ["散歩が気持ちよかった。"]);
+      await daysModule.saveDay("2026-10-20", { morningWeightKg: "71.00" }); // 期間の外
+
+      const kinds = await recordKindsModule.listRecordKinds("2026-10-10", "2026-10-15");
+      expect([...kinds.keys()].sort()).toEqual(["2026-10-10", "2026-10-11", "2026-10-13", "2026-10-14"]);
+      expect(kinds.get("2026-10-10")).toEqual(["morning"]);
+      expect([...(kinds.get("2026-10-11") ?? [])].sort()).toEqual(["morning", "reflection"]);
+      expect([...(kinds.get("2026-10-13") ?? [])].sort()).toEqual(["exercise", "meal"]);
+      expect(kinds.get("2026-10-14")).toEqual(["positive"]);
+      await expect(recordKindsModule.listRecordKinds("2026-02-30", "2026-10-15")).rejects.toThrow("invalid date");
+    });
+
+    it("ほかのユーザーの記録は混ざらない", async () => {
+      currentUser.id = USER_B;
+      await profilesModule.updateProfile({ targetCalories: 1800, activityLevel: "1.375" });
+      await daysModule.saveDay("2026-10-10", { morningWeightKg: "55.00", reflection: "B の気づき" });
+      await mealsModule.saveMeal("2026-10-10", meal);
+
+      currentUser.id = USER_A;
+      expect((await recordKindsModule.listRecordKinds("2026-10-01", "2026-10-31")).size).toBe(0);
+      currentUser.id = USER_B;
+      expect([...(await recordKindsModule.listRecordKinds("2026-10-01", "2026-10-31")).get("2026-10-10") ?? []].sort()).toEqual(["meal", "morning", "reflection"]);
     });
   });
 
