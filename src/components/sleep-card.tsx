@@ -10,7 +10,7 @@ export function SleepCard({ points, syncId }: { points: SleepPoint[]; syncId: st
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
       <div>
-        <h3 className="text-sm font-medium text-zinc-500">睡眠</h3>
+        <h3 className="text-base font-semibold">睡眠</h3>
         {recorded > 0 ? (
           <>
             <p>
@@ -45,6 +45,7 @@ export function SleepCard({ points, syncId }: { points: SleepPoint[]; syncId: st
             </span>
           </p>
           <SleepChart points={points} syncId={syncId} />
+          <p className="text-xs text-zinc-500">帯は就寝(上)から起床(下)まで、細い線は中間時刻です。</p>
           <details className="text-xs">
             <summary className="cursor-pointer text-zinc-500">表で見る</summary>
             <div className="mt-2 max-h-60 overflow-auto">

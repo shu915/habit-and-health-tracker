@@ -7,6 +7,7 @@ import { DayNavigation } from "@/components/day-navigation";
 import { DayVitals } from "@/components/day-vitals";
 import { ExerciseList } from "@/components/exercise-list";
 import { MealList } from "@/components/meal-list";
+import { MealNutritionSection } from "@/components/meal-nutrition-section";
 import { PositiveList } from "@/components/positive-list";
 import { ReflectionSection } from "@/components/reflection-section";
 import { isRecordableDate, todayString } from "@/lib/date";
@@ -38,12 +39,18 @@ async function DayContent({ params }: Pick<PageProps<"/days/[date]">, "params">)
         <DayNavigation previous={adjacent.previous} next={nextDate(date, adjacent.next, todayString())} hrefOf={(d) => `/days/${d}`} />
       </div>
 
+      {/* 朝の記録(睡眠・朝の体)がいちばん上: 1 日の流れ(睡眠 → 朝の体 → 食事)の順 */}
+      <DayVitals date={date} day={day} />
+
       {/* 過ぎた日だけ、摂取と消費の目安の結果を出す(今日と未来は、まだ記録が増えるので出さない) */}
       <Suspense fallback={null}>
         <DayResult date={date} />
       </Suspense>
 
-      <DayVitals date={date} day={day} />
+      {/* 栄養の目標との比べ(レーダーチャートと表)。「この日の結果」の直下。食事が無い日は出ない */}
+      <Suspense fallback={null}>
+        <MealNutritionSection date={date} />
+      </Suspense>
 
       {/* その日の食事(日の記録が無い日でも、「食事を追加」から追加できる)。一覧の読み込みは別に待つ */}
       <Suspense fallback={<p className="text-zinc-500">食事を読み込み中...</p>}>

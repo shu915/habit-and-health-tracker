@@ -9,6 +9,8 @@
   --viz-ring: #a1a1aa;
   --viz-text: #52514e;
   --viz-surface: #ffffff;
+  /* 消費の目安を上回った日(差の棒の上側。オレンジ。赤にしない: 責める色にしない。系列の青と明るさを揃える) */
+  --viz-over: #d9731a;
 }
 
 @theme inline {
@@ -27,6 +29,7 @@
     --viz-ring: #71717a;
     --viz-text: #c3c2b7;
     --viz-surface: #0a0a0a;
+    --viz-over: #ec8a2f;
   }
 }
 

@@ -1,7 +1,9 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { buildCalorieTrend } from "./calorie-trend";
 import { todayString } from "./date";
+import { energyOverview } from "./energy-overview";
 import { DAY_LIMITS, type DayLimitedField } from "./day-limits";
 import { EXERCISE_LIMITS, EXERCISE_MAX_PER_DAY } from "./exercise-limits";
 import { MEAL_LIMITS, type MealLimitedField } from "./meal-limits";
@@ -232,10 +234,10 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
 
       const rows = await daysModule.listDayMeasures("2026-10-10", "2026-10-15");
       expect(rows).toEqual([
-        { date: "2026-10-10", morningWeightKg: "99.00", morningBodyFatPercent: null, sleepBedtime: null, sleepWakeTime: null, profileTargetCalories: null },
-        { date: "2026-10-12", morningWeightKg: "98.00", morningBodyFatPercent: "32.0", sleepBedtime: "23:30", sleepWakeTime: "06:30", profileTargetCalories: null },
+        { date: "2026-10-10", morningWeightKg: "99.00", morningBodyFatPercent: null, sleepBedtime: null, sleepWakeTime: null, profileTargetCalories: null, profileActivityLevel: null },
+        { date: "2026-10-12", morningWeightKg: "98.00", morningBodyFatPercent: "32.0", sleepBedtime: "23:30", sleepWakeTime: "06:30", profileTargetCalories: null, profileActivityLevel: null },
       ]);
-      expect(Object.keys(rows[0]).sort()).toEqual(["date", "morningBodyFatPercent", "morningWeightKg", "profileTargetCalories", "sleepBedtime", "sleepWakeTime"]); // reflection などは読まない
+      expect(Object.keys(rows[0]).sort()).toEqual(["date", "morningBodyFatPercent", "morningWeightKg", "profileActivityLevel", "profileTargetCalories", "sleepBedtime", "sleepWakeTime"]); // reflection などは読まない
       await expect(daysModule.listDayMeasures("2026-02-30", "2026-10-15")).rejects.toThrow("invalid date");
     });
 
@@ -252,6 +254,21 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
       expect(await daysModule.getMorningWeightBefore("2026-10-15")).toEqual({ weight: "99.00", date: "2026-10-10" }); // 当日(97.00)は含めない
       expect(await daysModule.getMorningWeightBefore("2026-10-10")).toBeNull();
       await expect(daysModule.getMorningWeightBefore("2026-02-30")).rejects.toThrow("invalid date");
+    });
+
+    it("その日より前の朝の体脂肪率: 自分の記録だけから、いちばん新しい日を返す(その日自身は含めない)", async () => {
+      currentUser.id = USER_B;
+      await daysModule.saveDay("2026-10-14", { morningBodyFatPercent: "10.0" });
+
+      currentUser.id = USER_A;
+      expect(await daysModule.getMorningBodyFatBefore("2026-10-15")).toBeNull();
+      await daysModule.saveDay("2026-10-10", { morningBodyFatPercent: "31.0" });
+      await daysModule.saveDay("2026-10-12", { morningWeightKg: "90.00" }); // 体脂肪率の無い日は飛ばす
+      await daysModule.saveDay("2026-10-15", { morningBodyFatPercent: "29.0" });
+
+      expect(await daysModule.getMorningBodyFatBefore("2026-10-15")).toEqual({ weight: "31.0", date: "2026-10-10" }); // 当日(29.0)は含めない
+      expect(await daysModule.getMorningBodyFatBefore("2026-10-10")).toBeNull();
+      await expect(daysModule.getMorningBodyFatBefore("2026-02-30")).rejects.toThrow("invalid date");
     });
 
     it("その日より前の固定した目標: 自分の記録だけから、いちばん新しい日の目標を返す(その日自身は含めない。固定した値が無い日は飛ばす)", async () => {
@@ -346,6 +363,36 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
       expect(next.profile.targetCalories).toBe(1500);
       expect(next.profile.activityLevel).toBe("1.550");
       expect(next.bodyFat).toEqual({ value: 22.5, source: "earlier", earlierDate: "2026-10-20" });
+    });
+
+    it("推移の消費の目安(buildCalorieTrend)は、日の詳細の消費(getDayBasis から出した 1 日の消費 + 運動)と同じ値になる。体重・体脂肪率・活動係数の決め方が2か所にあるので、食い違いを検出する", async () => {
+      currentUser.id = USER_A;
+      await profilesModule.updateProfile({ gender: "male", age: 40, heightCm: "175", currentWeightKg: "80.00", currentBodyFatPercent: "25.0", targetCalories: 1800, activityLevel: "1.375" });
+      await daysModule.saveDay("2026-10-20", { morningWeightKg: "78.00", morningBodyFatPercent: "22.5" }); // その日の朝の値
+      await daysModule.saveDay("2026-10-21", { sleepBedtime: "23:00" }); // 朝の値なし: それ以前の最新(10-20)
+      await daysModule.saveDay("2026-10-22", { morningWeightKg: "77.00" }); // 体重だけ。体脂肪率は、それ以前の最新(10-20)
+      await profilesModule.updateProfile({ activityLevel: "1.9", currentWeightKg: "60.00", currentBodyFatPercent: "10.0" }); // 過ぎた日の写し・朝の値は変わらない
+
+      const dates = ["2026-10-20", "2026-10-21", "2026-10-22"];
+      const rows = await daysModule.listDayMeasures("2026-10-20", "2026-10-22");
+      const profile = await profilesModule.getProfile();
+      const points = buildCalorieTrend(dates, {
+        rows: rows.map((d) => ({ date: d.date, morningWeightKg: d.morningWeightKg, stampedTargetKcal: d.profileTargetCalories, morningBodyFatPercent: d.morningBodyFatPercent, stampedActivityLevel: d.profileActivityLevel })),
+        intake: new Map(),
+        exercises: [],
+        priorMorningWeight: null,
+        priorStampedTargetKcal: null,
+        profileTargetKcal: profile.targetCalories,
+        isFinishedDay: () => true,
+        profileWeightKg: profile.currentWeightKg,
+        energy: { gender: profile.gender, age: profile.age, heightCm: profile.heightCm, profileBodyFatPercent: profile.currentBodyFatPercent, profileActivityLevel: profile.activityLevel, priorMorningBodyFat: null },
+      });
+      for (const [i, date] of dates.entries()) {
+        const overview = energyOverview((await daysModule.getDayBasis(date)).profile);
+        expect(overview.kind).toBe("ready");
+        expect(points[i].burnKcal).toBe(overview.kind === "ready" ? overview.tdeeKcal : null);
+      }
+      expect(points[0].burnKcal).not.toBe(points[2].burnKcal); // 体重・体脂肪率が違う日は、値も違う(比べに意味がある)
     });
 
     it("プロフィールの目標カロリー・活動係数を直すと、書きかけの日(今日)の写しも新しくなる。過ぎた日は当時のまま", async () => {

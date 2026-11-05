@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildCalorieTrend, calorieAxis, latestBefore, type CalorieInputs } from "./calorie-trend";
+import { balanceAxis, balanceSummary, buildCalorieTrend, KCAL_PER_KG, MIN_DAYS_FOR_KG, calorieAxis, latestBefore, type CalorieDayPoint, type CalorieInputs } from "./calorie-trend";
 import { exerciseKcal } from "./exercise";
 
 const base: CalorieInputs = {
@@ -113,8 +113,89 @@ describe("buildCalorieTrend", () => {
   });
 });
 
+describe("消費の目安と差(energy を渡したとき)", () => {
+  const energy = { gender: "male", age: 40, heightCm: "175", profileBodyFatPercent: null, profileActivityLevel: "1.375", priorMorningBodyFat: null };
+  const row = (date: string, extra: Partial<CalorieInputs["rows"][number]> = {}) => ({ date, morningWeightKg: "70.00", stampedTargetKcal: 2000, ...extra });
+
+  it("energy が無ければ、消費の目安も差も null", () => {
+    const [p] = buildCalorieTrend(["2026-11-01"], { ...base, rows: [row("2026-11-01")], intake: new Map([["2026-11-01", 2000]]) });
+    expect(p).toMatchObject({ burnKcal: null, diffKcal: null });
+  });
+
+  it("差 = 摂取 − (基礎代謝 × その日に固定した活動係数 + その日の運動)。固定した係数を、プロフィールの今の値より優先する", () => {
+    const walk = { date: "2026-11-01", type: "walk", intensity: "normal", minutes: 60 };
+    const common = { ...base, rows: [row("2026-11-01", { stampedActivityLevel: "1.200" })], intake: new Map([["2026-11-01", 2000]]) };
+    const [plain] = buildCalorieTrend(["2026-11-01"], { ...common, energy });
+    const [withWalk] = buildCalorieTrend(["2026-11-01"], { ...common, exercises: [walk], energy });
+    // 70kg・175cm・40 歳・男性(体脂肪率なし)の基礎代謝 = 10×70 + 6.25×175 − 5×40 + 5 = 1598.75 → 1599、× 1.2 = 1919
+    expect(plain.burnKcal).toBe(1919);
+    expect(plain.diffKcal).toBe(2000 - 1919);
+    const walkKcal = exerciseKcal("walk", "normal", 60, 70) ?? 0;
+    expect(walkKcal).toBeGreaterThan(0);
+    expect(withWalk.burnKcal).toBe(1919 + walkKcal);
+  });
+
+  it("食事の記録が無い日の差は null(記録が無い日を赤字に見せない)。消費は出る", () => {
+    const [p] = buildCalorieTrend(["2026-11-01"], { ...base, rows: [row("2026-11-01")], energy });
+    expect(p.burnKcal).not.toBeNull();
+    expect(p.diffKcal).toBeNull();
+  });
+
+  it("体重がどこにも無ければ消費が出せないので、差は null", () => {
+    const [p] = buildCalorieTrend(["2026-11-01"], { ...base, rows: [row("2026-11-01", { morningWeightKg: null })], intake: new Map([["2026-11-01", 2000]]), energy });
+    expect(p).toMatchObject({ burnKcal: null, diffKcal: null });
+  });
+
+  it("体脂肪率は、その日の朝 → それ以前の最新(期間より前を含む)。後の日の値は使わない", () => {
+    const dates2 = ["2026-11-01", "2026-11-02", "2026-11-03"];
+    const points = buildCalorieTrend(dates2, {
+      ...base,
+      rows: [row("2026-11-01"), row("2026-11-02", { morningBodyFatPercent: "20.0" }), row("2026-11-03")],
+      intake: new Map(dates2.map((d) => [d, 2000])),
+      energy: { ...energy, priorMorningBodyFat: { weight: "30.0", date: "2026-10-31" } },
+    });
+    // 体脂肪率あり: 370 + 21.6 × 除脂肪体重
+    const burnAt = (fat: number) => Math.round(Math.round(370 + 21.6 * 70 * (1 - fat / 100)) * 1.375); // 基礎代謝を丸めてから係数を掛ける(nutrition.ts と同じ)
+    expect(points[0].burnKcal).toBe(burnAt(30)); // 期間より前の値
+    expect(points[1].burnKcal).toBe(burnAt(20)); // その日の朝
+    expect(points[2].burnKcal).toBe(burnAt(20)); // それ以前の最新
+  });
+});
+
+describe("balanceSummary(差の棒のカードの見出し)", () => {
+  const day = (diffKcal: number | null, inProgress = false) => ({ date: "d", intake: 0, target: null, exerciseKcal: 0, baseKcal: null, burnKcal: null, diffKcal, inProgress });
+  it("過ぎた日で差を計算できた日だけの、合計と中央値と日数。書きかけの日と、差の無い日は数えない", () => {
+    const summary = balanceSummary([day(-500), day(300), day(-900), day(null), day(1000, true)]);
+    expect(summary).toEqual({ days: 3, sumKcal: -1100, medianKcal: -500, kg: null }); // 3 日分では、体重への換算は出さない
+  });
+  it(`差を計算できた日が ${MIN_DAYS_FOR_KG} 日以上なら、合計を ${KCAL_PER_KG} kcal = 1kg で割った kg を出す。${MIN_DAYS_FOR_KG - 1} 日では出さない`, () => {
+    const days = (count: number) => Array.from({ length: count }, () => day(-720));
+    expect(balanceSummary(days(MIN_DAYS_FOR_KG))?.kg).toBeCloseTo((-720 * MIN_DAYS_FOR_KG) / KCAL_PER_KG);
+    expect(balanceSummary(days(MIN_DAYS_FOR_KG - 1))?.kg).toBeNull();
+    expect(balanceSummary([...days(MIN_DAYS_FOR_KG - 1), day(-720, true)])?.kg).toBeNull(); // 書きかけの日は日数に数えない
+  });
+  it("偶数の日数の中央値は、真ん中 2 つの平均", () => {
+    expect(balanceSummary([day(-500), day(300)])?.medianKcal).toBe(-100);
+  });
+  it("数えられる日が無ければ null", () => {
+    expect(balanceSummary([day(null), day(500, true)])).toBeNull();
+  });
+});
+
+describe("balanceAxis", () => {
+  const diff = (diffKcal: number | null): CalorieDayPoint => ({ date: "d", intake: 0, target: null, exerciseKcal: 0, baseKcal: null, burnKcal: null, diffKcal });
+  it("0 を中心に上下対称。大きいほうに合わせて 500 単位に広げる", () => {
+    const axis = balanceAxis([diff(-1200), diff(300)]);
+    expect(axis.domain).toEqual([-1500, 1500]);
+    expect(axis.ticks).toEqual([-1500, -1000, -500, 0, 500, 1000, 1500]);
+  });
+  it("値が無くても 0 を含む最小の範囲を持つ", () => {
+    expect(balanceAxis([diff(null)]).domain).toEqual([-1000, 1000]);
+  });
+});
+
 describe("calorieAxis", () => {
-  const point = (intake: number | null, target: number | null) => ({ date: "d", intake, target, exerciseKcal: 0, baseKcal: target });
+  const point = (intake: number | null, target: number | null): CalorieDayPoint => ({ date: "d", intake, target, exerciseKcal: 0, baseKcal: target, burnKcal: null, diffKcal: null });
   it("0 から始め、最大の値が入るように 500 単位に広げる。目盛りは整数", () => {
     const axis = calorieAxis([point(1800, 2100), point(2650, 2100)]);
     expect(axis.domain).toEqual([0, 3000]);

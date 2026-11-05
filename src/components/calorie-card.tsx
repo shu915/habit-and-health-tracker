@@ -10,7 +10,7 @@ export function CalorieCard({ points, syncId }: { points: CalorieChartPoint[]; s
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
       <div>
-        <h3 className="text-sm font-medium text-zinc-500">摂取カロリー</h3>
+        <h3 className="text-base font-semibold">摂取カロリー</h3>
         {recorded > 0 ? (
           <>
             <p>
@@ -38,6 +38,7 @@ export function CalorieCard({ points, syncId }: { points: CalorieChartPoint[]; s
             </span>
           </p>
           <CalorieChart points={points} syncId={syncId} />
+          <p className="text-xs text-zinc-500">棒は食事の合計、破線は目標となるカロリー(目標カロリー + その日の運動)です。食事の記録が無い日は棒を出しません。薄い棒は、まだ増える今日の分です。</p>
           <details className="text-xs">
             <summary className="cursor-pointer text-zinc-500">表で見る</summary>
             <div className="mt-2 max-h-60 overflow-auto">

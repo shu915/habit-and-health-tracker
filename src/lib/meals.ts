@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { and, asc, desc, eq, gte, lte, max, sum } from "drizzle-orm";
 import { db } from "@/db";
 import { days, meals } from "@/db/schema";
@@ -80,7 +81,8 @@ export async function saveMeal(date: string, input: MealInput): Promise<Meal> {
 }
 
 // その日の食事(食べた時刻の順)。日の行が無ければ空
-export async function listMealsOfDay(date: string): Promise<Meal[]> {
+// 日の詳細は、食事の一覧と栄養の比べが別の部品で同じ日を読むので、1 回のリクエストの中では結果を使い回す(cache。getDayBasis と同じ)
+export const listMealsOfDay = cache(async (date: string): Promise<Meal[]> => {
   const userId = await getCurrentUserId();
   assertValidDate(date);
   const rows = await db
@@ -90,7 +92,7 @@ export async function listMealsOfDay(date: string): Promise<Meal[]> {
     .where(and(eq(meals.userId, userId), eq(days.userId, userId), eq(days.date, date)))
     .orderBy(asc(meals.eatenTime), asc(meals.id));
   return rows.map((row) => toMeal(row.meal));
-}
+});
 
 // 1 件(自分の食事だけ)。無い・他のユーザーのものは null
 export async function getMeal(id: number): Promise<{ meal: Meal; date: string } | null> {
