@@ -1,6 +1,7 @@
 "use client";
 
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { highlightLines } from "@/components/chart-highlights";
 import { latestAverage, latestRecorded, type TrendPoint } from "@/lib/trend";
 
 // 日ごとの値の折れ線(1 つの測定値だけ。体重と体脂肪率は単位が違うので、2 つの図に分ける。軸を 2 本にしない)。
@@ -9,7 +10,7 @@ import { latestAverage, latestRecorded, type TrendPoint } from "@/lib/trend";
 export const CHART_HEIGHT = 180;
 
 // syncId: 同じ値を持つ図どうしは、ホバーが連動する(片方に乗せると、もう片方にも同じ日の十字線と値が出る。同じ日付の並びの図だけに使う)
-export function TrendChart({ title, unit, digits, points, syncId }: { title: string; unit: string; digits: number; points: TrendPoint[]; syncId?: string }) {
+export function TrendChart({ title, unit, digits, points, syncId, highlightDates = [] }: { title: string; unit: string; digits: number; points: TrendPoint[]; syncId?: string; highlightDates?: readonly string[] }) {
   const values = points.flatMap((p) => [p.value, p.average]).filter((v): v is number => v !== null);
   // 縦軸は 0 から始めず、値の幅に少し余白を足して、きりのよい整数に丸める(線グラフは、変化の形が読めればよい)。
   // 目盛りは 4 つの整数にそろえる(幅が 3 で割り切れないと、71.33 のような目盛りが出るため、幅を 3 の倍数に広げる)
@@ -32,6 +33,7 @@ export function TrendChart({ title, unit, digits, points, syncId }: { title: str
           <XAxis dataKey="date" tickFormatter={shortDate} tick={{ fill: "var(--viz-text)", fontSize: 11 }} tickLine={false} axisLine={{ stroke: "var(--viz-grid)" }} minTickGap={24} />
           <YAxis domain={domain} ticks={ticks} tickFormatter={(v: number) => String(v)} tick={{ fill: "var(--viz-text)", fontSize: 11 }} tickLine={false} axisLine={false} width={36} />
           <Tooltip content={<TrendTooltip unit={unit} format={format} />} cursor={{ stroke: "var(--viz-ring)", strokeWidth: 1 }} />
+          {highlightLines(highlightDates)}
           {/* その日の値: 線でつながず、薄い点だけ(記録の無い日は点が無い) */}
           <Line dataKey="value" stroke="none" isAnimationActive={false} dot={{ r: 3, fill: "var(--viz-series)", fillOpacity: 0.4, stroke: "none" }} activeDot={false} />
           {/* 7 日移動平均: 2px の線。記録が足りない日は途切れる */}

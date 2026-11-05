@@ -28,8 +28,8 @@ Shu の生活習慣管理アプリ(友人にも使ってもらう)。食事・�
 ## 食事と AI の要点(詳細は `docs/meals-and-ai.md`)
 - **すべての食事は AI の推定**(手入力の経路は作らない)。合計と糖質は**コードで計算**する(AI に足し算させない)。保存のとき、サーバーは推定を zod で検証し直し、合計を内訳から計算し直す
 - **API キーを読むのは `openrouter.ts` だけ**。食事の内容と写真は健康情報なので `data_collection: "deny"`。**Google のモデルは、JSON スキーマの `minLength`・`maxLength`・`minimum`・`maximum`・`minItems`・`maxItems`・`additionalProperties` を 400 で拒否する**(スキーマからは外し、zod で検証)
-- 回数制限は、ユーザー単位の `pg_advisory_xact_lock` で「数える → 足す」を直列にする
-- 運動のメモと良かったことは、**AI には送らない**
+- 食事の推定の回数制限は、1 日 10 回(03:00 区切り。失敗は数えず、「食べ物でない」判定は数える)。ユーザー単位の `pg_advisory_xact_lock` で「数える → 足す」を直列にする。AI レポートは別の決まり(`docs/ai-feedback.md`)
+- 日記(良かったこと・今日の気づき・運動のメモ)は、**AI レポートを作るときだけ、利用者が同意したうえで**、全文を AI に送る(`docs/ai-feedback.md`)。ほかの場面では送らない。レポートの保存(スナップショット)には、文章を複製しない
 - 実際に AI を呼ぶ `*.live.test.ts` は `RUN_LIVE_AI=1` のときだけ動く(お金がかかる)
 
 ## 画面とグラフの要点(詳細は `docs/screens.md`、`docs/charts.md`)
@@ -70,6 +70,7 @@ Shu の生活習慣管理アプリ(友人にも使ってもらう)。食事・�
 - [`docs/data-rules.md`](docs/data-rules.md): 値の範囲、保存の規則、睡眠、**その日の値の固定(過去を書き換えない仕組み)**、記録を始める条件
 - [`docs/meals-and-ai.md`](docs/meals-and-ai.md): 食事の記録(「その日」の境目 03:00 など)、AI の呼び出し、回数制限、食事の画面の流れ、写真
 - [`docs/charts.md`](docs/charts.md): 栄養のレーダー(軸と目標の決め方)、推移のグラフ(体重・睡眠・カロリー・差の棒)、記録のカレンダー
+- [`docs/ai-feedback.md`](docs/ai-feedback.md): **AI フィードバック(レポート)**。期間と種類、同意、バッジ(成果型)、保存(スナップショット)、プロンプトの方針、実装の状態
 - [`docs/exercise-and-diary.md`](docs/exercise-and-diary.md): 運動(MET の式、1 日 5 件、いつもより多く動いた分だけ)、良かったこと(1 日 3 件、まとめて入れ替え)
 - [`docs/dev-notes.md`](docs/dev-notes.md): マイグレーションの書き直しの手順と落とし穴、ダミーデータ、依存を足す手順、環境変数の落とし穴
 - [`docs/release-checklist.md`](docs/release-checklist.md): 公開前に決めること(Resend・Vercel・Neon、タイムゾーン、プライバシー、許容している制約)
