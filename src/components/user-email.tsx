@@ -6,7 +6,7 @@ export async function UserEmail() {
   const session = await getSession();
   if (!session) return null;
   return (
-    <span title={session.user.email} className="hidden max-w-60 truncate text-sm text-zinc-500 sm:inline">
+    <span title={session.user.email} className="hidden max-w-60 truncate text-sm text-ink-muted sm:inline">
       {session.user.email}
     </span>
   );

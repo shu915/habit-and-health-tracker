@@ -54,13 +54,13 @@ function RadarTooltip({ active, payload }: { active?: boolean; payload?: readonl
   const row = active ? payload?.find((item) => item.payload?.label !== undefined)?.payload : undefined;
   if (!row) return null;
   return (
-    <div className="rounded-md border border-zinc-200 bg-background px-3 py-2 text-xs shadow-sm dark:border-zinc-700">
+    <div className="rounded-md border border-line bg-surface-raised px-3 py-2 text-xs shadow-sm">
       <p className="font-medium">{row.label}</p>
       <p className="tabular-nums">
         {row.actual.toLocaleString("ja-JP")} {row.unit}
-        {row.reference !== null && <span className="text-zinc-500"> / 目標 {row.reference.toLocaleString("ja-JP")} {row.unit}</span>}
+        {row.reference !== null && <span className="text-ink-muted"> / 目標 {row.reference.toLocaleString("ja-JP")} {row.unit}</span>}
       </p>
-      {row.percent !== null && <p className="tabular-nums text-zinc-500">{row.percent}%</p>}
+      {row.percent !== null && <p className="tabular-nums text-ink-muted">{row.percent}%</p>}
     </div>
   );
 }

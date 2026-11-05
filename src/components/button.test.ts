@@ -2,16 +2,16 @@ import { describe, expect, it } from "vitest";
 import { buttonClass } from "./button";
 
 describe("buttonClass", () => {
-  it("決定する操作(primary、既定)は真っ黒、弱い操作(secondary)はグレーの塗り", () => {
-    expect(buttonClass()).toContain("bg-zinc-900");
-    expect(buttonClass({ variant: "primary" })).toContain("bg-zinc-900");
-    expect(buttonClass({ variant: "secondary" })).toContain("bg-zinc-200");
-    expect(buttonClass({ variant: "secondary" })).not.toContain("bg-zinc-900");
+  it("決定する操作(primary、既定)は深い緑、弱い操作(secondary)はグレーの塗り", () => {
+    expect(buttonClass()).toContain("bg-accent");
+    expect(buttonClass({ variant: "primary" })).toContain("bg-accent");
+    expect(buttonClass({ variant: "secondary" })).toContain("bg-neutral");
+    expect(buttonClass({ variant: "secondary" })).not.toContain("bg-accent");
   });
 
-  it("どちらも、ダークモードの色を持つ(黒は白に反転、グレーは暗いグレー)", () => {
-    expect(buttonClass()).toContain("dark:bg-zinc-100");
-    expect(buttonClass({ variant: "secondary" })).toContain("dark:bg-zinc-800");
+  it("どちらも、テーマの変数の色を使う(ダークモードは globals.css の変数が切り替える)", () => {
+    expect(buttonClass()).toContain("text-on-accent");
+    expect(buttonClass({ variant: "secondary" })).toContain("text-ink");
   });
 
   it("小さいサイズは、文字も小さい(text-sm が重ならない)", () => {
@@ -31,7 +31,7 @@ describe("buttonClass", () => {
     for (const cls of [main, cancel]) {
       for (const token of ["py-2", "px-3", "text-sm", "min-w-24"]) expect(cls).toContain(token);
     }
-    expect(main).toContain("bg-zinc-900"); // 決定は濃い色
-    expect(cancel).toContain("bg-zinc-200"); // キャンセルはグレー
+    expect(main).toContain("bg-accent"); // 決定は濃い色
+    expect(cancel).toContain("bg-neutral"); // キャンセルはグレー
   });
 });

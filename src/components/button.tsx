@@ -1,12 +1,13 @@
 // ボタンと、ボタンの見た目のリンクで使う共通の見た目。<button> にも <Link> にも className として付ける。
-//   primary: 真っ黒(決定する操作だけ。保存・編集・推定する・ログインリンクを送る)
-//   secondary: グレー(弱い操作。戻る・キャンセル・提案・写真を選ぶ・外す)。白い背景でも見つけやすいよう、枠線ではなく塗る
+//   primary: 深い緑(決定する操作だけ。保存・編集・推定する・ログインリンクを送る)
+//   secondary: ベージュのグレー(弱い操作。戻る・キャンセル・提案・写真を選ぶ・外す)。白い背景でも見つけやすいよう、枠線ではなく塗る
+// 色はダークモードも globals.css の変数が切り替える。角は rounded-md(8px)
 // 並び: キャンセル(左)→ 決定(右)。フォームの下のボタンの行は FormActions(form-actions.tsx)を使う
 const BASE = "rounded-md disabled:opacity-50";
 
 const VARIANTS = {
-  primary: "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900",
-  secondary: "bg-zinc-200 text-zinc-900 hover:bg-zinc-300 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700",
+  primary: "bg-accent font-semibold text-on-accent hover:bg-accent-hover",
+  secondary: "bg-neutral font-medium text-ink hover:bg-neutral-hover",
 } as const;
 
 const SIZES = {
