@@ -1,0 +1,22 @@
+# 開発の手順と落とし穴
+
+CLAUDE.md から分けた詳細。仕様を変えたら、ここも直す。
+
+## 開発ルール
+- スキーマ変更は Drizzle のマイグレーションで行う(DB を直接いじらない)。`drizzle/` と `src/db/auth-schema.ts` は生成物で手編集しない。`npm run db:generate -- --name <説明的な名前>` で作る。履歴は 1 テーマ 1 本(`0000_auth` / `profiles` / `days` / `meals` / `exercises` / `positive_entries` / `ai_requests`)で、以後は新しい番号で足していく
+- **マージ済みのマイグレーションは書き換えない**(適用済みの DB で再実行されて壊れる)。未マージの分は作り直してよい。そのときも、マージ済みの分は `git checkout <コミット> -- drizzle/meta/_journal.json` などで戻してから、新しい分だけ生成する
+- **例外(デプロイ前だけ)**: 人が「1 本に書き直したい」と指示したときに限り、書き直してよい(これまで 2 回: 2026-11-03 と 11-04)。開発用・テスト用 DB の作り直し(`down -v`)でデータが消えるので、先に伝え、残したいデータは `pg_dump --data-only` で退避する。デプロイ後は使わない。落とし穴:
+  - テーマ別にするには、`schema.ts` を段階ごとに一時的に絞って 1 本ずつ `drizzle-kit generate --config=... --name=...` する。古い `drizzle/` は `mv` で退避する(`rm -r` は guard が止める)。**空のフォルダだけ残して生成すると、エラーを出しても終了コード 0 で何も作らない**(フォルダごと無い状態から)。**zsh の配列は 1 始まり**で、名前をループで配列から取ると 1 つずつずれる。最後に、引数なしの `generate` が「変更なし」になることを確かめる
+  - **整理前の履歴を持つ DB に `db:migrate` すると、`account` が既にあるというエラーで止まる**(その DB は作り直す)
+- 秘密情報は `.env.local` に置き、コミットしない。`.env*` は読まない・編集しない(`.env.example` は可)
+
+## コマンド
+- `npm run dev` / `build` / `check`(lint + typecheck。**テストは含まない**)/ `test`
+- DB: `docker compose up -d --wait`(ホストのポートは **5433**)、`npm run db:generate` / `db:migrate` / `db:studio`
+- ダミーデータ: `npm run db:seed-dummy`(`scripts/seed-dummy.mts`)。3 人(崩れた俺 / 優等生 / 穴だらけ)に 100 日分を入れる。AI は呼ばない。**開発用 DB(`localhost:5433` の `habit_health`)以外では、何もせずに止まる**。id が `dummy-` で始まるユーザーだけを消して入れ直す。`-- --delete` で消すだけ。ログインは `dummy-collapsed@example.com` などにマジックリンクを送る(`ALLOWED_EMAILS` を設定しているときは、ダミーのメールも足す)。`src/` を import せず、列の名前は `schema.ts` と手で合わせる(**スキーマを変えたら、スクリプトも直し、通ることを確かめる**。静かに壊れる)。ダミーは本物のアカウント(`email_verified` が true)として入るので、**データを本番へ移す前に `-- --delete` で消す**
+- ルート(`app/` のページ)を足す・消したら `npx next typegen`(`PageProps` の型を作り直す)
+- Better Auth の設定(`lib/auth.ts`)を変えたら、`DATABASE_URL=... BETTER_AUTH_SECRET=... npm run db:auth-schema` で `auth-schema.ts` を再生成する
+- `drizzle-kit generate` は、テーブルの削除と作成が同時にあると対話で聞いてくる(非対話では失敗する)。別のマイグレーションに分ける
+- `source .env.local` で読み込むと、そのターミナルに残り、`npm run dev` では `.env.local` より優先される(古い `ALLOWED_EMAILS` のままログインできなくなった)。実 API を呼ぶテストなどでは、`( set -a; source .env.local; set +a; npm test )` のようにサブシェルで実行する
+- `.env.local` に `BETTER_AUTH_SECRET` が無いと起動時にエラー。開発中のマジックリンクは `next dev` の端末に出る
+- **依存を足すとき**: `npm install` すると、macOS の npm が lock から `@rolldown/binding-*` を落とす(`grep -c '"node_modules/@rolldown/binding-' package-lock.json` が 15 でなければ異常)。手順: ① 空のフォルダに `package.json` と**元の lock の両方**をコピーして `npm install --package-lock-only`(元の lock が無いと、全依存を最新に解き直して `better-auth` などが勝手に上がる)② その lock は `@rolldown/binding-*` を落とすので、そのまま使わず、**元の lock に「新しく増えたパッケージ」(と root の dependencies)だけを足して**合成する ③ `git diff --stat package-lock.json` が追加行だけ、`@rolldown/binding-*` が 15 件、`npm ci --dry-run` が通ることを確かめて `npm ci`
