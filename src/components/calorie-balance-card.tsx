@@ -4,7 +4,7 @@ import { balanceSummary, MIN_DAYS_FOR_KG } from "@/lib/calorie-trend";
 
 // 摂取 − 消費の目安のカード: 見出しに差の中央値(過ぎた日だけ。書きかけの日は、まだ増えるので数えない)、凡例、図、表の形の代替。
 // 消費の目安は、日の詳細の「この日の結果」と同じ計算(基礎代謝 × その日の活動係数 + その日の運動)。推定どうしの差なので、目安であり、医療上の指示ではない
-export function CalorieBalanceCard({ points, syncId }: { points: CalorieChartPoint[]; syncId: string }) {
+export function CalorieBalanceCard({ points, syncId, highlightDates }: { points: CalorieChartPoint[]; syncId: string; highlightDates?: readonly string[] }) {
   const withDiff = points.filter((p) => p.diffKcal !== null);
   const summary = balanceSummary(points);
   const kcal = (value: number) => `${value.toLocaleString("ja-JP")} kcal`;
@@ -49,7 +49,7 @@ export function CalorieBalanceCard({ points, syncId }: { points: CalorieChartPoi
               多い(上)
             </span>
           </p>
-          <CalorieBalanceChart points={points} syncId={syncId} />
+          <CalorieBalanceChart points={points} syncId={syncId} highlightDates={highlightDates} />
           <p className="text-xs text-zinc-500">消費より少なく食べた日が下(青)、多く食べた日が上(オレンジ)で、推定どうしの差なので目安です。薄い棒は、まだ増える今日の分です。食事を一部しか記録しなかった日も、そのまま計算します(差が大きなマイナスに見え、合計も実際より減って見えます)。中央値は、そうした日に引きずられにくい数字です。</p>
           <details className="text-xs">
             <summary className="cursor-pointer text-zinc-500">表で見る</summary>

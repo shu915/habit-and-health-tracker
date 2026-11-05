@@ -41,10 +41,12 @@ type Options = {
   schemaName: string;
   jsonSchema: Record<string, unknown>;
   fetchImpl?: typeof fetch; // テスト用
+  timeoutMs?: number; // 1 回の試行の時間切れ(既定は TIMEOUT_MS。長い文章を返す用途で延ばす)
+  maxOutputTokens?: number; // 出力の上限(既定は MAX_OUTPUT_TOKENS)
 };
 
 // JSON スキーマに従う返事（文字列）を 1 つ得る
-export async function completeJson({ messages, schemaName, jsonSchema, fetchImpl = fetch }: Options): Promise<string> {
+export async function completeJson({ messages, schemaName, jsonSchema, fetchImpl = fetch, timeoutMs = TIMEOUT_MS, maxOutputTokens = MAX_OUTPUT_TOKENS }: Options): Promise<string> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   const model = process.env.OPENROUTER_MODEL;
   if (!apiKey || !model) {
@@ -58,9 +60,9 @@ export async function completeJson({ messages, schemaName, jsonSchema, fetchImpl
     reasoning: { effort: "low" }, // 考える量は低めにして、出力のコストを抑える
     provider: {
       require_parameters: true, // JSON スキーマに対応しているモデルだけを使う
-      data_collection: "deny", // 食事の内容と写真(健康情報)を、保持や学習に使う提供元へ送らない
+      data_collection: "deny", // 食事の内容と写真(健康情報)を、学習に使う提供元へ送らない(提供元での一時的な保持は残りうる)
     },
-    max_tokens: MAX_OUTPUT_TOKENS, // 出力の上限(暴走や、課金の膨らみを抑える)
+    max_tokens: maxOutputTokens, // 出力の上限(暴走や、課金の膨らみを抑える)
   });
 
   // 1 回の試行 = 送信から返事の本文の読み取りまで(時間切れの signal は、本文の読み取りにも効く。本文が止まっても、ここで切れる)。
@@ -77,7 +79,7 @@ export async function completeJson({ messages, schemaName, jsonSchema, fetchImpl
           "X-Title": "Habit and Health Tracker",
         },
         body: requestBody,
-        signal: AbortSignal.timeout(TIMEOUT_MS),
+        signal: AbortSignal.timeout(timeoutMs),
       });
       if (!response.ok) {
         // OpenRouter が返す理由（例: 受け付けない指定）を、端末のログで原因を探せるように含める。利用者には見せない

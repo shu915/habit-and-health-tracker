@@ -51,10 +51,10 @@ describe("PositiveForm", () => {
     }
   });
 
-  it("説明に、なぜそう感じたかも書くとよいこと・AI には送らないこと・医療上の効果は約束しないことを出す", () => {
+  it("説明に、なぜそう感じたかも書くとよいこと・AI レポートを作るときだけ同意したうえで送られること・医療上の効果は約束しないことを出す", () => {
     render(<PositiveForm date={DATE} initial={EMPTY_POSITIVE} action={makeAction()} />);
     expect(screen.getByText(/なぜそう感じたかも書くと、気分を整える効果が高まりやすいと言われています/)).toBeTruthy();
-    expect(screen.getByText(/内容は AI には送りません/)).toBeTruthy();
+    expect(screen.getByText(/AI レポートを作るときだけ、同意したうえで、AI に送って分析します/)).toBeTruthy();
     expect(screen.getByText(/医療上の効果を約束するものではありません/)).toBeTruthy();
   });
 

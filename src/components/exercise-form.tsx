@@ -132,7 +132,7 @@ export function ExerciseForm({ date, initial, action, deleteAction, defaultToNow
               <span className="text-zinc-500">分</span>
             </div>
           </Row>
-          <Row name="memo" label="メモ" error={errorOf("memo")} description={`自分用のメモ(任意、${EXERCISE_MEMO_MAX_LENGTH} 文字まで)。AI には送りません。`}>
+          <Row name="memo" label="メモ" error={errorOf("memo")} description={`自分用のメモ(任意、${EXERCISE_MEMO_MAX_LENGTH} 文字まで)。AI レポートを作るときだけ、同意したうえで、AI に送って分析します。`}>
             <textarea
               id="exercise-memo"
               name="memo"

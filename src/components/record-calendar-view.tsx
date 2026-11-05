@@ -35,7 +35,7 @@ export function RecordCalendarView({ calendar }: { calendar: Calendar }) {
       </div>
 
       {/* 1 列 = 8 要素(月のラベル 1 + 曜日 7)を、列方向に並べる。最初の列は曜日のラベル */}
-      <div className="grid grid-flow-col grid-cols-[auto] grid-rows-[auto_repeat(7,auto)] auto-cols-[minmax(0,1fr)] gap-[2px] text-xs text-zinc-500">
+      <div className="grid grid-flow-col grid-cols-[auto] grid-rows-[auto_repeat(7,auto)] auto-cols-fr gap-0.5 text-xs text-zinc-500">
         <span aria-hidden />
         {WEEKDAY_LABELS.map((label, day) => (
           <span key={day} className="self-center pr-1 leading-none">

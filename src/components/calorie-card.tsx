@@ -2,7 +2,7 @@ import { CalorieChart, type CalorieChartPoint } from "@/components/calorie-chart
 import { median } from "@/lib/trend";
 
 // カロリーのカード: 見出しに摂取の中央値(過ぎた日だけ。書きかけの日は、まだ増えるので数えない)、凡例(棒と破線)、図、表の形の代替
-export function CalorieCard({ points, syncId }: { points: CalorieChartPoint[]; syncId: string }) {
+export function CalorieCard({ points, syncId, highlightDates }: { points: CalorieChartPoint[]; syncId: string; highlightDates?: readonly string[] }) {
   const recorded = points.filter((p) => p.intake !== null).length;
   const medianIntake = median(points.flatMap((p) => (p.intake === null || p.inProgress ? [] : [p.intake])));
   const kcal = (value: number) => `${value.toLocaleString("ja-JP")} kcal`;
@@ -37,7 +37,7 @@ export function CalorieCard({ points, syncId }: { points: CalorieChartPoint[]; s
               目標となるカロリー
             </span>
           </p>
-          <CalorieChart points={points} syncId={syncId} />
+          <CalorieChart points={points} syncId={syncId} highlightDates={highlightDates} />
           <p className="text-xs text-zinc-500">棒は食事の合計、破線は目標となるカロリー(目標カロリー + その日の運動)です。食事の記録が無い日は棒を出しません。薄い棒は、まだ増える今日の分です。</p>
           <details className="text-xs">
             <summary className="cursor-pointer text-zinc-500">表で見る</summary>

@@ -15,7 +15,7 @@ export const EXERCISE_LIMITS: Record<ExerciseLimitedField, Limit> = {
 // 1 日に記録できる運動の件数の上限(1 人のユーザーが、自分の日の詳細を重くしないための歯止め)
 export const EXERCISE_MAX_PER_DAY = 5;
 
-// メモ(任意。AI には送らない)の文字数の上限(列の長さと同じ)
+// メモ(任意。AI レポートを作るときだけ、同意したうえで AI に送る)の文字数の上限(列の長さと同じ)
 export const EXERCISE_MEMO_MAX_LENGTH = 200;
 
 // 運動の id(PostgreSQL の serial = int4)として、ありうる値か。範囲外の数を DB に渡すとエラー(500)になるので、手前で弾いて 404 にする

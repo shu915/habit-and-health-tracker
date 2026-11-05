@@ -1,6 +1,7 @@
 "use client";
 
 import { Bar, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { highlightLines } from "@/components/chart-highlights";
 import { formatDuration } from "@/lib/duration";
 import { nightClock, sleepAxis, sleepMedians, type SleepPoint } from "@/lib/trend";
 
@@ -9,7 +10,7 @@ import { nightClock, sleepAxis, sleepMedians, type SleepPoint } from "@/lib/tren
 // 高さを固定にするのは、サーバーが出す空の枠で場所を確保し、ブラウザで描かれてもレイアウトがずれないようにするため
 export const SLEEP_CHART_HEIGHT = 220;
 
-export function SleepChart({ points, syncId }: { points: SleepPoint[]; syncId?: string }) {
+export function SleepChart({ points, syncId, highlightDates = [] }: { points: SleepPoint[]; syncId?: string; highlightDates?: readonly string[] }) {
   const { domain, ticks } = sleepAxis(points);
   const shortDate = (date: string) => `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}`;
   const medians = sleepMedians(points);
@@ -24,6 +25,7 @@ export function SleepChart({ points, syncId }: { points: SleepPoint[]; syncId?: 
           {/* 縦軸は反転: 夜(前の夜の 18:00 側)が上、朝が下。目盛りは時刻で表す。interval={0} は、目盛りの間引きを止める(反転した軸では、いちばん上の目盛りが間引かれて消えた。目盛りの間隔は sleepAxis が 1〜2 時間で決めているので、重ならない) */}
           <YAxis reversed domain={domain} ticks={ticks} interval={0} tickFormatter={nightClock} tick={{ fill: "var(--viz-text)", fontSize: 11 }} tickLine={false} axisLine={false} width={40} />
           <Tooltip content={<SleepTooltip />} cursor={{ stroke: "var(--viz-ring)", strokeWidth: 1 }} />
+          {highlightLines(highlightDates)}
           {/* 帯(就寝〜起床)。細い棒(14px まで)、角は 4px 丸める */}
           <Bar dataKey="range" fill="var(--viz-series)" fillOpacity={0.85} maxBarSize={14} radius={4} isAnimationActive={false} />
           {/* 中間時刻: 細い線(記録の無い日は途切れる) */}

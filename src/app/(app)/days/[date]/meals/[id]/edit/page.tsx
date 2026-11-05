@@ -53,7 +53,7 @@ async function EditMealContent({ params }: Pick<PageProps<"/days/[date]/meals/[i
           保存されている内訳が読み取れませんでした。説明を確認して、推定し直してください。
         </p>
       )}
-      <MealForm date={date} mode="edit" mealId={meal.id} initial={{ eatenTime: meal.eatenTime, alias: meal.alias ?? "", estimate }} />
+      <MealForm date={date} mode="edit" mealId={meal.id} initial={{ eatenTime: meal.eatenTime, estimate }} />
     </div>
   );
 }

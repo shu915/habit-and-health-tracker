@@ -16,8 +16,9 @@ export function processingStage(seconds: number, hasPhoto: boolean): string {
   return "AI に送っています…";
 }
 
-export function ProcessingIndicator({ hasPhoto }: { hasPhoto: boolean }) {
-  const [seconds, setSeconds] = useState(0);
+// 動く帯・段階のメッセージ・経過秒数の、土台。stage: 経過秒数 → いまのメッセージ / note: 下に出す、待ち時間の説明
+function Indicator({ stage, note, startSeconds = 0 }: { stage: (seconds: number) => string; note: string; startSeconds?: number }) {
+  const [seconds, setSeconds] = useState(startSeconds);
 
   useEffect(() => {
     const timer = setInterval(() => setSeconds((value) => value + 1), 1000);
@@ -30,7 +31,7 @@ export function ProcessingIndicator({ hasPhoto }: { hasPhoto: boolean }) {
       <div className="flex items-center justify-between gap-4 text-sm">
         <span className="flex items-center gap-2">
           <span aria-hidden className="inline-block h-4 w-4 rounded-full border-2 border-zinc-300 border-t-zinc-900 motion-safe:animate-spin dark:border-zinc-600 dark:border-t-zinc-100" />
-          {processingStage(seconds, hasPhoto)}
+          {stage(seconds)}
         </span>
         <span aria-hidden className="tabular-nums text-zinc-500">
           {seconds} 秒
@@ -39,7 +40,27 @@ export function ProcessingIndicator({ hasPhoto }: { hasPhoto: boolean }) {
       <div aria-hidden className="relative h-1.5 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
         <div className="indeterminate-bar h-full w-1/3 rounded-full bg-zinc-900 dark:bg-zinc-100" />
       </div>
-      <p className="text-xs text-zinc-500">AI の推定には、10 秒ほどかかることがあります(写真は、もう少しかかります)。このままお待ちください。</p>
+      <p className="text-xs text-zinc-500">{note}</p>
     </div>
   );
+}
+
+// 食事の推定(3〜15 秒)
+export function ProcessingIndicator({ hasPhoto }: { hasPhoto: boolean }) {
+  return <Indicator stage={(seconds) => processingStage(seconds, hasPhoto)} note="AI の推定には、10 秒ほどかかることがあります(写真は、もう少しかかります)。このままお待ちください。" />;
+}
+
+// AI レポートの作成(30 秒ほど。長いときは 1〜2 分)。割合は出さない(嘘の進捗にしない)。待っている間に出す文言を、経過時間で切り替えるだけ
+export function reportProcessingStage(seconds: number): string {
+  if (seconds >= 90) return "混み合っているようです。まだ続けています。最長で 2 分ほどかかります…";
+  if (seconds >= 45) return "時間がかかっています。そのまま、もう少しお待ちください…";
+  if (seconds >= 20) return "気づきを文章にまとめています…";
+  if (seconds >= 8) return "睡眠・食事・運動のつながりを探しています…";
+  if (seconds >= 3) return "日ごとの記録を読んでいます…";
+  return "記録を集めて、AI に送っています…";
+}
+
+// startSeconds: すでに経過している秒数(ページを開き直したときに、続きから数える)
+export function ReportProcessingIndicator({ startSeconds = 0 }: { startSeconds?: number }) {
+  return <Indicator stage={reportProcessingStage} startSeconds={startSeconds} note="AI のレポートの作成には、30 秒ほどかかります(長いときは数分)。ページを閉じても、作成は続きます。あとで「AI レポート」から開けます。" />;
 }

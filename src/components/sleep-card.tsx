@@ -3,7 +3,7 @@ import { formatDuration, formatTimeOfDay } from "@/lib/duration";
 import { nightClock, sleepMedians, type SleepPoint } from "@/lib/trend";
 
 // 睡眠のカード: 見出しに睡眠時間の中央値と、就寝・起床・中間時刻の中央値、凡例(帯と線)、図、表の形の代替
-export function SleepCard({ points, syncId }: { points: SleepPoint[]; syncId: string }) {
+export function SleepCard({ points, syncId, highlightDates }: { points: SleepPoint[]; syncId: string; highlightDates?: readonly string[] }) {
   const recorded = points.filter((p) => p.range !== null).length;
   const medians = sleepMedians(points);
 
@@ -44,7 +44,7 @@ export function SleepCard({ points, syncId }: { points: SleepPoint[]; syncId: st
               中間時刻
             </span>
           </p>
-          <SleepChart points={points} syncId={syncId} />
+          <SleepChart points={points} syncId={syncId} highlightDates={highlightDates} />
           <p className="text-xs text-zinc-500">帯は就寝(上)から起床(下)まで、細い線は中間時刻です。</p>
           <details className="text-xs">
             <summary className="cursor-pointer text-zinc-500">表で見る</summary>

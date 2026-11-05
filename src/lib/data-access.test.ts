@@ -2,7 +2,9 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildCalorieTrend } from "./calorie-trend";
-import { todayString } from "./date";
+import { shiftDate, todayString } from "./date";
+import { defaultMealDayAndTime } from "./meal-time";
+import { AI_CONSENT_VERSION } from "./report-consent-text";
 import { energyOverview } from "./energy-overview";
 import { DAY_LIMITS, type DayLimitedField } from "./day-limits";
 import { EXERCISE_LIMITS, EXERCISE_MAX_PER_DAY } from "./exercise-limits";
@@ -69,6 +71,11 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
   let exerciseActionsModule: typeof import("@/app/(app)/days/[date]/exercises/actions");
   let positiveModule: typeof import("@/lib/positive-entries");
   let recordKindsModule: typeof import("@/lib/record-kinds");
+  let reportsModule: typeof import("@/lib/reports");
+  let reportConsentModule: typeof import("@/lib/report-consent");
+  let reportSourceModule: typeof import("@/lib/report-source");
+  let reportGenerateModule: typeof import("@/lib/report-generate");
+  let reportOptionsModule: typeof import("@/lib/report-options");
   let positiveActionsModule: typeof import("@/app/(app)/days/[date]/positive/actions");
   let aiLimitModule: typeof import("@/lib/ai-limit");
   // 全期間の記録(期間の絞り込みが要らないテスト用)
@@ -99,6 +106,11 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
     exerciseActionsModule = await import("@/app/(app)/days/[date]/exercises/actions");
     positiveModule = await import("@/lib/positive-entries");
     recordKindsModule = await import("@/lib/record-kinds");
+    reportsModule = await import("@/lib/reports");
+    reportConsentModule = await import("@/lib/report-consent");
+    reportSourceModule = await import("@/lib/report-source");
+    reportGenerateModule = await import("@/lib/report-generate");
+    reportOptionsModule = await import("@/lib/report-options");
     positiveActionsModule = await import("@/app/(app)/days/[date]/positive/actions");
     aiLimitModule = await import("@/lib/ai-limit");
     mealActionsModule = await import("@/app/(app)/days/[date]/meals/actions");
@@ -499,7 +511,6 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
     const meal: import("@/lib/meals").MealInput = {
       eatenTime: "12:30",
       dishName: "焼鮭定食",
-      alias: null,
       description: "焼鮭と白ご飯",
       items: [{ name: "焼鮭", amount: "1切れ", kcal: 150, proteinG: 18, fatG: 8, carbohydrateG: 0, fiberG: 0, saltG: 1.4 }],
       totals: { kcal: 432, proteinG: 24.3, fatG: 9.5, netCarbG: 57.7, fiberG: 1.2, saltG: 2.6 },
@@ -535,6 +546,401 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
       expect((await recordKindsModule.listRecordKinds("2026-10-01", "2026-10-31")).size).toBe(0);
       currentUser.id = USER_B;
       expect([...(await recordKindsModule.listRecordKinds("2026-10-01", "2026-10-31")).get("2026-10-10") ?? []].sort()).toEqual(["meal", "morning", "reflection"]);
+    });
+  });
+
+  describe("AI フィードバックのレポート(lib/report-*.ts、lib/reports.ts)", () => {
+    const mealDay = () => defaultMealDayAndTime().date;
+    // 今の食事の日の前日から、さかのぼって count 日ぶんの日付(新しい順)
+    const lastDays = (count: number) => Array.from({ length: count }, (_, i) => shiftDate(mealDay(), -(i + 1)));
+    const mealInput: import("@/lib/meals").MealInput = {
+      eatenTime: "12:30",
+      dishName: "秘密の焼鮭定食",
+      description: "焼鮭と白ご飯",
+      items: [{ name: "焼鮭", amount: "1切れ", kcal: 150, proteinG: 18, fatG: 8, carbohydrateG: 0, fiberG: 0, saltG: 1.4 }],
+      totals: { kcal: 900, proteinG: 24, fatG: 9, netCarbG: 57, fiberG: 1, saltG: 2 },
+    };
+    const readyProfile = () => profilesModule.updateProfile({ targetCalories: 1800, activityLevel: "1.375" });
+    // n か月前の月("YYYY-MM")と、その月の全日(新しい順)。n = 1 が先月
+    const monthAgo = (n: number) => {
+      let [year, month] = [Number(mealDay().slice(0, 4)), Number(mealDay().slice(5, 7))];
+      for (let i = 0; i < n; i++) {
+        month -= 1;
+        if (month === 0) [year, month] = [year - 1, 12];
+      }
+      return `${year}-${String(month).padStart(2, "0")}`;
+    };
+    const daysOfMonth = (value: string) => {
+      const last = Number(shiftDate(`${Number(value.slice(5, 7)) === 12 ? Number(value.slice(0, 4)) + 1 : value.slice(0, 4)}-${String(Number(value.slice(5, 7)) === 12 ? 1 : Number(value.slice(5, 7)) + 1).padStart(2, "0")}-01`, -1).slice(8, 10));
+      return Array.from({ length: last }, (_, i) => `${value}-${String(i + 1).padStart(2, "0")}`).reverse();
+    };
+    // 期間の日(新しい順の dates)に、朝の体重を入れて「記録のある日」にする。先頭の 2 日には食事と日記も入れる
+    const recordDays = async (dates: string[]) => {
+      for (const date of dates) await daysModule.saveDay(date, { morningWeightKg: "70.00", sleepBedtime: "01:00", sleepWakeTime: "07:00" });
+      await mealsModule.saveMeal(dates[0], mealInput);
+      await mealsModule.saveMeal(dates[0], { ...mealInput, eatenTime: "19:00" });
+      await daysModule.saveDay(dates[0], { reflection: "秘密の日記: 仕事が忙しかった。" });
+      await positiveModule.savePositiveEntries(dates[1], ["秘密の良かったこと"]);
+    };
+    const reportJson = (dates: string[]) =>
+      JSON.stringify({
+        sections: [{ key: "sleep", headline: "睡眠は安定しています", findings: [{ text: "毎日同じ時間に寝ています。", dates: [dates[0], "2000-01-01"] }] }],
+        overall: { summary: "まとめです。", good_points: ["続けられています"], watch_points: [], discoveries: [], next_steps: [{ text: "朝に歩いてみましょう", sections: ["exercise", "bogus"] }] },
+      });
+    // 作成: 「作成中」の行を保存してすぐ返し、AI の呼び出しは、予約された裏の処理として集める(本番は Next.js の after)。runTasks で、裏の処理を実行する
+    const startCreate = async (kind: string, consent = true, month?: string) => {
+      const tasks: (() => Promise<void>)[] = [];
+      const result = await reportGenerateModule.createReport(kind, { consent, month }, { schedule: (task) => void tasks.push(task) });
+      return { result, runTasks: () => Promise.all(tasks.map((task) => task())).then(() => undefined) };
+    };
+    const create = async (kind: string, consent = true, month?: string) => {
+      const started = await startCreate(kind, consent, month);
+      await started.runTasks();
+      return started.result;
+    };
+    const insertReport = async (userId: string, kind: "four-weeks" | "monthly", overrides: Partial<typeof schema.reports.$inferInsert> = {}) => {
+      const [row] = await dbModule.db
+        .insert(schema.reports)
+        .values({ userId, kind, periodStart: "2026-01-01", periodEnd: "2026-01-07", status: "done", content: JSON.parse(reportJson(["2026-01-01"])), badges: [], snapshot: {}, consentVersion: AI_CONSENT_VERSION, ...overrides })
+        .returning({ id: schema.reports.id });
+      return row.id;
+    };
+
+    it("同意: 未同意でチェックが無ければ、AI を呼ばずに断る。チェックがあれば、同意を保存して進む。撤回すると未同意に戻る", async () => {
+      currentUser.id = USER_A;
+      await readyProfile();
+      expect((await reportConsentModule.getAiConsent()).consented).toBe(false);
+      const refused = await create("four-weeks", false);
+      expect(refused).toMatchObject({ ok: false, reason: "consent" });
+      expect(ai.complete).not.toHaveBeenCalled();
+      expect(await dbModule.db.select().from(schema.reports)).toHaveLength(0);
+
+      await reportConsentModule.grantAiConsent();
+      expect(await reportConsentModule.getAiConsent()).toMatchObject({ consented: true, version: AI_CONSENT_VERSION });
+      await reportConsentModule.revokeAiConsent();
+      expect(await reportConsentModule.getAiConsent()).toMatchObject({ consented: false, version: null, at: null });
+    });
+
+    it("記録のある日が足りなければ、AI を呼ばず、回数も数えず、行も作らずに、あと何日かを返す(同意のチェックは保存される)", async () => {
+      currentUser.id = USER_A;
+      await readyProfile();
+      await recordDays(lastDays(19)); // 4 週間は 20 日が要る
+      const result = await create("four-weeks", true);
+      expect(result).toMatchObject({ ok: false, reason: "not-enough" });
+      expect(result.ok ? "" : result.message).toContain("あと 1 日");
+      expect(ai.complete).not.toHaveBeenCalled();
+      expect(await dbModule.db.select().from(schema.aiRequests)).toHaveLength(0);
+      expect(await dbModule.db.select().from(schema.reports)).toHaveLength(0);
+      expect((await reportConsentModule.getAiConsent()).consented).toBe(true);
+    });
+
+    it("作る: すぐ「作成中」の行を返し、裏で AI を呼んで「できた」にする。日記と食事の名前は AI に渡すが、保存するのは検証した返事・バッジ・数字のスナップショットだけ", async () => {
+      currentUser.id = USER_A;
+      await readyProfile();
+      const dates = lastDays(28);
+      await recordDays(dates);
+      ai.complete.mockResolvedValue(reportJson(dates));
+
+      const started = await startCreate("four-weeks");
+      expect(started.result.ok).toBe(true);
+      if (!started.result.ok) return;
+      // 裏の処理を実行する前は、作成中。AI は、まだ呼ばれていない
+      expect(ai.complete).not.toHaveBeenCalled();
+      expect(await reportsModule.getReport(started.result.id)).toMatchObject({ status: "creating", content: null });
+      await started.runTasks();
+
+      // AI に渡した入力には、文章が入っている(同意したうえでの分析のため)
+      const call = ai.complete.mock.calls[0][0] as { messages: { role: string; content: string }[] };
+      expect(call.messages[1].content).toContain("秘密の日記: 仕事が忙しかった。");
+      expect(call.messages[1].content).toContain("秘密の良かったこと");
+      expect(call.messages[1].content).toContain("秘密の焼鮭定食");
+
+      const report = await reportsModule.getReport(started.result.id);
+      expect(report?.status).toBe("done");
+      expect(report?.kind).toBe("four-weeks");
+      expect(report?.periodEnd).toBe(dates[0]);
+      expect(report?.content?.sections[0].findings[0].dates).toEqual([dates[0]]); // 期間の外の日付は捨てる
+      expect(report?.content?.overall.next_steps[0].sections).toEqual(["exercise"]); // 決めていないキーは捨てる
+      expect(report?.snapshot?.dates).toHaveLength(28);
+      expect(report?.consentVersion).toBe(AI_CONSENT_VERSION);
+      expect(await dbModule.db.select().from(schema.aiRequests)).toHaveLength(0); // レポートは、食事の推定の回数には数えない(別の決まり)
+
+      // 保存した行(スナップショット)に、日記・良かったこと・食事の名前の文章は入っていない
+      const [row] = await dbModule.db.select().from(schema.reports);
+      const snapshotText = JSON.stringify(row.snapshot);
+      for (const secret of ["秘密の日記", "秘密の良かったこと", "秘密の焼鮭定食"]) expect(snapshotText).not.toContain(secret);
+    });
+
+    it("随時レポート(直近 4 週間)は、1 日に 1 回まで。2 回目は、AI を呼ばず、行も作らずに断る", async () => {
+      currentUser.id = USER_A;
+      await readyProfile();
+      await recordDays(lastDays(28));
+      ai.complete.mockResolvedValue(reportJson(lastDays(28)));
+      expect(await create("four-weeks")).toMatchObject({ ok: true });
+      expect(await reportsModule.isOnDemandUsedToday()).toBe(true);
+      ai.complete.mockClear();
+      expect(await create("four-weeks")).toMatchObject({ ok: false, reason: "daily-limit" });
+      expect(ai.complete).not.toHaveBeenCalled();
+      expect(await dbModule.db.select().from(schema.reports)).toHaveLength(1);
+    });
+
+    it("1 日 1 回は、ユーザーごと。ほかのユーザーが作っていても、自分は作れる。昨日作ったものは数えない", async () => {
+      currentUser.id = USER_B;
+      await insertReport(USER_B, "four-weeks", { createdAt: new Date() }); // B が今日作った
+      currentUser.id = USER_A;
+      await readyProfile();
+      expect(await reportsModule.isOnDemandUsedToday()).toBe(false);
+      await insertReport(USER_A, "four-weeks", { createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000) }); // 2 日前
+      expect(await reportsModule.isOnDemandUsedToday()).toBe(false);
+      currentUser.id = USER_B;
+      expect(await reportsModule.isOnDemandUsedToday()).toBe(true);
+    });
+
+    it("失敗した作成は、今日の回数に数えない。もう一度作れて、失敗の行は入れ替わる。前の「できた」レポートは、新しいのができるまで残る", async () => {
+      currentUser.id = USER_A;
+      await readyProfile();
+      const dates = lastDays(28);
+      await recordDays(dates);
+      const oldId = await insertReport(USER_A, "four-weeks", { periodStart: "2026-01-01", periodEnd: "2026-01-07", createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000) });
+
+      const { OpenRouterError } = await import("@/lib/openrouter");
+      ai.complete.mockRejectedValueOnce(new OpenRouterError("network", "接続できない"));
+      const failed = await create("four-weeks");
+      expect(failed.ok).toBe(true); // 作成の開始は成功。失敗は、裏の処理の結果
+      const failedId = failed.ok ? failed.id : -1;
+      expect(await reportsModule.getReport(failedId)).toMatchObject({ status: "failed", content: null });
+      expect((await reportsModule.getReport(failedId))?.errorMessage).toContain("AI に接続できませんでした");
+      expect((await reportsModule.getReport(oldId))?.status).toBe("done"); // 前のレポートは残っている
+      expect(await reportsModule.isOnDemandUsedToday()).toBe(false); // 失敗は数えない
+
+      ai.complete.mockResolvedValueOnce(reportJson(dates));
+      const retried = await create("four-weeks");
+      expect(retried.ok).toBe(true);
+      const list = await reportsModule.listReports();
+      expect(list.map((r) => [r.kind, r.status])).toEqual([["four-weeks", "done"]]); // 失敗の行も、古い行も、新しいのに入れ替わった
+      expect(list[0].id).toBe(retried.ok ? retried.id : -1);
+    });
+
+    it("同じ種類が作成中なら、新しく作らず(AI が二重に呼ばれない)、作成中の id を返す", async () => {
+      currentUser.id = USER_A;
+      await readyProfile();
+      const dates = lastDays(28);
+      await recordDays(dates);
+      ai.complete.mockResolvedValue(reportJson(dates));
+      const first = await startCreate("four-weeks");
+      const second = await startCreate("four-weeks"); // 連打(最初の裏の処理は、まだ実行されていない)
+      expect(first.result.ok).toBe(true);
+      expect(second.result).toMatchObject({ ok: false, reason: "in-progress", existingId: first.result.ok ? first.result.id : -1 });
+      await first.runTasks();
+      await second.runTasks();
+      expect(ai.complete).toHaveBeenCalledTimes(1);
+      expect(await dbModule.db.select().from(schema.reports)).toHaveLength(1);
+    });
+
+    it("作成中のまま、一定時間たった行は、止まったとみなして失敗にする(いつまでも「作成中」で残さない)。そのあと、もう一度作れる", async () => {
+      currentUser.id = USER_A;
+      await readyProfile();
+      const dates = lastDays(28);
+      await recordDays(dates);
+      const staleId = await insertReport(USER_A, "four-weeks", { status: "creating", content: null, createdAt: new Date(Date.now() - 20 * 60 * 1000) });
+      const freshId = await insertReport(USER_A, "monthly", { status: "creating", content: null, periodStart: "2026-01-01", periodEnd: "2026-01-31" }); // 新しい作成中(月次なので、今日の随時レポートの回数には数えない)
+
+      expect(await reportsModule.getReport(staleId)).toMatchObject({ status: "failed", errorMessage: "作成が途中で止まりました。もう一度作ってください。" });
+      expect((await reportsModule.getReport(freshId))?.status).toBe("creating"); // 新しい作成中は、そのまま
+      ai.complete.mockResolvedValue(reportJson(dates));
+      expect(await create("four-weeks")).toMatchObject({ ok: true }); // 止まった行があっても、作れる
+    });
+
+    it("AI の返事が形違い・想定外の例外でも、裏の処理は例外を外に出さず、失敗にして理由を残す(「作成中」のまま残さない)", async () => {
+      currentUser.id = USER_A;
+      await readyProfile();
+      await recordDays(lastDays(28));
+      ai.complete.mockResolvedValueOnce("これは JSON ではありません");
+      const bad = await create("four-weeks");
+      expect(await reportsModule.getReport(bad.ok ? bad.id : -1)).toMatchObject({ status: "failed" });
+      ai.complete.mockRejectedValueOnce(new Error("想定外"));
+      const unexpected = await create("four-weeks");
+      expect(await reportsModule.getReport(unexpected.ok ? unexpected.id : -1)).toMatchObject({ status: "failed" });
+      expect((await reportsModule.listReports()).every((r) => r.status === "failed")).toBe(true);
+    });
+
+    it("月次: 選んだ過去の月で作れる。同じ月は 1 回だけ(2 回目は AI を呼ばず、あるレポートの id を返す)。別の月は、別に作れる", async () => {
+      currentUser.id = USER_A;
+      await readyProfile();
+      const lastMonth = monthAgo(1);
+      const earlier = monthAgo(3); // 先月より前の、過去の月も選べる
+      await recordDays(daysOfMonth(lastMonth));
+      await recordDays(daysOfMonth(earlier));
+      ai.complete.mockResolvedValue(reportJson(daysOfMonth(lastMonth)));
+
+      const first = await create("monthly", true, lastMonth);
+      expect(first.ok).toBe(true);
+      const report = await reportsModule.getReport(first.ok ? first.id : -1);
+      expect(report).toMatchObject({ kind: "monthly", status: "done", periodStart: `${lastMonth}-01` });
+      expect(report?.periodEnd).toBe(daysOfMonth(lastMonth)[0]); // その月の末日
+
+      ai.complete.mockClear();
+      expect(await create("monthly", true, lastMonth)).toMatchObject({ ok: false, reason: "exists", existingId: first.ok ? first.id : -1 }); // 同じ月は 1 回だけ
+      expect(ai.complete).not.toHaveBeenCalled();
+      expect((await reportsModule.findMonthlyReport(`${lastMonth}-01`))?.status).toBe("done");
+
+      ai.complete.mockResolvedValue(reportJson(daysOfMonth(earlier)));
+      const other = await create("monthly", true, earlier); // 別の月は、別に作れる
+      expect(other.ok).toBe(true);
+      expect((await reportsModule.listReports()).filter((r) => r.kind === "monthly").map((r) => r.periodStart).sort()).toEqual([`${earlier}-01`, `${lastMonth}-01`].sort());
+    });
+
+    it("月次: 今の月・未来の月・月が無い・形が違う月は、AI を呼ばず、行も作らずに断る。記録が足りない月も断る", async () => {
+      currentUser.id = USER_A;
+      await readyProfile();
+      for (const month of [mealDay().slice(0, 7), shiftDate(mealDay(), 40).slice(0, 7), undefined, "2026-13", "先月", "2026-1"]) {
+        expect(await create("monthly", true, month)).toMatchObject({ ok: false, reason: "invalid" });
+      }
+      const lastMonth = monthAgo(1);
+      await recordDays(daysOfMonth(lastMonth).slice(0, 10)); // 記録は 10 日だけ(7 割に届かない)
+      expect(await create("monthly", true, lastMonth)).toMatchObject({ ok: false, reason: "not-enough" });
+      expect(ai.complete).not.toHaveBeenCalled();
+      expect(await dbModule.db.select().from(schema.reports)).toHaveLength(0);
+    });
+
+    it("想定外の失敗のログには、エラーの種類だけを出し、メッセージ(日記の内容などが入りうる)は出さない", async () => {
+      currentUser.id = USER_A;
+      await readyProfile();
+      await recordDays(lastDays(28));
+      const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
+      ai.complete.mockRejectedValueOnce(new Error("秘密の日記: 仕事が忙しかった。(SQL のパラメータに入った内容)"));
+      const made = await create("four-weeks");
+      expect(await reportsModule.getReport(made.ok ? made.id : -1)).toMatchObject({ status: "failed" });
+      const logged = JSON.stringify(errorLog.mock.calls);
+      expect(errorLog).toHaveBeenCalled();
+      expect(logged).not.toContain("秘密の日記");
+      expect(logged).not.toContain("SQL のパラメータ");
+      errorLog.mockRestore();
+    });
+
+    it("同時に作成を押しても(実 DB で並行に実行)、作られるのは 1 件だけ。同じ月の定期も、二重にならない。AI の裏の処理も、1 回だけ", async () => {
+      currentUser.id = USER_A;
+      await readyProfile();
+      await recordDays(lastDays(28));
+      const month = monthAgo(1);
+      await recordDays(daysOfMonth(month));
+      ai.complete.mockResolvedValue(reportJson(lastDays(28)));
+
+      // 随時: 10 本を同時に
+      const onDemand = await Promise.all(Array.from({ length: 10 }, () => startCreate("four-weeks")));
+      expect(onDemand.filter((r) => r.result.ok)).toHaveLength(1);
+      expect(onDemand.filter((r) => !r.result.ok && r.result.reason === "in-progress")).toHaveLength(9);
+      // 月次: 同じ月を 10 本同時に
+      const monthly = await Promise.all(Array.from({ length: 10 }, () => startCreate("monthly", true, month)));
+      expect(monthly.filter((r) => r.result.ok)).toHaveLength(1);
+      expect(monthly.filter((r) => !r.result.ok && r.result.reason === "in-progress")).toHaveLength(9);
+
+      await Promise.all([...onDemand, ...monthly].map((r) => r.runTasks()));
+      expect(ai.complete).toHaveBeenCalledTimes(2); // 随時 1 回 + 月次 1 回
+      expect(await dbModule.db.select().from(schema.reports)).toHaveLength(2);
+    });
+
+    it("月次: 作成中は、同じ月だけが二重にならない(別の月は、同時に作れる)", async () => {
+      currentUser.id = USER_A;
+      await readyProfile();
+      const [m1, m2] = [monthAgo(1), monthAgo(2)];
+      await recordDays(daysOfMonth(m1));
+      await recordDays(daysOfMonth(m2));
+      ai.complete.mockResolvedValue(reportJson(daysOfMonth(m1)));
+      const a1 = await startCreate("monthly", true, m1);
+      const a2 = await startCreate("monthly", true, m1); // 同じ月の連打
+      const b1 = await startCreate("monthly", true, m2); // 別の月
+      expect(a1.result.ok).toBe(true);
+      expect(a2.result).toMatchObject({ ok: false, reason: "in-progress", existingId: a1.result.ok ? a1.result.id : -1 });
+      expect(b1.result.ok).toBe(true);
+      await Promise.all([a1.runTasks(), b1.runTasks()]);
+      expect(await dbModule.db.select().from(schema.reports)).toHaveLength(2);
+    });
+
+    it("getReportOptions: 選べる月は、記録のある最初の月から先月まで(新しい月が先)。月ごとに、作れる条件・作成済み・作成中が分かる。随時の状態も出る", async () => {
+      currentUser.id = USER_A;
+      await readyProfile();
+      expect((await reportOptionsModule.getReportOptions()).months).toEqual([]); // 記録が無ければ、選べる月は無い
+      const [m1, m2, m3] = [monthAgo(1), monthAgo(2), monthAgo(3)];
+      await recordDays(daysOfMonth(m1));
+      await recordDays(daysOfMonth(m2).slice(0, 5)); // 記録が足りない月
+      await recordDays(daysOfMonth(m3));
+      await insertReport(USER_A, "monthly", { periodStart: `${m3}-01`, periodEnd: daysOfMonth(m3)[0] }); // 作成済み
+      const options = await reportOptionsModule.getReportOptions();
+      expect(options.months.map((m) => m.month)).toEqual([m1, m2, m3]); // 新しい月が先
+      expect(options.months[0]).toMatchObject({ month: m1, existingId: null, creatingId: null });
+      expect(options.months[0].eligibility.ok).toBe(true);
+      expect(options.months[1].eligibility.ok).toBe(false); // 5 日しか記録が無い
+      expect(options.months[2].existingId).not.toBeNull();
+      expect(options.onDemand).toMatchObject({ creatingId: null, blockedToday: false });
+      expect(options.onDemand.period.days).toBe(28);
+
+      currentUser.id = USER_B; // ほかのユーザーの記録・レポートは混ざらない
+      expect((await reportOptionsModule.getReportOptions()).months).toEqual([]);
+    });
+
+    it("決まっていない種類は、プログラムの誤りとして例外にする", async () => {
+      currentUser.id = USER_A;
+      await expect(create("year")).rejects.toThrow("invalid kind");
+    });
+
+    it("completeReport: できた(done)になったら、もう一度呼んでも変わらない。今すぐは、同じ種類の前のレポートを消して最新の 1 件だけを残す。ほかのユーザーの行は触らない", async () => {
+      currentUser.id = USER_A;
+      await readyProfile();
+      const content = JSON.parse(reportJson(["2026-01-01"]));
+      const oldId = await insertReport(USER_A, "four-weeks", { periodStart: "2025-12-01", periodEnd: "2025-12-07" });
+      const otherId = await insertReport(USER_B, "four-weeks", { periodStart: "2025-12-01", periodEnd: "2025-12-07" });
+      const creatingId = await insertReport(USER_A, "four-weeks", { status: "creating", content: null, periodStart: "2026-01-01", periodEnd: "2026-01-07" });
+      const { parseReportContent } = await import("@/lib/report-content");
+      const parsed = parseReportContent(JSON.stringify(content), { start: "2026-01-01", end: "2026-01-07" });
+      if (!parsed.ok) throw new Error("fixture");
+
+      expect(await reportsModule.completeReport(USER_A, creatingId, parsed.content)).toBe(true);
+      expect(await reportsModule.completeReport(USER_A, creatingId, parsed.content)).toBe(false); // すでに done
+      expect((await reportsModule.getReport(oldId))).toBeNull(); // 前のレポートは消えた
+      expect((await reportsModule.getReport(creatingId))?.status).toBe("done");
+      currentUser.id = USER_B;
+      expect((await reportsModule.getReport(otherId))?.status).toBe("done"); // B の行は残る
+      currentUser.id = USER_A;
+      expect(await reportsModule.completeReport(USER_B, creatingId, parsed.content)).toBe(false); // 別のユーザーの id では、更新できない
+    });
+
+    it("ほかのユーザーのレポートは、一覧にも読み出しにも出ない。未ログインは /login へ", async () => {
+      currentUser.id = USER_A;
+      await readyProfile();
+      await recordDays(lastDays(28));
+      ai.complete.mockResolvedValue(reportJson(lastDays(28)));
+      const made = await create("four-weeks");
+      expect(made.ok).toBe(true);
+      const id = made.ok ? made.id : -1;
+
+      currentUser.id = USER_B;
+      expect(await reportsModule.listReports()).toEqual([]);
+      expect(await reportsModule.getReport(id)).toBeNull();
+      currentUser.id = USER_A;
+      expect((await reportsModule.getReport(id))?.id).toBe(id);
+      expect(await reportsModule.getReport(0)).toBeNull();
+      expect(await reportsModule.getReport(1.5)).toBeNull();
+      currentUser.id = "";
+      await expect(reportsModule.listReports()).rejects.toThrow("NEXT_REDIRECT:/login");
+    });
+
+    it("loadReportSource: 期間の文章を、自分の分だけ返す(空白だけの気づきは除く)", async () => {
+      currentUser.id = USER_B;
+      await readyProfile();
+      await daysModule.saveDay("2026-10-12", { reflection: "B の日記" });
+
+      currentUser.id = USER_A;
+      await readyProfile();
+      await daysModule.saveDay("2026-10-12", { reflection: "A の日記" });
+      await daysModule.saveDay("2026-10-13", { reflection: "   " });
+      await mealsModule.saveMeal("2026-10-12", mealInput);
+      await exercisesModule.saveExercise("2026-10-12", { type: "walk", intensity: "normal", minutes: 30, startTime: "07:00", memo: "朝の散歩" });
+      const source = await reportSourceModule.loadReportSource("2026-10-10", "2026-10-15");
+      expect(source.reflections).toEqual([{ date: "2026-10-12", text: "A の日記" }]);
+      expect(source.meals.map((m) => m.name)).toEqual(["秘密の焼鮭定食"]);
+      expect(source.exercises).toEqual([{ date: "2026-10-12", type: "walk", intensity: "normal", minutes: 30, startTime: "07:00", memo: "朝の散歩" }]);
+      await expect(reportSourceModule.loadReportSource("2026-02-30", "2026-10-15")).rejects.toThrow("invalid date");
     });
   });
 
@@ -978,7 +1384,6 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
     const input = (overrides: Partial<import("@/lib/meals").MealInput> = {}): import("@/lib/meals").MealInput => ({
       eatenTime: "12:30",
       dishName: "焼鮭定食",
-      alias: null,
       description: "焼鮭と白ご飯",
       items: [item],
       totals: { kcal: 432, proteinG: 24.3, fatG: 9.5, netCarbG: 57.7, fiberG: 1.2, saltG: 2.6 },
@@ -1004,7 +1409,7 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
       expect(basis.profile.activityLevel).toBe("1.725");
     });
 
-    it("日ごとの摂取: 食事の kcal を日ごとに足して、食事のある日だけを古い順に返す(自分の食事だけ)", async () => {
+    it("日ごとの摂取: 食事の kcal を日ごとに足し、食事の回数も数えて、食事のある日だけを古い順に返す(自分の食事だけ)", async () => {
       currentUser.id = USER_B;
       await mealsModule.saveMeal("2026-04-11", input({ totals: { kcal: 5000, proteinG: 1, fatG: 1, netCarbG: 1, fiberG: null, saltG: null } }));
 
@@ -1016,8 +1421,8 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
       await mealsModule.saveMeal("2026-04-30", input()); // 期間の外
 
       expect(await mealsModule.listDailyIntake("2026-04-10", "2026-04-15")).toEqual([
-        { date: "2026-04-10", kcal: 432 },
-        { date: "2026-04-12", kcal: 1200 },
+        { date: "2026-04-10", kcal: 432, mealCount: 1 },
+        { date: "2026-04-12", kcal: 1200, mealCount: 2 },
       ]);
       await expect(mealsModule.listDailyIntake("2026-02-30", "2026-04-15")).rejects.toThrow("invalid date");
     });
@@ -1030,7 +1435,6 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
         userId: USER_A,
         eatenTime: "12:30",
         dishName: "焼鮭定食",
-        alias: null,
         kcal: 432,
         proteinG: "24.3",
         fatG: "9.5",
@@ -1086,8 +1490,8 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
       expect(found?.date).toBe(DATE);
       expect(found?.meal.dishName).toBe("焼鮭定食");
 
-      const updated = await mealsModule.updateMeal(meal.id, input({ eatenTime: "13:00", alias: "ホテルの鮭定食", totals: { ...input().totals, kcal: 900 } }));
-      expect(updated).toMatchObject({ id: meal.id, dayId: meal.dayId, eatenTime: "13:00", alias: "ホテルの鮭定食", kcal: 900 });
+      const updated = await mealsModule.updateMeal(meal.id, input({ eatenTime: "13:00", totals: { ...input().totals, kcal: 900 } }));
+      expect(updated).toMatchObject({ id: meal.id, dayId: meal.dayId, eatenTime: "13:00", kcal: 900 });
       expect(updated?.createdAt).toEqual(meal.createdAt);
 
       expect(await mealsModule.deleteMeal(meal.id)).toBe(true);
@@ -1167,10 +1571,10 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
       expect(await mealsModule.listMealsOfDay(DATE)).toEqual([]);
     });
 
-    it("過去の料理名の一覧: 最近使った順で、重複なし、別名(alias)は入れず、自分の分だけ、件数の上限がある", async () => {
+    it("過去の料理名の一覧: 最近使った順で、重複なし、自分の分だけ、件数の上限がある", async () => {
       currentUser.id = USER_A;
       await mealsModule.saveMeal("2026-04-01", input({ dishName: "カレー" }));
-      await mealsModule.saveMeal("2026-04-02", input({ dishName: "焼鮭定食", alias: "ホテルの鮭" }));
+      await mealsModule.saveMeal("2026-04-02", input({ dishName: "焼鮭定食" }));
       await mealsModule.saveMeal("2026-04-03", input({ dishName: "カレー" })); // 最後に使った
       currentUser.id = USER_B;
       await mealsModule.saveMeal("2026-04-04", input({ dishName: "他人の料理" }));
@@ -1181,84 +1585,102 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
     });
   });
 
-  describe("AI の呼び出しの回数制限(lib/ai-limit.ts)", () => {
-    // n 件の記録を、ago 前に作る(DB の now() 基準。アプリと DB のタイムゾーンの違いに左右されない)
-    const seed = async (userId: string, n: number, ago: string) => {
+  describe("AI の呼び出しの回数制限(lib/ai-limit.ts。食事の推定。1 日 10 回、03:00 区切り)", () => {
+    // n 件の記録を、今の食事の日の始まりから offset ずらした時刻に作る(DB の now() 基準。例: "-1 minute" は、前の食事の日の最後)
+    const seed = async (userId: string, n: number, offset: string) => {
       const { sql } = await import("drizzle-orm");
-      await dbModule.db.insert(schema.aiRequests).values(Array.from({ length: n }, () => ({ userId, createdAt: sql`now() - ${ago}::interval` })));
+      const { startOfMealDay } = await import("./meal-day-sql");
+      await dbModule.db.insert(schema.aiRequests).values(Array.from({ length: n }, () => ({ userId, createdAt: sql`${startOfMealDay} + ${offset}::interval` })));
     };
     const countOf = async (userId: string) => {
       const { eq } = await import("drizzle-orm");
       return (await dbModule.db.select().from(schema.aiRequests).where(eq(schema.aiRequests.userId, userId))).length;
     };
+    it("上限は 1 日 10 回(悪用を防ぐための保険)", async () => {
+      expect(aiLimitModule.AI_LIMITS.perDay).toBe(10);
+      expect(aiLimitModule.AI_LIMIT_MESSAGE).toContain("10 回まで");
+      expect(aiLimitModule.AI_LIMIT_MESSAGE).toContain("明日の 3:00 以降");
+    });
 
     it("上限の回数までは通り、超えたら通さず、記録も増やさない", async () => {
       currentUser.id = USER_A;
-      for (let i = 0; i < aiLimitModule.AI_LIMITS.perHour; i++) {
-        expect(await aiLimitModule.consumeAiRequest(), `${i + 1} 回目は通るはず`).toEqual({ ok: true });
+      for (let i = 0; i < aiLimitModule.AI_LIMITS.perDay; i++) {
+        expect((await aiLimitModule.consumeAiRequest()).ok, `${i + 1} 回目は通るはず`).toBe(true);
       }
       const over = await aiLimitModule.consumeAiRequest();
       expect(over).toEqual({ ok: false, message: aiLimitModule.AI_LIMIT_MESSAGE });
-      expect(await countOf(USER_A)).toBe(aiLimitModule.AI_LIMITS.perHour);
+      expect(await countOf(USER_A)).toBe(aiLimitModule.AI_LIMITS.perDay);
     });
 
     it("同時に何本送っても、通るのは上限まで(並列の要求が、すべて「0 件」を見て通らない)", async () => {
       currentUser.id = USER_A;
-      const results = await Promise.all(Array.from({ length: 60 }, () => aiLimitModule.consumeAiRequest()));
-
-      expect(results.filter((result) => result.ok)).toHaveLength(aiLimitModule.AI_LIMITS.perHour);
-      expect(results.filter((result) => !result.ok)).toHaveLength(60 - aiLimitModule.AI_LIMITS.perHour);
-      expect(await countOf(USER_A)).toBe(aiLimitModule.AI_LIMITS.perHour); // 記録も、上限までしか増えない
+      const results = await Promise.all(Array.from({ length: 40 }, () => aiLimitModule.consumeAiRequest()));
+      expect(results.filter((result) => result.ok)).toHaveLength(aiLimitModule.AI_LIMITS.perDay);
+      expect(results.filter((result) => !result.ok)).toHaveLength(40 - aiLimitModule.AI_LIMITS.perDay);
+      expect(await countOf(USER_A)).toBe(aiLimitModule.AI_LIMITS.perDay); // 記録も、上限までしか増えない
     });
 
-    it("同時に送っても、残りの回数だけ通る(すでに 15 回使っていれば、残り 5 回)", async () => {
-      await seed(USER_A, 15, "10 minutes");
+    it("同時に送っても、残りの回数だけ通る(すでに 7 回使っていれば、残り 3 回)", async () => {
+      await seed(USER_A, 7, "1 minute");
       currentUser.id = USER_A;
-      const results = await Promise.all(Array.from({ length: 30 }, () => aiLimitModule.consumeAiRequest()));
-
-      expect(results.filter((result) => result.ok)).toHaveLength(aiLimitModule.AI_LIMITS.perHour - 15);
-      expect(await countOf(USER_A)).toBe(aiLimitModule.AI_LIMITS.perHour);
+      const results = await Promise.all(Array.from({ length: 20 }, () => aiLimitModule.consumeAiRequest()));
+      expect(results.filter((result) => result.ok)).toHaveLength(aiLimitModule.AI_LIMITS.perDay - 7);
+      expect(await countOf(USER_A)).toBe(aiLimitModule.AI_LIMITS.perDay);
     });
 
-    it("同時に送る要求は、ユーザーごとに別々に数える(一方が使い切っても、他方は上限まで通る)", async () => {
-      // currentUser は 1 つなので、ユーザーごとに順に並列で呼ぶ(各ユーザーの 30 本は、それぞれ同時)
-      currentUser.id = USER_A;
-      const a = await Promise.all(Array.from({ length: 30 }, () => aiLimitModule.consumeAiRequest()));
-      currentUser.id = USER_B;
-      const b = await Promise.all(Array.from({ length: 30 }, () => aiLimitModule.consumeAiRequest()));
-
-      expect(a.filter((result) => result.ok)).toHaveLength(aiLimitModule.AI_LIMITS.perHour);
-      expect(b.filter((result) => result.ok)).toHaveLength(aiLimitModule.AI_LIMITS.perHour);
-    });
-
-    it("制限はユーザーごと(他のユーザーが使い切っても、自分は通る)", async () => {
-      await seed(USER_A, aiLimitModule.AI_LIMITS.perHour, "1 minute");
+    it("制限はユーザーごと(他のユーザーが使い切っても、自分は通る。同時に送っても、別々に数える)", async () => {
+      await seed(USER_A, aiLimitModule.AI_LIMITS.perDay, "1 minute");
       currentUser.id = USER_A;
       expect((await aiLimitModule.consumeAiRequest()).ok).toBe(false);
       currentUser.id = USER_B;
-      expect(await aiLimitModule.consumeAiRequest()).toEqual({ ok: true });
+      const b = await Promise.all(Array.from({ length: 20 }, () => aiLimitModule.consumeAiRequest()));
+      expect(b.filter((result) => result.ok)).toHaveLength(aiLimitModule.AI_LIMITS.perDay);
     });
 
-    it("1 時間より前の記録は、1 時間の上限に数えない", async () => {
-      await seed(USER_A, aiLimitModule.AI_LIMITS.perHour, "2 hours");
+    it("「1 日」は、食事の日(03:00 区切り)。今の食事の日の始まりより前の記録は数えず、始まり以降は数える", async () => {
+      await seed(USER_A, aiLimitModule.AI_LIMITS.perDay, "-1 minute"); // 前の食事の日の最後
       currentUser.id = USER_A;
-      expect(await aiLimitModule.consumeAiRequest()).toEqual({ ok: true });
-    });
-
-    it("1 日の上限もある(1 時間より前でも、1 日以内なら数える)", async () => {
-      await seed(USER_A, aiLimitModule.AI_LIMITS.perDay, "3 hours");
-      currentUser.id = USER_A;
+      expect((await aiLimitModule.consumeAiRequest()).ok).toBe(true);
+      await dbModule.db.delete(schema.aiRequests);
+      await seed(USER_A, aiLimitModule.AI_LIMITS.perDay, "1 minute"); // 今の食事の日の始まりの直後
       expect((await aiLimitModule.consumeAiRequest()).ok).toBe(false);
     });
 
-    it("1 日より前の記録は、1 日の上限に数えない", async () => {
-      await seed(USER_A, aiLimitModule.AI_LIMITS.perDay, "25 hours");
+    it("失敗は数えない: release() を呼ぶと、数えた 1 回分が戻る。何度呼んでも二重には戻らず、ほかの記録は消えない", async () => {
       currentUser.id = USER_A;
-      expect(await aiLimitModule.consumeAiRequest()).toEqual({ ok: true });
+      await seed(USER_A, 3, "1 minute");
+      const first = await aiLimitModule.consumeAiRequest();
+      expect(first.ok).toBe(true);
+      if (!first.ok) return;
+      expect(await countOf(USER_A)).toBe(4);
+      await first.release();
+      expect(await countOf(USER_A)).toBe(3);
+      await first.release();
+      expect(await countOf(USER_A)).toBe(3); // 二重には戻らない
+    });
+
+    it("上限いっぱいでも、失敗して戻した分は、また使える", async () => {
+      currentUser.id = USER_A;
+      const used = [];
+      for (let i = 0; i < aiLimitModule.AI_LIMITS.perDay; i++) used.push(await aiLimitModule.consumeAiRequest());
+      expect((await aiLimitModule.consumeAiRequest()).ok).toBe(false);
+      const last = used[used.length - 1];
+      if (last.ok) await last.release(); // 最後の 1 回が失敗だった
+      expect((await aiLimitModule.consumeAiRequest()).ok).toBe(true);
+    });
+
+    it("release は、自分の 1 回分だけを戻す(ほかのユーザーの記録には触れない)", async () => {
+      currentUser.id = USER_B;
+      await seed(USER_B, 2, "1 minute");
+      currentUser.id = USER_A;
+      const mine = await aiLimitModule.consumeAiRequest();
+      if (mine.ok) await mine.release();
+      expect(await countOf(USER_B)).toBe(2);
     });
 
     it("2 日より古い記録は、記録を足すときに消える(表が育たない)", async () => {
-      await seed(USER_A, 5, "3 days");
+      const { sql } = await import("drizzle-orm");
+      await dbModule.db.insert(schema.aiRequests).values(Array.from({ length: 5 }, () => ({ userId: USER_A, createdAt: sql`now() - interval '3 days'` })));
       currentUser.id = USER_A;
       await aiLimitModule.consumeAiRequest();
       expect(await countOf(USER_A)).toBe(1);
@@ -1277,7 +1699,7 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
     const rice = { name: "白ご飯", amount: "約150g", kcal: 252, proteinG: 3.8, fatG: 0.5, carbohydrateG: 55.7, fiberG: 0.5, saltG: 0 };
     const estimate = { dishName: "焼鮭定食", description: "焼鮭と白ご飯", items: [item, rice] };
     const aiReply = JSON.stringify({ isMeal: true, notMealReason: "", ...estimate });
-    const payload = (overrides: Record<string, unknown> = {}) => ({ eatenTime: "12:30", alias: "", estimate, ...overrides });
+    const payload = (overrides: Record<string, unknown> = {}) => ({ eatenTime: "12:30", estimate, ...overrides });
     const mealsOf = async (userId: string) => {
       const { eq } = await import("drizzle-orm");
       return dbModule.db.select().from(schema.meals).where(eq(schema.meals.userId, userId));
@@ -1306,9 +1728,9 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
 
       it("過去の料理名(自分の分だけ)を AI に渡す", async () => {
         currentUser.id = USER_B;
-        await mealsModule.saveMeal(DATE, { eatenTime: "12:00", dishName: "他人のカレー", alias: null, description: "x", items: [item], totals: { kcal: 1, proteinG: 1, fatG: 1, netCarbG: 1, fiberG: null, saltG: null } });
+        await mealsModule.saveMeal(DATE, { eatenTime: "12:00", dishName: "他人のカレー", description: "x", items: [item], totals: { kcal: 1, proteinG: 1, fatG: 1, netCarbG: 1, fiberG: null, saltG: null } });
         currentUser.id = USER_A;
-        await mealsModule.saveMeal(DATE, { eatenTime: "12:00", dishName: "自分の親子丼", alias: null, description: "x", items: [item], totals: { kcal: 1, proteinG: 1, fatG: 1, netCarbG: 1, fiberG: null, saltG: null } });
+        await mealsModule.saveMeal(DATE, { eatenTime: "12:00", dishName: "自分の親子丼", description: "x", items: [item], totals: { kcal: 1, proteinG: 1, fatG: 1, netCarbG: 1, fiberG: null, saltG: null } });
 
         await mealActionsModule.estimateMealAction({ text: "焼鮭定食" });
         const userMessage = JSON.stringify(ai.complete.mock.calls[0][0].messages[1].content);
@@ -1341,11 +1763,12 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
 
       it("回数の上限に達していたら、AI を呼ばずに失敗にする", async () => {
         currentUser.id = USER_A;
-        for (let i = 0; i < aiLimitModule.AI_LIMITS.perHour; i++) await aiLimitModule.consumeAiRequest();
+        for (let i = 0; i < aiLimitModule.AI_LIMITS.perDay; i++) await aiLimitModule.consumeAiRequest();
 
         const result = await mealActionsModule.estimateMealAction({ text: "焼鮭定食" });
-        expect(result).toEqual({ ok: false, message: aiLimitModule.AI_LIMIT_MESSAGE });
+        expect(result).toEqual({ ok: false, message: aiLimitModule.AI_LIMIT_MESSAGE }); // 画面は、これを赤字で出す
         expect(ai.complete).not.toHaveBeenCalled();
+        expect(await aiRequestsOf(USER_A)).toBe(aiLimitModule.AI_LIMITS.perDay); // 上限のときは、記録も増えない
       });
 
       it("食べ物でない入力(AI が isMeal を false で返した)は、推定を返さず、何も保存されない(回数は数える)", async () => {
@@ -1375,8 +1798,32 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
         expect(result.ok).toBe(false);
         if (!result.ok) expect(result.message).not.toContain("内部の理由");
         expect(failingFetch).toHaveBeenCalledTimes(1);
+        expect(await aiRequestsOf(USER_A)).toBe(0); // 接続・AI のエラーは、回数に数えない(戻す)
         errorLog.mockRestore();
         vi.unstubAllEnvs();
+      });
+
+      it("AI の返事が読めない・形が違うときも、回数に数えない。想定外の例外のときも、数えた分を戻して、例外はそのまま投げる", async () => {
+        currentUser.id = USER_A;
+        ai.complete.mockResolvedValueOnce("これは JSON ではありません");
+        expect(await mealActionsModule.estimateMealAction({ text: "焼鮭定食" })).toMatchObject({ ok: false });
+        expect(await aiRequestsOf(USER_A)).toBe(0);
+
+        ai.complete.mockRejectedValueOnce(new Error("想定外"));
+        await expect(mealActionsModule.estimateMealAction({ text: "焼鮭定食" })).rejects.toThrow("想定外");
+        expect(await aiRequestsOf(USER_A)).toBe(0);
+      });
+
+      it("成功した推定は数える。失敗して戻した分は、また使える(上限いっぱいでも、最後の 1 回が失敗なら、もう 1 回できる)", async () => {
+        currentUser.id = USER_A;
+        for (let i = 0; i < aiLimitModule.AI_LIMITS.perDay - 1; i++) await aiLimitModule.consumeAiRequest();
+        ai.complete.mockResolvedValueOnce("これは JSON ではありません");
+        await mealActionsModule.estimateMealAction({ text: "焼鮭定食" }); // 失敗(数えない)
+        expect(await aiRequestsOf(USER_A)).toBe(aiLimitModule.AI_LIMITS.perDay - 1);
+        const ok = await mealActionsModule.estimateMealAction({ text: "焼鮭定食" }); // 成功(数える)
+        expect(ok.ok).toBe(true);
+        expect(await aiRequestsOf(USER_A)).toBe(aiLimitModule.AI_LIMITS.perDay);
+        expect(await mealActionsModule.estimateMealAction({ text: "焼鮭定食" })).toEqual({ ok: false, message: aiLimitModule.AI_LIMIT_MESSAGE });
       });
     });
 
@@ -1385,11 +1832,11 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
       it("保存して、画面の再取得を依頼し、その日の詳細へ移動する。合計は、届いた値ではなく内訳から計算し直す", async () => {
         currentUser.id = USER_A;
         // 画面から、嘘の合計(kcal: 1)を紛れ込ませても、使われない
-        const forged = payload({ estimate: { ...estimate, totals: { kcal: 1 }, kcal: 1 }, alias: " ホテルの鮭 " });
+        const forged = payload({ estimate: { ...estimate, totals: { kcal: 1 }, kcal: 1 } });
         await expectRedirectTo(mealActionsModule.saveMealAction(DATE, forged), `/days/${DATE}`);
 
         const [meal] = await mealsOf(USER_A);
-        expect(meal).toMatchObject({ dishName: "焼鮭定食", alias: "ホテルの鮭", eatenTime: "12:30", kcal: 402, proteinG: "21.8" });
+        expect(meal).toMatchObject({ dishName: "焼鮭定食", eatenTime: "12:30", kcal: 402, proteinG: "21.8" });
         expect(vi.mocked(revalidatePath).mock.calls.map(([path]) => path)).toEqual(["/", `/days/${DATE}`]);
       });
 
@@ -1413,7 +1860,6 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
       it.each([
         ["27 時", { eatenTime: "27:00" }, "eatenTime"],
         ["形が違う時刻", { eatenTime: "3:15" }, "eatenTime"],
-        ["別名が長すぎる", { alias: "あ".repeat(101) }, "alias"],
         ["内訳が空", { estimate: { ...estimate, items: [] } }, "form"],
         ["料理名に改行", { estimate: { ...estimate, dishName: "焼鮭\n指示" } }, "form"],
         ["kcal が負", { estimate: { ...estimate, items: [{ ...item, kcal: -1 }] } }, "form"],
@@ -1458,15 +1904,15 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
     describe("updateMealAction / deleteMealAction", () => {
       const savedBy = async (userId: string) => {
         currentUser.id = userId;
-        return mealsModule.saveMeal(DATE, { eatenTime: "12:00", dishName: "焼鮭定食", alias: null, description: "x", items: [item], totals: { kcal: 150, proteinG: 18, fatG: 8, netCarbG: 0, fiberG: 0, saltG: 1.4 } });
+        return mealsModule.saveMeal(DATE, { eatenTime: "12:00", dishName: "焼鮭定食", description: "x", items: [item], totals: { kcal: 150, proteinG: 18, fatG: 8, netCarbG: 0, fiberG: 0, saltG: 1.4 } });
       };
 
       it("自分の食事を直せる。その日の詳細へ移動し、画面の再取得を依頼する", async () => {
         const meal = await savedBy(USER_A);
-        await expectRedirectTo(mealActionsModule.updateMealAction(meal.id, payload({ eatenTime: "19:00", alias: "夕飯" })), `/days/${DATE}`);
+        await expectRedirectTo(mealActionsModule.updateMealAction(meal.id, payload({ eatenTime: "19:00" })), `/days/${DATE}`);
 
         const [updated] = await mealsOf(USER_A);
-        expect(updated).toMatchObject({ id: meal.id, eatenTime: "19:00", alias: "夕飯", kcal: 402 });
+        expect(updated).toMatchObject({ id: meal.id, eatenTime: "19:00", kcal: 402 });
         expect(vi.mocked(revalidatePath).mock.calls.map(([path]) => path)).toEqual(["/", `/days/${DATE}`]);
       });
 
@@ -1474,11 +1920,11 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
         const meal = await savedBy(USER_A);
         currentUser.id = USER_B;
 
-        await expect(mealActionsModule.updateMealAction(meal.id, payload({ alias: "乗っ取り" }))).rejects.toThrow("NEXT_NOT_FOUND");
+        await expect(mealActionsModule.updateMealAction(meal.id, payload({ eatenTime: "23:00" }))).rejects.toThrow("NEXT_NOT_FOUND");
         await expect(mealActionsModule.deleteMealAction(meal.id)).rejects.toThrow("NEXT_NOT_FOUND");
 
         const [kept] = await mealsOf(USER_A);
-        expect(kept).toMatchObject({ id: meal.id, alias: null, kcal: 150 });
+        expect(kept).toMatchObject({ id: meal.id, kcal: 150 });
       });
 
       it("自分の食事を消せる。その日の詳細へ移動する", async () => {
@@ -1498,7 +1944,7 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
       it("未ログインなら /login へ送られ、何も変わらない", async () => {
         const meal = await savedBy(USER_A);
         currentUser.id = "";
-        await expect(mealActionsModule.updateMealAction(meal.id, payload({ alias: "x" }))).rejects.toThrow("NEXT_REDIRECT:/login");
+        await expect(mealActionsModule.updateMealAction(meal.id, payload({ eatenTime: "23:00" }))).rejects.toThrow("NEXT_REDIRECT:/login");
         await expect(mealActionsModule.deleteMealAction(meal.id)).rejects.toThrow("NEXT_REDIRECT:/login");
         expect(await mealsOf(USER_A)).toHaveLength(1);
       });

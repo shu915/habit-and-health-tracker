@@ -1,6 +1,7 @@
 "use client";
 
 import { Bar, CartesianGrid, Cell, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { highlightLines } from "@/components/chart-highlights";
 import { calorieAxis, type CalorieDayPoint } from "@/lib/calorie-trend";
 import { median } from "@/lib/trend";
 
@@ -14,7 +15,7 @@ export type CalorieChartPoint = CalorieDayPoint & { inProgress: boolean };
 
 const kcal = (value: number) => `${value.toLocaleString("ja-JP")} kcal`;
 
-export function CalorieChart({ points, syncId }: { points: CalorieChartPoint[]; syncId?: string }) {
+export function CalorieChart({ points, syncId, highlightDates = [] }: { points: CalorieChartPoint[]; syncId?: string; highlightDates?: readonly string[] }) {
   const { domain, ticks } = calorieAxis(points);
   const shortDate = (date: string) => `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}`;
   const recorded = points.filter((p) => p.intake !== null).length;
@@ -30,6 +31,7 @@ export function CalorieChart({ points, syncId }: { points: CalorieChartPoint[]; 
           <XAxis dataKey="date" tickFormatter={shortDate} tick={{ fill: "var(--viz-text)", fontSize: 11 }} tickLine={false} axisLine={{ stroke: "var(--viz-grid)" }} minTickGap={24} />
           <YAxis domain={domain} ticks={ticks} tickFormatter={(v: number) => v.toLocaleString("ja-JP")} tick={{ fill: "var(--viz-text)", fontSize: 11 }} tickLine={false} axisLine={false} width={44} />
           <Tooltip content={<CalorieTooltip />} cursor={{ stroke: "var(--viz-ring)", strokeWidth: 1 }} />
+          {highlightLines(highlightDates)}
           {/* 摂取: 細い棒(14px まで)。データの端(上)だけ 4px 丸め、基線側は四角 */}
           <Bar dataKey="intake" maxBarSize={14} radius={[4, 4, 0, 0]} isAnimationActive={false}>
             {points.map((point) => (

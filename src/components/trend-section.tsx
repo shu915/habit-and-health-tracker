@@ -1,17 +1,13 @@
 import Link from "next/link";
 import { CalorieBalanceCard } from "@/components/calorie-balance-card";
 import { CalorieCard } from "@/components/calorie-card";
-import type { CalorieChartPoint } from "@/components/calorie-chart";
 import { SleepCard } from "@/components/sleep-card";
 import { TrendCard } from "@/components/trend-card";
 import { shiftDate, todayString } from "@/lib/date";
-import { buildCalorieTrend, latestBefore } from "@/lib/calorie-trend";
-import { getMorningBodyFatBefore, getMorningWeightBefore, getStampedTargetBefore, listDayMeasures } from "@/lib/days";
-import { isFinishedDay } from "@/lib/day-result";
-import { listExercisesInRange } from "@/lib/exercises";
-import { listDailyIntake } from "@/lib/meals";
-import { getProfile } from "@/lib/profiles";
-import { buildSleepTrend, buildTrend, MOVING_AVERAGE_DAYS, parseTrendRange, TREND_RANGES, trendDates, trendEnd, valuesByDate, type TrendRange } from "@/lib/trend";
+import { defaultMealDayAndTime } from "@/lib/meal-time";
+import { MOVING_AVERAGE_DAYS, parseTrendRange, TREND_RANGES, trendDates, trendEnd, type TrendRange } from "@/lib/trend";
+import { loadTrendRaw } from "@/lib/trend-inputs";
+import { buildTrendViews } from "@/lib/trend-views";
 
 // ダッシュボードの「推移」。睡眠・体重・体脂肪率・カロリーの図を並べる(各カードは sleep-card.tsx / trend-card.tsx / calorie-card.tsx。ここは、データを期間ぶんまとめて取り、カードに渡す)。期間は 7 / 28 / 90 日(?range=、既定 28 日)で、期間の切り替えは 1 つだけ(下のすべての図に効く)。
 // 今日までの期間(サーバーの明日に朝の記録があれば、その日まで)で、朝の記録から作る(AI は使わない)。
@@ -27,47 +23,15 @@ export async function TrendSection({ searchParams }: { searchParams: Promise<{ r
   const from = shiftDate(today, -(range - 1) - (MOVING_AVERAGE_DAYS - 1));
   const start = shiftDate(today, -(range - 1));
   const tomorrow = shiftDate(today, 1);
-  const [rows, intake, exercises, weightBeforeFrom, bodyFatBeforeFrom, targetBeforeFrom, profile] = await Promise.all([
-    listDayMeasures(from, tomorrow),
-    listDailyIntake(start, tomorrow),
-    listExercisesInRange(start, tomorrow),
-    getMorningWeightBefore(from),
-    getMorningBodyFatBefore(from),
-    getStampedTargetBefore(from),
-    getProfile(),
-  ]);
+  const raw = await loadTrendRaw({ from, intakeFrom: start, to: tomorrow });
   const end = trendEnd(
     today,
     new Set([
-      ...rows.filter((d) => d.morningWeightKg !== null || d.morningBodyFatPercent !== null || d.sleepBedtime !== null || d.sleepWakeTime !== null).map((d) => d.date),
-      ...intake.map((d) => d.date),
+      ...raw.rows.filter((d) => d.morningWeightKg !== null || d.morningBodyFatPercent !== null || d.sleepBedtime !== null || d.sleepWakeTime !== null).map((d) => d.date),
+      ...raw.intake.map((d) => d.date),
     ]),
   );
-  const dates = trendDates(end, range);
-  const weight = buildTrend(dates, valuesByDate(rows.map((d) => ({ date: d.date, value: d.morningWeightKg }))), 2);
-  const bodyFat = buildTrend(dates, valuesByDate(rows.map((d) => ({ date: d.date, value: d.morningBodyFatPercent }))), 1);
-  // 期間の最初の日より前の、いちばん新しい朝の体重と固定した目標(取った記録の中を先に見て、無ければ、さらに前の分。latestBefore)
-  const priorMorningWeight = latestBefore(rows, dates[0], (d) => (d.morningWeightKg === null ? null : { weight: d.morningWeightKg, date: d.date }), weightBeforeFrom);
-  const priorStampedTargetKcal = latestBefore(rows, dates[0], (d) => d.profileTargetCalories, targetBeforeFrom);
-  const calories: CalorieChartPoint[] = buildCalorieTrend(dates, {
-    rows: rows.map((d) => ({ date: d.date, morningWeightKg: d.morningWeightKg, stampedTargetKcal: d.profileTargetCalories, morningBodyFatPercent: d.morningBodyFatPercent, stampedActivityLevel: d.profileActivityLevel })),
-    intake: new Map(intake.map((d) => [d.date, d.kcal])),
-    exercises,
-    priorMorningWeight,
-    priorStampedTargetKcal,
-    profileTargetKcal: profile.targetCalories,
-    isFinishedDay,
-    profileWeightKg: profile.currentWeightKg,
-    energy: {
-      gender: profile.gender,
-      age: profile.age,
-      heightCm: profile.heightCm,
-      profileBodyFatPercent: profile.currentBodyFatPercent,
-      profileActivityLevel: profile.activityLevel,
-      priorMorningBodyFat: latestBefore(rows, dates[0], (d) => (d.morningBodyFatPercent === null ? null : { weight: d.morningBodyFatPercent, date: d.date }), bodyFatBeforeFrom),
-    },
-  }).map((point) => ({ ...point, inProgress: !isFinishedDay(point.date) }));
-  const sleep = buildSleepTrend(dates, new Map(rows.map((d) => [d.date, { bedtime: d.sleepBedtime, wakeTime: d.sleepWakeTime }])));
+  const { weight, bodyFat, sleep, calories } = buildTrendViews({ ...raw, dates: trendDates(end, range), finishedBefore: defaultMealDayAndTime().date });
 
   return (
     <section aria-label="推移" className="flex flex-col gap-3">

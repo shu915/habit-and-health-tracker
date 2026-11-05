@@ -4,7 +4,6 @@ CREATE TABLE "meals" (
 	"day_id" integer NOT NULL,
 	"eaten_time" varchar(5) NOT NULL,
 	"dish_name" varchar(100) NOT NULL,
-	"alias" varchar(100),
 	"description" text,
 	"kcal" integer NOT NULL,
 	"protein_g" numeric(5, 1) NOT NULL,

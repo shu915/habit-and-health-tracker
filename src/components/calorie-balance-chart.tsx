@@ -1,6 +1,7 @@
 "use client";
 
 import { Bar, CartesianGrid, Cell, ComposedChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { highlightLines } from "@/components/chart-highlights";
 import type { CalorieChartPoint } from "@/components/calorie-chart";
 import { balanceAxis, balanceSummary } from "@/lib/calorie-trend";
 
@@ -12,7 +13,7 @@ export const BALANCE_CHART_HEIGHT = 220;
 const kcal = (value: number) => `${value.toLocaleString("ja-JP")} kcal`;
 const signed = (value: number) => `${value > 0 ? "+" : ""}${kcal(value)}`;
 
-export function CalorieBalanceChart({ points, syncId }: { points: CalorieChartPoint[]; syncId?: string }) {
+export function CalorieBalanceChart({ points, syncId, highlightDates = [] }: { points: CalorieChartPoint[]; syncId?: string; highlightDates?: readonly string[] }) {
   const { domain, ticks } = balanceAxis(points);
   const shortDate = (date: string) => `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}`;
   const withDiff = points.filter((p) => p.diffKcal !== null);
@@ -27,6 +28,7 @@ export function CalorieBalanceChart({ points, syncId }: { points: CalorieChartPo
           <XAxis dataKey="date" tickFormatter={shortDate} tick={{ fill: "var(--viz-text)", fontSize: 11 }} tickLine={false} axisLine={false} minTickGap={24} />
           <YAxis domain={domain} ticks={ticks} tickFormatter={(v: number) => v.toLocaleString("ja-JP")} tick={{ fill: "var(--viz-text)", fontSize: 11 }} tickLine={false} axisLine={false} width={48} />
           <Tooltip content={<BalanceTooltip />} cursor={{ stroke: "var(--viz-ring)", strokeWidth: 1 }} />
+          {highlightLines(highlightDates)}
           <ReferenceLine y={0} stroke="var(--viz-text)" strokeWidth={1} />
           <Bar dataKey="diffKcal" maxBarSize={14} radius={2} isAnimationActive={false}>
             {points.map((point) => (

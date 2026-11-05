@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ProcessingIndicator, processingStage } from "./processing-indicator";
+import { ProcessingIndicator, processingStage, ReportProcessingIndicator, reportProcessingStage } from "./processing-indicator";
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -67,5 +67,41 @@ describe("ProcessingIndicator", () => {
   it("動く装飾(帯・回る輪)は、読み上げの対象から外す(aria-hidden)", () => {
     const { container } = render(<ProcessingIndicator hasPhoto={false} />);
     expect(container.querySelectorAll("[aria-hidden]").length).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe("reportProcessingStage(AI レポートの作成。30 秒ほど、長いときは 1〜2 分)", () => {
+  it.each([
+    [0, "記録を集めて、AI に送っています…"],
+    [2, "記録を集めて、AI に送っています…"],
+    [3, "日ごとの記録を読んでいます…"],
+    [7, "日ごとの記録を読んでいます…"],
+    [8, "睡眠・食事・運動のつながりを探しています…"],
+    [19, "睡眠・食事・運動のつながりを探しています…"],
+    [20, "気づきを文章にまとめています…"],
+    [44, "気づきを文章にまとめています…"],
+    [45, "時間がかかっています。そのまま、もう少しお待ちください…"],
+    [89, "時間がかかっています。そのまま、もう少しお待ちください…"],
+    [90, "混み合っているようです。まだ続けています。最長で 2 分ほどかかります…"],
+    [240, "混み合っているようです。まだ続けています。最長で 2 分ほどかかります…"],
+  ])("%i 秒は「%s」", (seconds, message) => {
+    expect(reportProcessingStage(seconds)).toBe(message);
+  });
+});
+
+describe("ReportProcessingIndicator", () => {
+  it("処理中の印(status)・最初のメッセージ・0 秒・待ち時間の説明を出し、1 秒ごとに秒数が進み、段階のメッセージが変わる。割合は出さない", () => {
+    render(<ReportProcessingIndicator />);
+    const status = screen.getByRole("status");
+    expect(status.textContent).toContain("記録を集めて、AI に送っています");
+    expect(status.textContent).toContain("0 秒");
+    expect(status.textContent).toContain("30 秒ほどかかります");
+    expect(status.textContent).toContain("ページを閉じても、作成は続きます"); // 裏で続くので、閉じてよい(あとで一覧から開ける)
+    expect(status.textContent).not.toContain("%");
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
+    expect(screen.getByRole("status").textContent).toContain("3 秒");
+    expect(screen.getByRole("status").textContent).toContain("日ごとの記録を読んでいます");
   });
 });
