@@ -27,20 +27,20 @@ function Indicator({ stage, note, startSeconds = 0 }: { stage: (seconds: number)
 
   return (
     // role="status": メッセージが変わったときだけ読み上げられる(経過秒数は毎秒変わるので、読み上げの対象にしない)
-    <div className="flex flex-col gap-2 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800" role="status" aria-live="polite">
-      <div className="flex items-center justify-between gap-4 text-sm">
-        <span className="flex items-center gap-2">
-          <span aria-hidden className="inline-block h-4 w-4 rounded-full border-2 border-zinc-300 border-t-zinc-900 motion-safe:animate-spin dark:border-zinc-600 dark:border-t-zinc-100" />
+    <div className="flex flex-col gap-3.5 rounded-lg bg-surface-raised p-4 sm:p-5" role="status" aria-live="polite">
+      <div className="flex items-center justify-between gap-4 text-[15px]">
+        <span className="flex min-w-0 items-center gap-2.5 font-semibold">
+          <span aria-hidden className="inline-block h-[18px] w-[18px] shrink-0 rounded-full border-[2.5px] border-neutral border-t-accent motion-safe:animate-spin" />
           {stage(seconds)}
         </span>
-        <span aria-hidden className="tabular-nums text-zinc-500">
+        <span aria-hidden className="text-sm tabular-nums text-ink-muted">
           {seconds} 秒
         </span>
       </div>
-      <div aria-hidden className="relative h-1.5 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
-        <div className="indeterminate-bar h-full w-1/3 rounded-full bg-zinc-900 dark:bg-zinc-100" />
+      <div aria-hidden className="relative h-1.5 w-full overflow-hidden rounded-sm bg-neutral">
+        <div className="indeterminate-bar h-full w-1/3 rounded-sm bg-accent" />
       </div>
-      <p className="text-xs text-zinc-500">{note}</p>
+      <p className="text-xs leading-relaxed text-ink-muted">{note}</p>
     </div>
   );
 }

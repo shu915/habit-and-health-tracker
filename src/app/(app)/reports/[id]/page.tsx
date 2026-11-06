@@ -12,9 +12,11 @@ export default function ReportPage({ params }: PageProps<"/reports/[id]">) {
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
       <BackLink href="/reports">AI レポートに戻る</BackLink>
-      <Suspense fallback={<p className="text-zinc-500">読み込み中...</p>}>
+      <Suspense fallback={<p className="text-ink-muted">読み込み中...</p>}>
         <ReportContent params={params} />
       </Suspense>
+      {/* 長いレポートを読み終えたあとに、上までスクロールして戻らなくて済むよう、下にも置く */}
+      <BackLink href="/reports">AI レポートに戻る</BackLink>
     </div>
   );
 }
@@ -27,8 +29,8 @@ async function ReportContent({ params }: Pick<PageProps<"/reports/[id]">, "param
     // 作成中: AI が裏で分析している。ページを閉じても続く。できたら、この画面が、レポートに切り替わる
     return (
       <div className="flex flex-col gap-4">
-        <h1 className="text-2xl font-semibold">{reportTitle(report.kind, report.periodStart, report.periodEnd)}</h1>
-        <p className="text-sm text-zinc-500">AI がレポートを作っています。できると、この画面が切り替わります。</p>
+        <h1 className="text-[26px] leading-9 font-bold sm:text-[32px] sm:leading-10">{reportTitle(report.kind, report.periodStart, report.periodEnd)}</h1>
+        <p className="text-sm text-ink-muted">AI がレポートを作っています。できると、この画面が切り替わります。</p>
         <ReportProgress elapsedSeconds={report.elapsedSeconds} />
       </div>
     );
@@ -36,11 +38,11 @@ async function ReportContent({ params }: Pick<PageProps<"/reports/[id]">, "param
   if (report.status === "failed") {
     return (
       <div className="flex flex-col gap-3">
-        <h1 className="text-2xl font-semibold">{reportTitle(report.kind, report.periodStart, report.periodEnd)}</h1>
-        <p role="alert" className="text-red-600">
+        <h1 className="text-[26px] leading-9 font-bold sm:text-[32px] sm:leading-10">{reportTitle(report.kind, report.periodStart, report.periodEnd)}</h1>
+        <p role="alert" className="text-red-600 dark:text-red-400">
           レポートを作れませんでした。{report.errorMessage ?? ""}
         </p>
-        <p className="text-sm text-zinc-500">失敗したレポートは、今日の随時レポートの回数には数えません。「AI レポート」から、もう一度作れます。</p>
+        <p className="text-sm text-ink-muted">失敗したレポートは、今日の随時レポートの回数には数えません。「AI レポート」から、もう一度作れます。</p>
       </div>
     );
   }

@@ -65,9 +65,11 @@ describe("ReportView", () => {
     expect(document.body.textContent).not.toMatch(/成績|点数|rating/);
   });
 
-  it("バッジが無いときは、悪い結果として出さず、「届いた項目はありませんでした」とだけ言う", () => {
+  it("バッジが無いときは、節ごと出さない(無い人にだけ「無い」と見せない。条件は /reports で読める)", () => {
     render(<ReportView report={{ ...report, badges: [] }} />);
-    expect(screen.getByText("今期は、バッジの条件に届いた項目はありませんでした。")).toBeTruthy();
+    expect(screen.queryByRole("region", { name: "今期のバッジ" })).toBeNull();
+    expect(screen.queryByText(/届いた項目はありませんでした/)).toBeNull();
+    expect(screen.queryByText("バッジの条件")).toBeNull();
   });
 
   it("項目は、決まった順(睡眠 → 食事と栄養 → 運動)に並ぶ。気づきには、注目の日を日付で書く(色だけに頼らない)", () => {
