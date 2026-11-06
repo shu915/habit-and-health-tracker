@@ -9,28 +9,28 @@ export function TrendCard({ title, unit, digits, points, syncId, highlightDates 
   const recorded = points.filter((p) => p.value !== null).length;
 
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
+    <div className="flex flex-col gap-2.5 rounded-lg bg-surface-raised p-4 sm:p-5">
       <div>
-        <h3 className="text-base font-semibold">{title}</h3>
+        <h3 className="text-[15px] font-bold">{title}</h3>
         {latest ? (
           <p>
-            <span className="text-2xl font-semibold">{format(latest.value ?? 0)}</span> <span className="text-sm text-zinc-500">{unit}</span>
-            <span className="ml-2 text-xs text-zinc-500">{latest.date} の記録{average?.average != null && ` ・ 7 日平均 ${format(average.average)} ${unit}`}</span>
+            <span className="text-2xl font-semibold">{format(latest.value ?? 0)}</span> <span className="text-sm text-ink-muted">{unit}</span>
+            <span className="ml-2 text-xs text-ink-muted">{latest.date} の記録{average?.average != null && ` ・ 7 日平均 ${format(average.average)} ${unit}`}</span>
           </p>
         ) : (
-          <p className="text-sm text-zinc-500">この期間の記録がありません。</p>
+          <p className="text-sm text-ink-muted">この期間の記録がありません。</p>
         )}
       </div>
 
       {recorded > 0 && <TrendChart title={title} unit={unit} digits={digits} points={points} syncId={syncId} highlightDates={highlightDates} />}
-      {recorded > 0 && <p className="text-xs text-zinc-500">点はその日の朝の記録、線は過去 {MOVING_AVERAGE_DAYS} 日の移動平均(記録が 2 日分以上あるとき)です。日々ぶれるので、傾向は線で見ます。</p>}
+      {recorded > 0 && <p className="text-xs text-ink-muted">点はその日の朝の記録、線は過去 {MOVING_AVERAGE_DAYS} 日の移動平均(記録が 2 日分以上あるとき)です。日々ぶれるので、傾向は線で見ます。</p>}
 
       {recorded > 0 && (
         <details className="text-xs">
-          <summary className="cursor-pointer text-zinc-500">表で見る</summary>
+          <summary className="cursor-pointer text-ink-muted">表で見る</summary>
           <div className="mt-2 max-h-60 overflow-auto">
             <table className="w-full text-left tabular-nums">
-              <thead className="text-zinc-500">
+              <thead className="text-ink-muted">
                 <tr>
                   <th className="py-1 font-normal">日付</th>
                   <th className="py-1 text-right font-normal">その日</th>
@@ -39,7 +39,7 @@ export function TrendCard({ title, unit, digits, points, syncId, highlightDates 
               </thead>
               <tbody>
                 {[...points].reverse().map((p) => (
-                  <tr key={p.date} className="border-t border-zinc-100 dark:border-zinc-900">
+                  <tr key={p.date} className="border-t border-line-soft">
                     <td className="py-1">{p.date}</td>
                     <td className="py-1 text-right">{p.value === null ? "-" : `${format(p.value)} ${unit}`}</td>
                     <td className="py-1 text-right">{p.average === null ? "-" : `${format(p.average)} ${unit}`}</td>

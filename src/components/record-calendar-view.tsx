@@ -5,7 +5,7 @@ import { CALENDAR_WEEKS, MAX_LEVEL, RECENT_WEEKS, RECORD_KIND_LABELS, type Calen
 // 広い画面(md 以上)は直近 53 週(約 1 年)、狭い画面は直近 13 週(約 3 か月): 古い週を CSS(hidden md:block)で隠すだけで、JavaScript は使わない。
 // 隠した要素は、グリッドの自動配置(列方向)で飛ばされるので、列がずれない。マスの大きさは列の幅(1fr)で決まり、画面の幅に合わせて変わる(横スクロールは出ない)。
 // 各マスは、その日の詳細へのリンク(ホバーで、日付と記録した種類を出す)。キーボードの Tab で止まるのは、記録のある日のマスだけ(記録の無いマスは tabIndex=-1。371 個を通らずに済む)。サーバーだけで描く。
-// 記録の無い日は薄いグレー(0 にした、ではなく「記録が無い」)。今日は枠で示す(box-shadow。インラインの outline は、キーボードのフォーカスの枠を上書きして消すため使わない)。
+// 記録の無い日は薄いグレー(0 にした、ではなく「記録が無い」)。今日の印(枠)は付けない(いつも右端の列の最後の日で、見た目が悪くなるため。読み上げには aria-current="date" で伝える)。
 // 表の形の代替は置かない(日々の記録の一覧が、記録のある日の表の役目をする)
 const WEEKDAY_LABELS = ["月", "", "水", "", "金", "", ""]; // 全部の曜日を出すと詰まるので、1 つおき
 
@@ -23,10 +23,10 @@ export function RecordCalendarView({ calendar }: { calendar: Calendar }) {
   const hiddenOnNarrow = (week: number) => (week < CALENDAR_WEEKS - RECENT_WEEKS ? "hidden md:block" : "");
 
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
+    <div className="flex flex-col gap-2.5 rounded-lg bg-surface-raised p-4 sm:p-5">
       <div className="flex flex-wrap items-baseline gap-x-3">
-        <h3 className="text-base font-semibold">記録のカレンダー</h3>
-        <p className="text-sm text-zinc-500">
+        <h3 className="text-[15px] font-bold">記録のカレンダー</h3>
+        <p className="text-sm text-ink-muted">
           <span className="md:hidden">
             直近 {RECENT_WEEKS} 週(約 3 か月) ・ {calendar.recentRecordedDays} 日に記録
           </span>
@@ -35,11 +35,12 @@ export function RecordCalendarView({ calendar }: { calendar: Calendar }) {
       </div>
 
       {/* 1 列 = 8 要素(月のラベル 1 + 曜日 7)を、列方向に並べる。最初の列は曜日のラベル */}
-      <div className="grid grid-flow-col grid-cols-[auto] grid-rows-[auto_repeat(7,auto)] auto-cols-fr gap-0.5 text-xs text-zinc-500">
+      <div className="grid grid-flow-col grid-cols-[1.5rem] grid-rows-[auto_repeat(7,auto)] auto-cols-fr gap-0.5 text-xs text-ink-muted">
         <span aria-hidden />
         {WEEKDAY_LABELS.map((label, day) => (
-          <span key={day} className="self-center pr-1 leading-none">
-            {label}
+          // 曜日の文字(13px)の高さが行の高さを決めると、マスが縦長になる。高さ 0 の枠に絶対配置で重ね、行の高さはマスの正方形だけで決める
+          <span key={day} className="relative h-0 self-center">
+            <span className="absolute inset-x-0 top-0 -translate-y-1/2 leading-none">{label}</span>
           </span>
         ))}
         {calendar.weeks.flatMap((week, weekIndex) => [
@@ -61,20 +62,20 @@ export function RecordCalendarView({ calendar }: { calendar: Calendar }) {
                 aria-current={cell.isToday ? "date" : undefined}
                 tabIndex={cell.level === 0 ? -1 : undefined} // 記録の無いマスは Tab の停止位置にしない(広い画面で 371 個を通らずに済む。マウスでは押せる)
                 title={label}
-                className={`aspect-square rounded-sm ${hiddenOnNarrow(weekIndex)}`}
-                style={{ background: levelColor(cell.level), boxShadow: cell.isToday ? "0 0 0 1px var(--viz-surface), 0 0 0 2.5px var(--viz-text)" : undefined }}
+                className={`aspect-square rounded-[2px] ${hiddenOnNarrow(weekIndex)}`}
+                style={{ background: levelColor(cell.level) }}
               />
             );
           }),
         ])}
       </div>
 
-      <p className="flex flex-wrap items-center gap-x-2 text-xs text-zinc-500">
+      <p className="flex flex-wrap items-center gap-x-2 text-xs text-ink-muted">
         記録した種類が
         <span className="flex items-center gap-1" aria-hidden>
           少ない
           {Array.from({ length: MAX_LEVEL + 1 }, (_, level) => (
-            <span key={level} className="inline-block h-3 w-3 rounded-sm" style={{ background: levelColor(level) }} />
+            <span key={level} className="inline-block h-3 w-3 rounded-[2px]" style={{ background: levelColor(level) }} />
           ))}
           多い
         </span>

@@ -11,7 +11,7 @@ export function WaistReminderForm({ current, action }: { current: string | null;
 
   return (
     <form key={state?.submittedAt ?? "initial"} action={formAction} className="flex flex-wrap items-center gap-2 text-sm">
-      <label htmlFor="waist-reminder" className="text-zinc-700 dark:text-zinc-300">
+      <label htmlFor="waist-reminder" className="text-ink">
         ウエスト
       </label>
       <input
@@ -23,14 +23,14 @@ export function WaistReminderForm({ current, action }: { current: string | null;
         defaultValue={state?.value ?? current ?? ""}
         aria-invalid={state?.error ? true : undefined}
         aria-describedby={state?.error ? "waist-reminder-error" : undefined}
-        className="w-24 rounded-md border border-zinc-300 bg-transparent px-3 py-1.5 dark:border-zinc-700"
+        className="w-24 rounded-md border border-line bg-surface-raised px-3 py-1.5 text-ink"
       />
-      <span className="text-zinc-500">cm</span>
+      <span className="text-ink-muted">cm</span>
       <button type="submit" disabled={isPending} className={buttonClass()}>
         {isPending ? "保存中..." : "保存"}
       </button>
       {state?.error && (
-        <p id="waist-reminder-error" role="alert" className="w-full text-xs text-red-600">
+        <p id="waist-reminder-error" role="alert" className="w-full text-xs text-red-600 dark:text-red-400">
           {state.error}
         </p>
       )}

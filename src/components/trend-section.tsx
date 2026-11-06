@@ -35,8 +35,8 @@ export async function TrendSection({ searchParams }: { searchParams: Promise<{ r
 
   return (
     <section aria-label="推移" className="flex flex-col gap-3">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold">推移</h2>
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+        <h2 className="text-xl font-bold">推移</h2>
         <RangeTabs current={range} />
       </div>
       {/* 並びは、日の詳細と同じ 1 日の流れ: 睡眠 → 朝の体(体重・体脂肪率)→ 食事(カロリー)。カロリーは、体重・体脂肪率の隣 */}
@@ -67,7 +67,7 @@ function RangeTabs({ current }: { current: TrendRange }) {
           href={`/?range=${days}`}
           scroll={false} // 期間を切り替えても、ページの一番上へ戻さない(今見ている位置のまま、グラフだけ変わる)
           aria-current={days === current ? "page" : undefined}
-          className={days === current ? "rounded-md bg-zinc-200 px-3 py-1 font-medium dark:bg-zinc-800" : "rounded-md px-3 py-1 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-900"}
+          className={days === current ? "rounded-md bg-neutral px-3 py-1.5 font-semibold" : "rounded-md px-3 py-1.5 text-ink-muted hover:bg-neutral"}
         >
           {days} 日
         </Link>
