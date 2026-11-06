@@ -39,25 +39,25 @@ export function PositiveForm({ date, initial, action }: Props) {
 
   return (
     <div className="flex flex-col gap-6">
-      <p className="text-sm text-zinc-600 dark:text-zinc-400">
+      <p className="text-sm leading-[1.8] text-ink-muted">
         今日あった良かったことを、3 つまで書きます。良かったことに加えて、なぜそう感じたかも書くと、気分を整える効果が高まりやすいと言われています(個人差があります)。
         1 つだけの日でも、書かない日でも構いません。医療上の効果を約束するものではありません。AI レポートを作るときだけ、同意したうえで、AI に送って分析します。
       </p>
 
       <form key={state?.submittedAt ?? "initial"} action={formAction} className="flex flex-col gap-6">
         {state && Object.keys(state.errors).length > 0 && (
-          <p role="alert" className="text-sm text-red-600">
+          <p role="alert" className="text-sm text-red-600 dark:text-red-400">
             入力内容を確認してください。
           </p>
         )}
 
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-5 rounded-lg bg-surface-raised p-4 sm:p-5">
           {FIELDS.map((name, index) => {
             const error = errorOf(name);
             const id = `positive-${name}`;
             return (
-              <div key={name} className="flex flex-col gap-1 text-sm">
-                <label htmlFor={id} className="text-zinc-500">
+              <div key={name} className="flex flex-col gap-2 text-sm">
+                <label htmlFor={id} className="text-ink-muted">
                   {index + 1} つ目
                 </label>
                 {/* 3 行分の高さで固定する(拡大縮小はさせない)。field-sizing: content は rows を無視して 1 行になるので使わない */}
@@ -70,11 +70,11 @@ export function PositiveForm({ date, initial, action }: Props) {
                   placeholder={EXAMPLES[name]}
                   aria-invalid={error ? true : undefined}
                   aria-describedby={error ? `${id}-error` : undefined}
-                  className="w-full resize-none rounded-md border border-zinc-300 bg-transparent px-3 py-1.5 dark:border-zinc-700"
+                  className="w-full resize-none rounded-md border border-line bg-surface-raised px-3 py-2 text-[15px] text-ink leading-[1.8]"
                 />
-                <p className="text-xs text-zinc-500">{POSITIVE_BODY_MAX_LENGTH} 文字まで</p>
+                <p className="text-xs text-ink-muted">{POSITIVE_BODY_MAX_LENGTH} 文字まで</p>
                 {error && (
-                  <p id={`${id}-error`} className="text-xs text-red-600">
+                  <p id={`${id}-error`} className="text-xs text-red-600 dark:text-red-400">
                     {error}
                   </p>
                 )}

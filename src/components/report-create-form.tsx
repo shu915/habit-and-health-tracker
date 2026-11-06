@@ -4,7 +4,7 @@ import { useActionState, useState, type ReactNode } from "react";
 import Link from "next/link";
 import type { ReportFormState } from "@/app/(app)/reports/actions";
 import { buttonClass } from "@/components/button";
-import { ReportProcessingIndicator } from "@/components/processing-indicator";
+import { AutoRefresh } from "@/components/auto-refresh";
 import { AI_CONSENT_CHECKBOX_LABEL, AI_CONSENT_POINTS, AI_CONSENT_REMINDER, AI_CONSENT_TITLE } from "@/lib/report-consent-text";
 import { monthLabel, periodLabel } from "@/lib/report-format";
 
@@ -43,26 +43,39 @@ export function ReportCreateForm({ onDemand, months, onDemandSaved, periodicSave
   const [month, setMonth] = useState(months[0]?.month ?? "");
   const canSubmit = (consented || checked) && !isPending;
   const selected = months.find((m) => m.month === month);
+  const anyCreating = onDemand.creatingId !== null || months.some((m) => m.creatingId !== null);
+  // 読み上げ用。作成の開始と終わりを知らせる(画面は動かさないので、変わったことが、目に見える所にしか出ない)。変わったときだけ文を入れ替える
+  const [wasCreating, setWasCreating] = useState(anyCreating);
+  const [announcement, setAnnouncement] = useState("");
+  if (wasCreating !== anyCreating) {
+    setWasCreating(anyCreating);
+    setAnnouncement(anyCreating ? "レポートを作成中です。ページを離れても続きます。" : "レポートの作成が終わりました。一覧を確認してください。");
+  }
 
   return (
     <div className="flex flex-col gap-4">
+      {/* 作成中のあいだ、数秒おきに状態を見に行く。ページを離れても、作成は続く(待たせない) */}
+      {anyCreating && <AutoRefresh />}
+      <p role="status" className="sr-only">
+        {announcement}
+      </p>
       <form action={formAction} className="flex flex-col gap-4">
         {consented ? (
-          <p className="flex flex-wrap items-center gap-x-2 text-sm text-zinc-500">
+          <p className="flex flex-wrap items-center gap-x-2 text-sm text-ink-muted">
             <span>{AI_CONSENT_REMINDER}(同意済み)</span>
             <button type="submit" formAction={revokeAction} className="underline" disabled={isPending}>
               同意を撤回する
             </button>
           </p>
         ) : (
-          <fieldset className="flex flex-col gap-2 rounded-lg border border-zinc-200 p-4 text-sm dark:border-zinc-800">
-            <legend className="px-1 font-medium">{AI_CONSENT_TITLE}</legend>
-            <ul className="list-disc pl-5 text-zinc-600 dark:text-zinc-400">
+          <fieldset className="flex flex-col gap-2.5 rounded-lg bg-badge-morning px-4 py-4 text-sm sm:px-5 sm:py-4.5">
+            <legend className="float-left mb-1 w-full font-bold">{AI_CONSENT_TITLE}</legend>
+            <ul className="flex list-disc flex-col gap-1 pl-5 leading-relaxed text-ink-muted">
               {AI_CONSENT_POINTS.map((point) => (
                 <li key={point}>{point}</li>
               ))}
             </ul>
-            <label className="mt-1 flex items-start gap-2">
+            <label className="mt-1 flex cursor-pointer items-start gap-2.5 font-medium">
               <input type="checkbox" name="consent" checked={checked} onChange={(event) => setChecked(event.target.checked)} className="mt-1" />
               <span>{AI_CONSENT_CHECKBOX_LABEL}</span>
             </label>
@@ -72,12 +85,13 @@ export function ReportCreateForm({ onDemand, months, onDemandSaved, periodicSave
         <Frame title="随時レポート" description="ほしいときに、直近 4 週間の記録を振り返ります。1 日に 1 回まで作れて、最新の 1 件だけが残ります。" savedTitle="最新のレポート" saved={onDemandSaved}>
           <li className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="font-medium">直近 4 週間</p>
-              <p className="text-xs text-zinc-500">
+              <p className="text-[15px] font-semibold">直近 4 週間</p>
+              <p className="text-xs text-ink-muted">
                 {periodLabel(onDemand.start, onDemand.end)} ・{" "}
                 {onDemand.creatingId !== null ? (
                   <>
-                    作成中(<Link href={`/reports/${onDemand.creatingId}`} className="underline">見る</Link>)
+                    <Spinner />
+                    作成中(AI が分析しています。ページを離れても続きます。<Link href={`/reports/${onDemand.creatingId}`} className="underline">見る</Link>)
                   </>
                 ) : onDemand.blockedToday ? (
                   <>今日は、もう作りました(随時レポートは、1 日に 1 回まで)。明日の 3:00 以降に、また作れます</>
@@ -87,7 +101,7 @@ export function ReportCreateForm({ onDemand, months, onDemandSaved, periodicSave
               </p>
             </div>
             {onDemand.creatingId === null && !onDemand.blockedToday && (
-              <button type="submit" name="kind" value="four-weeks" disabled={!canSubmit || !onDemand.ok} className={buttonClass()}>
+              <button type="submit" name="kind" value="four-weeks" disabled={!canSubmit || !onDemand.ok} className={`${buttonClass()} w-full sm:w-auto sm:min-w-24`}>
                 {isPending ? "作成中..." : "作る"}
               </button>
             )}
@@ -96,14 +110,14 @@ export function ReportCreateForm({ onDemand, months, onDemandSaved, periodicSave
 
         <Frame title="定期レポート" description="月ごとのレポートです。過去の月も、記録が十分にあれば、選んで作れます。同じ月は 1 回だけです(作ったあとは、いつでも開けます)。" savedTitle="作ったレポート" saved={periodicSaved}>
           {months.length === 0 || selected === undefined ? (
-            <li className="text-sm text-zinc-500">作れる月が、まだありません。月が変わると、前の月のレポートが作れます。</li>
+            <li className="text-sm text-ink-muted">作れる月が、まだありません。月が変わると、前の月のレポートが作れます。</li>
           ) : (
             <li className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex flex-col gap-1">
-                <label htmlFor="report-month" className="text-sm font-medium">
+                <label htmlFor="report-month" className="text-sm font-semibold">
                   作る月
                 </label>
-                <select id="report-month" name="month" value={month} onChange={(event) => setMonth(event.target.value)} className="rounded-md border border-zinc-300 bg-transparent px-3 py-1.5 text-sm dark:border-zinc-700">
+                <select id="report-month" name="month" value={month} onChange={(event) => setMonth(event.target.value)} className="w-full rounded-md border sm:w-auto sm:min-w-48 border-line bg-surface-raised px-3 py-2 text-sm text-ink">
                   {months.map((m) => (
                     <option key={m.month} value={m.month}>
                       {monthLabel(m.month)}
@@ -111,10 +125,11 @@ export function ReportCreateForm({ onDemand, months, onDemandSaved, periodicSave
                     </option>
                   ))}
                 </select>
-                <p className="text-xs text-zinc-500">
+                <p className="text-xs text-ink-muted">
                   {selected.existingId !== null ? (
                     <>
-                      {selected.creatingId !== null ? "作成中" : "作成済み"}(<Link href={`/reports/${selected.existingId}`} className="underline">見る</Link>)
+                      {selected.creatingId !== null && <Spinner />}
+                      {selected.creatingId !== null ? "作成中(AI が分析しています。ページを離れても続きます。" : "作成済み("}<Link href={`/reports/${selected.existingId}`} className="underline">見る</Link>)
                     </>
                   ) : (
                     <EligibilityText eligibility={selected} />
@@ -122,7 +137,7 @@ export function ReportCreateForm({ onDemand, months, onDemandSaved, periodicSave
                 </p>
               </div>
               {selected.existingId === null && (
-                <button type="submit" name="kind" value="monthly" disabled={!canSubmit || !selected.ok} className={buttonClass()}>
+                <button type="submit" name="kind" value="monthly" disabled={!canSubmit || !selected.ok} className={`${buttonClass()} w-full sm:w-auto sm:min-w-24`}>
                   {isPending ? "作成中..." : "作る"}
                 </button>
               )}
@@ -130,15 +145,19 @@ export function ReportCreateForm({ onDemand, months, onDemandSaved, periodicSave
           )}
         </Frame>
 
-        {isPending && <ReportProcessingIndicator />}
         {state?.message && (
-          <p role="alert" className="text-sm text-red-600">
+          <p role="alert" className="text-sm text-red-600 dark:text-red-400">
             {state.message}
           </p>
         )}
       </form>
     </div>
   );
+}
+
+// 作成中の印(小さな回る輪。動きを減らす設定のときは回らない)
+function Spinner() {
+  return <span aria-hidden className="mr-1.5 inline-block h-3 w-3 translate-y-0.5 rounded-full border-2 border-neutral border-t-accent motion-safe:animate-spin" />;
 }
 
 function EligibilityText({ eligibility }: { eligibility: Eligibility }) {
@@ -154,14 +173,14 @@ function EligibilityText({ eligibility }: { eligibility: Eligibility }) {
 // 枠(随時・定期)。上に「作る」の行、下に、その種類の作ったレポート
 function Frame({ title, description, savedTitle, saved, children }: { title: string; description: string; savedTitle: string; saved: ReactNode; children: ReactNode }) {
   return (
-    <section aria-label={title} className="flex flex-col gap-3 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
+    <section aria-label={title} className="flex flex-col gap-4 rounded-lg bg-surface-raised p-4 sm:p-5">
       <div>
-        <h2 className="text-lg font-semibold">{title}</h2>
-        <p className="text-sm text-zinc-500">{description}</p>
+        <h2 className="text-xl font-bold">{title}</h2>
+        <p className="text-sm text-ink-muted">{description}</p>
       </div>
-      <ul className="flex flex-col divide-y divide-zinc-100 dark:divide-zinc-900">{children}</ul>
+      <ul className="flex flex-col divide-y divide-line-soft border-t border-line-soft pt-4">{children}</ul>
       <div>
-        <h3 className="mb-1 text-sm font-medium text-zinc-500">{savedTitle}</h3>
+        <h3 className="mb-2 text-xs font-bold text-ink-muted">{savedTitle}</h3>
         {saved}
       </div>
     </section>

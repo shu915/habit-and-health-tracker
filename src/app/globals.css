@@ -1,36 +1,119 @@
 @import "tailwindcss";
 
+/* 色の基準(デザインシステム「Habit and Health Tracker」の色)。温かみのあるベージュの面に白いカード、決定する操作だけ深い緑。
+   文字は 3 段: ink(本文)/ ink-muted(小さいラベル・注記。13px でも読める濃さ)/ ink-subtle(「未入力」と空の案内だけ)。ink-decor は › などの飾り専用で、文字に使わない */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-  /* グラフの色(dataviz の基準色。系列は青の1色、格子と目安の輪は灰色で目立たせない) */
-  --viz-series: #2a78d6;
-  --viz-grid: #e4e4e7;
-  --viz-ring: #a1a1aa;
-  --viz-text: #52514e;
-  --viz-surface: #ffffff;
-  /* 消費の目安を上回った日(差の棒の上側。オレンジ。赤にしない: 責める色にしない。系列の青と明るさを揃える) */
+  --surface: #f6f4f0;
+  --surface-raised: #ffffff;
+  --surface-hover: #faf8f5;
+  --line: #e7e2d9;
+  --line-soft: #efebe4;
+  --ink: #23211d;
+  --ink-muted: #57524a;
+  --ink-subtle: #6f6a62;
+  --ink-decor: #b3ab9e;
+  --accent: oklch(0.48 0.08 155);
+  --accent-hover: oklch(0.42 0.08 155);
+  --on-accent: #ffffff;
+  --neutral: #ebe7e0;
+  --neutral-hover: #e0dbd2;
+  --chart-grid: #ece7df;
+  /* 時間帯のバッジ(塗りと文字を同じ色相でそろえる。文字との比はどれも 6.9:1 以上) */
+  --badge-morning-bg: oklch(0.94 0.05 85);
+  --badge-morning-ink: oklch(0.42 0.08 70);
+  --badge-noon-bg: oklch(0.94 0.04 240);
+  --badge-noon-ink: oklch(0.42 0.08 245);
+  --badge-evening-bg: oklch(0.94 0.04 280);
+  --badge-evening-ink: oklch(0.42 0.09 280);
+  --badge-snack-bg: oklch(0.94 0.04 155);
+  --badge-snack-ink: oklch(0.42 0.08 155);
+  --badge-night-bg: oklch(0.94 0.04 320);
+  --badge-night-ink: oklch(0.42 0.09 320);
+
+  /* 既存のクラス(bg-background / text-foreground)のための別名 */
+  --background: var(--surface);
+  --foreground: var(--ink);
+  /* グラフの色(系列は accent の 1 色、格子と目安の輪は目立たせない) */
+  --viz-series: var(--accent);
+  --viz-grid: var(--chart-grid);
+  --viz-ring: var(--ink-decor);
+  --viz-text: var(--ink-muted);
+  --viz-surface: var(--surface-raised);
+  /* 消費の目安を上回った日(差の棒の上側。オレンジ。赤にしない: 責める色にしない) */
   --viz-over: #d9731a;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --surface: #181715;
+    --surface-raised: #22201d;
+    --surface-hover: #2a2824;
+    --line: #34312c;
+    --line-soft: #2e2b27;
+    --ink: #eeebe5;
+    --ink-muted: #b9b3a8;
+    --ink-subtle: #9a948a;
+    --ink-decor: #5f5a52;
+    --accent: oklch(0.72 0.09 155);
+    --accent-hover: oklch(0.78 0.09 155);
+    --on-accent: #10221a;
+    --neutral: #34312c;
+    --neutral-hover: #3e3a34;
+    --chart-grid: #34312c;
+    --badge-morning-bg: oklch(0.32 0.05 85);
+    --badge-morning-ink: oklch(0.88 0.07 85);
+    --badge-noon-bg: oklch(0.32 0.05 240);
+    --badge-noon-ink: oklch(0.88 0.05 240);
+    --badge-evening-bg: oklch(0.32 0.05 280);
+    --badge-evening-ink: oklch(0.88 0.05 280);
+    --badge-snack-bg: oklch(0.32 0.05 155);
+    --badge-snack-ink: oklch(0.88 0.06 155);
+    --badge-night-bg: oklch(0.32 0.05 320);
+    --badge-night-ink: oklch(0.88 0.05 320);
+    --viz-over: #ec8a2f;
+  }
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-hover: var(--surface-hover);
+  --color-line: var(--line);
+  --color-line-soft: var(--line-soft);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-subtle: var(--ink-subtle);
+  --color-ink-decor: var(--ink-decor);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-on-accent: var(--on-accent);
+  --color-neutral: var(--neutral);
+  --color-neutral-hover: var(--neutral-hover);
+  --color-badge-morning: var(--badge-morning-bg);
+  --color-badge-morning-ink: var(--badge-morning-ink);
+  --color-badge-noon: var(--badge-noon-bg);
+  --color-badge-noon-ink: var(--badge-noon-ink);
+  --color-badge-evening: var(--badge-evening-bg);
+  --color-badge-evening-ink: var(--badge-evening-ink);
+  --color-badge-snack: var(--badge-snack-bg);
+  --color-badge-snack-ink: var(--badge-snack-ink);
+  --color-badge-night: var(--badge-night-bg);
+  --color-badge-night-ink: var(--badge-night-ink);
+  /* 数字・英字は Geist、かな・漢字は Zen Kaku Gothic New(Geist に日本語の字は無いので、字ごとに使い分けられる)。どちらも無いときは端末の日本語フォント */
+  --font-sans: var(--font-geist-sans), var(--font-zen-kaku), system-ui, "Hiragino Sans", "Yu Gothic", Meiryo, sans-serif;
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-    --viz-series: #3987e5;
-    --viz-grid: #3f3f46;
-    --viz-ring: #71717a;
-    --viz-text: #c3c2b7;
-    --viz-surface: #0a0a0a;
-    --viz-over: #ec8a2f;
-  }
+@theme {
+  /* 角丸は 3 段で、要素が小さいほど小さく: バッジ 6px / ボタン 8px / 白い面(カード・一覧)12px。直角も完全な丸も使わない */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  /* いちばん小さい文字は 13px(12px は背景の上で読みにくいため) */
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.25rem;
 }
 
 /* Tailwind v4 はボタンのカーソルを矢印にするので、押せるものは指のカーソルに戻す */
@@ -41,6 +124,12 @@ button:not(:disabled),
 
 button:disabled {
   cursor: not-allowed;
+}
+
+/* ラジオボタンとチェックボックスの色を、決定の色にそろえる */
+input[type="radio"],
+input[type="checkbox"] {
+  accent-color: var(--accent);
 }
 
 /* 処理中の「動いている」印: 長さの分からない待ちのための、左右に流れる帯。動きを減らす設定のときは、止めて薄い帯にする */
@@ -68,5 +157,5 @@ button:disabled {
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
 }

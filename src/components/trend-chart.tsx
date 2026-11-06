@@ -58,14 +58,14 @@ function TrendTooltip({ active, payload, unit, format }: { active?: boolean; pay
   const point = active ? payload?.find((item) => item.payload !== undefined)?.payload : undefined;
   if (!point) return null;
   return (
-    <div className="rounded-md border border-zinc-200 bg-background px-3 py-2 text-xs shadow-sm dark:border-zinc-700">
-      <p className="text-zinc-500">{point.date}</p>
+    <div className="rounded-md border border-line bg-surface-raised px-3 py-2 text-xs shadow-sm">
+      <p className="text-ink-muted">{point.date}</p>
       <p className="tabular-nums">
-        <span className="font-medium">{point.value === null ? "記録なし" : `${format(point.value)} ${unit}`}</span> <span className="text-zinc-500">その日</span>
+        <span className="font-medium">{point.value === null ? "記録なし" : `${format(point.value)} ${unit}`}</span> <span className="text-ink-muted">その日</span>
       </p>
       {point.average !== null && (
         <p className="tabular-nums">
-          <span className="font-medium">{format(point.average)} {unit}</span> <span className="text-zinc-500">7 日移動平均</span>
+          <span className="font-medium">{format(point.average)} {unit}</span> <span className="text-ink-muted">7 日移動平均</span>
         </p>
       )}
     </div>

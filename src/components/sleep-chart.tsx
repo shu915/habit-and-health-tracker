@@ -41,8 +41,8 @@ function SleepTooltip({ active, payload }: { active?: boolean; payload?: readonl
   const point = active ? payload?.find((item) => item.payload !== undefined)?.payload : undefined;
   if (!point) return null;
   return (
-    <div className="rounded-md border border-zinc-200 bg-background px-3 py-2 text-xs shadow-sm dark:border-zinc-700">
-      <p className="text-zinc-500">{point.date}</p>
+    <div className="rounded-md border border-line bg-surface-raised px-3 py-2 text-xs shadow-sm">
+      <p className="text-ink-muted">{point.date}</p>
       {point.range === null || point.minutes === null || point.midpoint === null ? (
         // 帯が出せない日。片方の時刻だけ入っているときは、表と食い違わないよう、入っている時刻を出す
         <p className="font-medium">
@@ -57,13 +57,13 @@ function SleepTooltip({ active, payload }: { active?: boolean; payload?: readonl
       ) : (
         <>
           <p className="tabular-nums">
-            <span className="font-medium">{formatDuration(point.minutes)}</span> <span className="text-zinc-500">睡眠時間</span>
+            <span className="font-medium">{formatDuration(point.minutes)}</span> <span className="text-ink-muted">睡眠時間</span>
           </p>
           <p className="tabular-nums">
-            <span className="font-medium">{nightClock(point.range[0])}</span> <span className="text-zinc-500">就寝</span> ・ <span className="font-medium">{nightClock(point.range[1])}</span> <span className="text-zinc-500">起床</span>
+            <span className="font-medium">{nightClock(point.range[0])}</span> <span className="text-ink-muted">就寝</span> ・ <span className="font-medium">{nightClock(point.range[1])}</span> <span className="text-ink-muted">起床</span>
           </p>
           <p className="tabular-nums">
-            <span className="font-medium">{nightClock(Math.round(point.midpoint))}</span> <span className="text-zinc-500">中間時刻</span>
+            <span className="font-medium">{nightClock(Math.round(point.midpoint))}</span> <span className="text-ink-muted">中間時刻</span>
           </p>
         </>
       )}

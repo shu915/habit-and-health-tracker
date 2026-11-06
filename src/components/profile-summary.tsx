@@ -35,7 +35,7 @@ export async function ProfileSummary() {
     <section className="flex flex-col gap-3">
       <EnergyCard profile={profile} />
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">プロフィール</h2>
+        <h2 className="text-xl font-bold">プロフィール</h2>
         <Link href="/profile/edit" className={buttonClass()}>
           編集
         </Link>
@@ -62,8 +62,8 @@ function activityLevelRow(value: string | null): Row {
 // moreRows は、同じ枠の中で、少し間を空けて続ける項目
 function RowList({ title, rows, moreRows }: { title: string; rows: Row[]; moreRows?: Row[] }) {
   return (
-    <div className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
-      <h3 className="mb-2 text-sm font-bold text-zinc-500">{title}</h3>
+    <div className="rounded-lg bg-surface-raised p-4 sm:p-5">
+      <h3 className="mb-2 text-sm font-bold text-ink-muted">{title}</h3>
       <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
         {rows.map((row) => (
           <Item key={row.label} row={row} />
@@ -83,15 +83,15 @@ function RowList({ title, rows, moreRows }: { title: string; rows: Row[]; moreRo
 function Item({ row }: { row: Row }) {
   return (
     <>
-      <dt className="text-zinc-500">{row.label}</dt>
+      <dt className="text-ink-muted">{row.label}</dt>
       <dd>
         {row.value === null ? (
-          <span className="text-zinc-400">未入力</span>
+          <span className="text-ink-subtle">未入力</span>
         ) : (
           <>
             {row.value}
             {row.unit ? ` ${row.unit}` : ""}
-            {row.detail && <span className="block text-xs text-zinc-400">{row.detail}</span>}
+            {row.detail && <span className="block text-xs text-ink-subtle">{row.detail}</span>}
           </>
         )}
       </dd>

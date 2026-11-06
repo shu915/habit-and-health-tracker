@@ -11,7 +11,7 @@ import { deleteExerciseAction, updateExerciseAction } from "../../actions";
 // 運動を直す・消す。保存した内容から始める
 export default function EditExercisePage({ params }: PageProps<"/days/[date]/exercises/[id]/edit">) {
   return (
-    <Suspense fallback={<p className="text-zinc-500">読み込み中...</p>}>
+    <Suspense fallback={<p className="text-ink-muted">読み込み中...</p>}>
       <EditExerciseContent params={params} />
     </Suspense>
   );
@@ -28,10 +28,10 @@ async function EditExerciseContent({ params }: Pick<PageProps<"/days/[date]/exer
   const { exercise } = found;
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
+    <div className="mx-auto flex w-full max-w-2xl flex-col gap-5">
       <div>
         <BackLink href={`/days/${date}`}>{date} の詳細に戻る</BackLink>
-        <h1 className="text-2xl font-semibold">{date} の運動を直す</h1>
+        <h1 className="text-[26px] leading-9 font-bold sm:text-[32px] sm:leading-10">{date} の運動を直す</h1>
       </div>
       <ExerciseForm
         date={date}

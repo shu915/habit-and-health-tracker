@@ -21,10 +21,18 @@ describe("proxy matcher", () => {
     expect(matches("/favicon.ico")).toBe(false);
   });
 
+  it("アイコンと manifest は対象にしない(ログイン前でも、タブのアイコンやホーム画面への追加で読まれる)", () => {
+    for (const path of ["/icon.png", "/apple-icon.png", "/manifest.webmanifest", "/icon-192.png", "/icon-512.png", "/icon-maskable-512.png", "/logo.webp"]) {
+      expect(matches(path)).toBe(false);
+    }
+  });
+
   it("名前が似ているだけのパスは対象にする(前方一致で外れない)", () => {
     expect(matches("/apiary")).toBe(true);
     expect(matches("/login-history")).toBe(true);
     expect(matches("/apikeys")).toBe(true);
     expect(matches("/favicon.icon")).toBe(true);
+    expect(matches("/icon.png.html")).toBe(true);
+    expect(matches("/icons")).toBe(true);
   });
 });

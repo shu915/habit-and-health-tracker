@@ -7,7 +7,7 @@ import { PROFILE_FIELDS } from "@/lib/profile-schema";
 // プロフィールの編集。保存は profile/actions.ts(成功すると / (ダッシュボード)へ移動する)
 export default function ProfileEditPage() {
   return (
-    <Suspense fallback={<p className="text-zinc-500">読み込み中...</p>}>
+    <Suspense fallback={<p className="text-ink-muted">読み込み中...</p>}>
       <ProfileEditContent />
     </Suspense>
   );
@@ -22,10 +22,10 @@ async function ProfileEditContent() {
   ) as ProfileFormInitial;
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-4">
-      <h1 className="text-2xl font-semibold">プロフィールの編集</h1>
+    <div className="mx-auto flex w-full max-w-2xl flex-col gap-5">
+      <h1 className="text-[26px] leading-9 font-bold sm:text-[32px] sm:leading-10">プロフィールの編集</h1>
       {!isProfileReady(profile) && (
-        <p className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100">
+        <p className="rounded-lg bg-badge-morning px-5 py-4 text-sm leading-relaxed text-badge-morning-ink">
           記録を始める前に、目標カロリーと活動係数を決めてください。目標カロリーは「提案」ボタンで入力欄を埋められます。保存したら、もう一度日付を選んでください。
         </p>
       )}

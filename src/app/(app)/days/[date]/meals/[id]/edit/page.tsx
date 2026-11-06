@@ -11,7 +11,7 @@ import { getMeal } from "@/lib/meals";
 // 食事を直す・消す。保存した内容から始めて、説明を直して推定し直すか、時刻・別名を直す
 export default function EditMealPage({ params }: PageProps<"/days/[date]/meals/[id]/edit">) {
   return (
-    <Suspense fallback={<p className="text-zinc-500">読み込み中...</p>}>
+    <Suspense fallback={<p className="text-ink-muted">読み込み中...</p>}>
       <EditMealContent params={params} />
     </Suspense>
   );
@@ -43,13 +43,13 @@ async function EditMealContent({ params }: Pick<PageProps<"/days/[date]/meals/[i
   };
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-5">
       <div>
         <BackLink href={`/days/${date}`}>{date} の詳細に戻る</BackLink>
-        <h1 className="text-2xl font-semibold">{date} の食事を直す</h1>
+        <h1 className="text-[26px] leading-9 font-bold sm:text-[32px] sm:leading-10">{date} の食事を直す</h1>
       </div>
       {!meal.itemsValid && (
-        <p role="alert" className="text-sm text-amber-700 dark:text-amber-400">
+        <p role="alert" className="text-sm text-badge-morning-ink">
           保存されている内訳が読み取れませんでした。説明を確認して、推定し直してください。
         </p>
       )}

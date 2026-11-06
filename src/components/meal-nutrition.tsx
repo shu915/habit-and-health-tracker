@@ -25,17 +25,18 @@ export async function MealNutrition({ date, meals }: { date: string; meals: read
   });
 
   return (
-    <div className="flex flex-col gap-3 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
+    <div className="flex flex-col gap-3 rounded-lg bg-surface-raised p-5">
       <div className="flex items-baseline justify-between gap-2">
-        <h3 className="text-sm font-medium text-zinc-500">栄養の目標との比べ</h3>
-        {!finished && <span className="text-xs text-zinc-500">途中(食事が増えると変わります)</span>}
+        <h3 className="text-sm font-bold text-ink-muted">栄養の目標との比べ</h3>
+        {!finished && <span className="text-xs text-ink-muted">途中(食事が増えると変わります)</span>}
       </div>
 
       <div className="grid items-center gap-4 sm:grid-cols-[18rem_1fr]">
         <MealRadarChart axes={radar.axes} inProgress={!finished} />
 
-        <table className="w-full text-left text-sm">
-          <thead className="text-xs text-zinc-500">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[19rem] text-left text-sm">
+          <thead className="text-xs text-ink-muted">
             <tr>
               <th className="py-1 font-normal">栄養素</th>
               <th className="py-1 text-right font-normal">この日</th>
@@ -54,9 +55,10 @@ export async function MealNutrition({ date, meals }: { date: string; meals: read
             ))}
           </tbody>
         </table>
+        </div>
       </div>
 
-      <div className="flex flex-col gap-1 text-xs text-zinc-500">
+      <div className="flex flex-col gap-1 text-xs text-ink-muted">
         {(radar.incompleteSalt || radar.incompleteFiber) && <p>* 分からない食事があるため、分かる分だけの合計です。</p>}
         {radar.allowanceKcal !== null && (
           <p>
@@ -78,16 +80,16 @@ export async function MealNutrition({ date, meals }: { date: string; meals: read
 
 function Row({ axis, note, incomplete }: { axis: RadarAxis; note: string | null; incomplete: boolean }) {
   return (
-    <tr className="border-t border-zinc-100 dark:border-zinc-900">
+    <tr className="border-t border-line-soft">
       <td className="py-1.5">{axis.label}</td>
       <td className="py-1.5 text-right">
         {number(axis.actual)} {axis.unit}
-        {incomplete && <span className="text-zinc-500">*</span>}
+        {incomplete && <span className="text-ink-muted">*</span>}
       </td>
-      <td className="py-1.5 text-right text-zinc-500">{axis.reference === null ? "-" : `${number(axis.reference)} ${axis.unit}`}</td>
+      <td className="py-1.5 text-right text-ink-muted">{axis.reference === null ? "-" : `${number(axis.reference)} ${axis.unit}`}</td>
       <td className="py-1.5 text-right">
         {axis.percent === null ? "-" : `${axis.percent}%`}
-        {note && <span className="block text-xs text-zinc-500">{note}</span>}
+        {note && <span className="block text-xs text-ink-muted">{note}</span>}
       </td>
     </tr>
   );

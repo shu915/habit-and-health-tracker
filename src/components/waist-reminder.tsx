@@ -13,9 +13,9 @@ export async function WaistReminder() {
   if (!isWaistDue(todayString(), profile.waistMeasuredOn)) return null;
 
   return (
-    <section aria-label="ウエストの更新" className="flex flex-col gap-2 rounded-lg bg-zinc-100 p-4 dark:bg-zinc-900">
+    <section aria-label="ウエストの更新" className="flex flex-col gap-2 rounded-lg bg-neutral p-4 sm:p-5">
       <p className="text-sm font-medium">月末です。ウエストを測って、更新してください。</p>
-      <p className="text-xs text-zinc-500">おへその高さで測ります。前と同じ値でも、そのまま「保存」を押すと、今月は測ったことになります。</p>
+      <p className="text-xs text-ink-muted">おへその高さで測ります。前と同じ値でも、そのまま「保存」を押すと、今月は測ったことになります。</p>
       <WaistReminderForm current={profile.currentWaistCm} action={recordWaistAction} />
     </section>
   );

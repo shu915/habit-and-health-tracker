@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { connection } from "next/server";
 import { BackLink } from "@/components/back-link";
+import { BadgeConditions } from "@/components/badge-conditions";
 import { ReportCreateForm } from "@/components/report-create-form";
 import { getAiConsent } from "@/lib/report-consent";
 import { badgeLabel, reportTitle } from "@/lib/report-format";
@@ -19,10 +20,14 @@ export default function ReportsPage() {
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
       <div>
         <BackLink href="/">ダッシュボードに戻る</BackLink>
-        <h1 className="text-2xl font-semibold">AI レポート</h1>
-        <p className="mt-1 text-sm text-zinc-500">記録を AI が振り返って、グラフと文章でまとめます。数字の範囲に収まった項目には、バッジを贈ります。</p>
+        <h1 className="text-[26px] leading-9 font-bold sm:text-[32px] sm:leading-10">AI レポート</h1>
+        <p className="mt-1 text-sm leading-relaxed text-ink-muted">記録を AI が振り返って、グラフと文章でまとめます。数字の範囲に収まった項目には、バッジを贈ります。</p>
+        {/* バッジの条件は、作る前に知っておくと目標になる。レポートの詳細は、バッジが無い人には節ごと出さないので、条件はここで読める */}
+        <div className="mt-2">
+          <BadgeConditions />
+        </div>
       </div>
-      <Suspense fallback={<p className="text-zinc-500">読み込み中...</p>}>
+      <Suspense fallback={<p className="text-ink-muted">読み込み中...</p>}>
         <ReportsContent />
       </Suspense>
     </div>
@@ -51,20 +56,26 @@ async function ReportsContent() {
 
 // 作ったレポートの一覧(行のどこを押しても、そのレポートへ)
 function ReportList({ reports }: { reports: Awaited<ReturnType<typeof listReports>> }) {
-  if (reports.length === 0) return <p className="text-sm text-zinc-500">まだありません。</p>;
+  if (reports.length === 0) return <p className="text-sm text-ink-muted">まだありません。</p>;
   return (
-    <ul className="flex flex-col divide-y divide-zinc-100 rounded-lg border border-zinc-200 dark:divide-zinc-900 dark:border-zinc-800">
+    <ul className="flex flex-col divide-y divide-line overflow-hidden rounded-md bg-surface">
       {reports.map((report) => (
-        <li key={report.id} className="relative flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-900">
+        <li key={report.id} className="relative flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-4 py-3 text-sm hover:bg-line-soft">
           <div>
-            <Link href={`/reports/${report.id}`} className="font-medium after:absolute after:inset-0">
+            <Link href={`/reports/${report.id}`} className="font-semibold after:absolute after:inset-0">
               {reportTitle(report.kind, report.periodStart, report.periodEnd)}
             </Link>
-            <p className="text-xs text-zinc-500">{report.createdAt.toLocaleDateString("ja-JP")} に作成</p>
+            <p className="text-xs text-ink-muted">{report.createdAt.toLocaleDateString("ja-JP")} に作成</p>
           </div>
-          <p className="text-xs text-zinc-500">
+          <p className="text-xs text-ink-muted">
             {report.status === "creating" ? "作成中" : report.status === "failed" ? "作れませんでした" : report.badges.length === 0 ? "" : report.badges.map(badgeLabel).join(" ・ ")}
           </p>
+          {/* 失敗の理由は、一覧の上で気づけるように、ここにも出す(作る画面に留まるので、詳細へ移動して知ることがない)。待てば直る案内ではなく失敗なので、赤にする */}
+          {report.status === "failed" && (
+            <p role="alert" className="w-full text-xs text-red-600 dark:text-red-400">
+              {report.errorMessage ?? "レポートを作れませんでした。"}(失敗は、今日の随時レポートの回数には数えません)
+            </p>
+          )}
         </li>
       ))}
     </ul>

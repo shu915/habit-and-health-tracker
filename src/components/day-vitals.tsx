@@ -13,8 +13,8 @@ type Day = {
   morningBodyFatPercent: string | null;
 };
 
-const unset = <span className="text-zinc-400">未入力</span>;
-const card = "flex flex-col gap-3 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800";
+const unset = <span className="text-ink-subtle">未入力</span>;
+const card = "flex flex-col gap-3 rounded-lg bg-surface-raised p-5";
 
 export function DayVitals({ date, day }: { date: string; day: Day | null }) {
   // 朝の項目が 1 つでも入っていれば「編集」、無ければ「記録する」(食事だけの日は、朝の記録がまだ無い)
@@ -22,13 +22,13 @@ export function DayVitals({ date, day }: { date: string; day: Day | null }) {
 
   return (
     <section aria-label="朝の記録" className="flex flex-col gap-3">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">朝の記録</h2>
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-xl font-bold">朝の記録</h2>
         <Link href={`/days/${date}/edit`} className={buttonClass()}>
           {hasMorning ? "編集" : "記録する"}
         </Link>
       </div>
-      {day === null ? <p className="text-sm text-zinc-500">この日の記録はまだありません。</p> : <VitalCards day={day} />}
+      {day === null ? <p className="text-sm text-ink-muted">この日の記録はまだありません。</p> : <VitalCards day={day} />}
     </section>
   );
 }
@@ -40,38 +40,38 @@ function VitalCards({ day }: { day: Day }) {
   return (
     <div className="grid gap-4 md:grid-cols-2">
       <section aria-label="睡眠" className={card}>
-        <h3 className="text-sm font-medium text-zinc-500">睡眠</h3>
+        <h3 className="text-sm font-bold text-ink-muted">睡眠</h3>
         <dl className="grid grid-cols-2 gap-4">
           <div>
-            <dt className="text-xs text-zinc-500">睡眠時間</dt>
+            <dt className="text-xs text-ink-muted">睡眠時間</dt>
             <dd className="text-2xl font-semibold">{duration ?? unset}</dd>
           </div>
           <div>
-            <dt className="text-xs text-zinc-500">中間時刻</dt>
+            <dt className="text-xs text-ink-muted">中間時刻</dt>
             <dd className="text-2xl font-semibold">{midpoint ?? unset}</dd>
           </div>
         </dl>
-        <dl className="flex gap-6 text-sm text-zinc-600 dark:text-zinc-400">
+        <dl className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-ink-muted">
           <div className="flex gap-2">
-            <dt className="text-zinc-500">就寝(前の夜)</dt>
+            <dt className="text-ink-muted">就寝(前の夜)</dt>
             <dd>{formatTimeOfDay(day.sleepBedtime) ?? unset}</dd>
           </div>
           <div className="flex gap-2">
-            <dt className="text-zinc-500">起床</dt>
+            <dt className="text-ink-muted">起床</dt>
             <dd>{formatTimeOfDay(day.sleepWakeTime) ?? unset}</dd>
           </div>
         </dl>
       </section>
 
       <section aria-label="朝の体" className={card}>
-        <h3 className="text-sm font-medium text-zinc-500">朝の体</h3>
+        <h3 className="text-sm font-bold text-ink-muted">朝の体</h3>
         <dl className="grid grid-cols-2 gap-4">
           <div>
-            <dt className="text-xs text-zinc-500">体重</dt>
+            <dt className="text-xs text-ink-muted">体重</dt>
             <dd className="text-2xl font-semibold">{day.morningWeightKg === null ? unset : `${day.morningWeightKg} kg`}</dd>
           </div>
           <div>
-            <dt className="text-xs text-zinc-500">体脂肪率</dt>
+            <dt className="text-xs text-ink-muted">体脂肪率</dt>
             <dd className="text-2xl font-semibold">{day.morningBodyFatPercent === null ? unset : `${day.morningBodyFatPercent} %`}</dd>
           </div>
         </dl>

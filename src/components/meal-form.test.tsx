@@ -458,8 +458,8 @@ describe("MealForm: 保存", () => {
     render(<MealForm date={DATE} mode="new" />);
     expect(isBefore(cancelLink(), button("AI で推定する"))).toBe(true);
     expect(isLastChild(button("AI で推定する"))).toBe(true);
-    expect(button("AI で推定する").className).toContain("bg-zinc-900");
-    expect(cancelLink().className).toContain("bg-zinc-200");
+    expect(button("AI で推定する").className).toContain("bg-accent");
+    expect(cancelLink().className).toContain("bg-neutral");
     expect(cancelLink().className).toContain("py-2"); // 高さはそろえる
     expect(button("AI で推定する").className).toContain("py-2");
     expect(button("AI で推定する").className).toContain("min-w-24");
@@ -473,7 +473,7 @@ describe("MealForm: 保存", () => {
     expect(screen.getAllByRole("link", { name: "キャンセル" })).toHaveLength(1);
     expect(isBefore(cancelLink(), button("この内容で保存"))).toBe(true);
     expect(isLastChild(button("この内容で保存"))).toBe(true);
-    expect(button("この内容で保存").className).toContain("bg-zinc-900");
+    expect(button("この内容で保存").className).toContain("bg-accent");
   });
 
   it("推定し直している間も、キャンセルは1つだけ出る(押せば戻れる)", async () => {
@@ -498,11 +498,11 @@ describe("MealForm: 保存", () => {
     const user = userEvent.setup();
     render(<MealForm date={DATE} mode="new" />);
     await estimated(user);
-    expect(button("推定し直す").className).toContain("bg-zinc-200");
-    expect(button("推定し直す").className).not.toContain("bg-zinc-900");
+    expect(button("推定し直す").className).toContain("bg-neutral");
+    expect(button("推定し直す").className).not.toContain("bg-accent");
 
     await user.type(field("説明"), "と納豆");
-    expect(button("推定し直す").className).toContain("bg-zinc-900");
+    expect(button("推定し直す").className).toContain("bg-accent");
   });
 
   it("推定しただけでは、何も保存されない。「この内容で保存」を押すと、日付・時刻・推定(合計は含めない)を送る", async () => {
@@ -634,8 +634,8 @@ describe("MealForm: 編集", () => {
 
     await user.click(remove);
     expect(isBefore(button("やめる"), button("削除する"))).toBe(true);
-    expect(button("やめる").className).toContain("bg-zinc-200");
-    expect(button("削除する").className).toContain("bg-zinc-900");
+    expect(button("やめる").className).toContain("bg-neutral");
+    expect(button("削除する").className).toContain("bg-accent");
     expect(button("やめる").className).toContain("py-2"); // 高さはそろえる
     expect(button("削除する").className).toContain("py-2");
     expect(button("削除する").className).toContain("min-w-24");

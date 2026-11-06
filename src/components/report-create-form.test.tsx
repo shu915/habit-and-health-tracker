@@ -3,9 +3,17 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ReportFormState } from "@/app/(app)/reports/actions";
+import { POLL_INTERVAL_MS } from "./report-progress";
 import { ReportCreateForm, type MonthView, type OnDemandView } from "./report-create-form";
 
-afterEach(cleanup);
+const router = vi.hoisted(() => ({ refresh: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => router }));
+
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+  router.refresh.mockClear();
+});
 
 const onDemand = (overrides: Partial<OnDemandView> = {}): OnDemandView => ({ start: "2026-10-08", end: "2026-11-04", recorded: 24, required: 20, missing: 0, ok: true, creatingId: null, blockedToday: false, ...overrides });
 const month = (value: string, overrides: Partial<MonthView> = {}): MonthView => ({ month: value, recorded: 25, required: 22, missing: 0, ok: true, existingId: null, creatingId: null, ...overrides });
@@ -134,13 +142,35 @@ describe("ReportCreateForm", () => {
     expect(action.mock.calls[1][1].get("month")).toBe("2026-07");
   });
 
-  it("作成の送信中は、ボタンを押せなくして、動く帯と秒数のローディングを出す(連打できない)", async () => {
+  it("作成の送信中は、ボタンを押せなくする(連打できない)。画面を覆うローディングは出さない(待たせない。作成は裏で続く)", async () => {
     const user = userEvent.setup();
     const action = vi.fn(() => new Promise<ReportFormState>(() => {})); // 返ってこない(送信中のまま)
     render(<ReportCreateForm {...base} action={action} />);
-    expect(screen.queryByRole("status")).toBeNull();
     await user.click(within(screen.getByRole("region", { name: "随時レポート" })).getByRole("button", { name: "作る" }));
-    expect(await screen.findByRole("status")).toHaveProperty("textContent", expect.stringContaining("30 秒ほどかかります"));
-    for (const button of screen.getAllByRole("button", { name: "作成中..." })) expect(button).toHaveProperty("disabled", true);
+    for (const button of await screen.findAllByRole("button", { name: "作成中..." })) expect(button).toHaveProperty("disabled", true);
+    expect(screen.getByRole("status").textContent).toBe(""); // 読み上げ用の領域は常にあるが、送信中に何かを出す(画面を覆う表示や、帯と秒数)ことはしない
+    expect(screen.queryByText(/秒/)).toBeNull();
+  });
+
+  it("作成の開始と終わりを、読み上げに伝える(画面は動かさないので、目に見える所だけの変化にしない)", () => {
+    const { rerender } = render(<ReportCreateForm {...base} />);
+    expect(screen.getByRole("status").textContent).toBe("");
+    rerender(<ReportCreateForm {...base} onDemand={onDemand({ creatingId: 5 })} />);
+    expect(screen.getByRole("status").textContent).toContain("作成中です");
+    rerender(<ReportCreateForm {...base} />);
+    expect(screen.getByRole("status").textContent).toContain("作成が終わりました");
+  });
+
+  it("作成中のレポートがあるあいだは、同じ画面のまま、数秒おきに状態を見に行く(できたら、一覧が切り替わる)。無ければ、見に行かない", () => {
+    vi.useFakeTimers();
+    render(<ReportCreateForm {...base} onDemand={onDemand({ creatingId: 5 })} />);
+    expect(screen.getByText(/ページを離れても続きます/)).toBeTruthy();
+    vi.advanceTimersByTime(POLL_INTERVAL_MS * 2);
+    expect(router.refresh).toHaveBeenCalledTimes(2);
+    cleanup();
+    router.refresh.mockClear();
+    render(<ReportCreateForm {...base} />);
+    vi.advanceTimersByTime(POLL_INTERVAL_MS * 2);
+    expect(router.refresh).not.toHaveBeenCalled();
   });
 });

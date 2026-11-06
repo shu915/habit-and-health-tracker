@@ -11,7 +11,7 @@ import { saveExerciseAction } from "../actions";
 // params は Suspense の内側で読む(読み込み中の表示を先に出すため)
 export default function NewExercisePage({ params }: PageProps<"/days/[date]/exercises/new">) {
   return (
-    <Suspense fallback={<p className="text-zinc-500">読み込み中...</p>}>
+    <Suspense fallback={<p className="text-ink-muted">読み込み中...</p>}>
       <NewExerciseContent params={params} />
     </Suspense>
   );
@@ -24,10 +24,10 @@ async function NewExerciseContent({ params }: Pick<PageProps<"/days/[date]/exerc
   await requireRecordingProfile(date); // 日の行が無く、目標カロリーか活動係数が未設定なら、プロフィールの編集へ
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
+    <div className="mx-auto flex w-full max-w-2xl flex-col gap-5">
       <div>
         <BackLink href={`/days/${date}`}>{date} の詳細に戻る</BackLink>
-        <h1 className="text-2xl font-semibold">{date} の運動を追加</h1>
+        <h1 className="text-[26px] leading-9 font-bold sm:text-[32px] sm:leading-10">{date} の運動を追加</h1>
       </div>
       <ExerciseForm date={date} initial={EMPTY_EXERCISE} action={saveExerciseAction.bind(null, date)} defaultToNow />
     </div>

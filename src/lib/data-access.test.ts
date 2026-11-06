@@ -62,7 +62,9 @@ async function expectViolation(attempt: Promise<unknown>, constraint: string, la
 const USER_A = "test-user-a";
 const USER_B = "test-user-b";
 
-describe.runIf(testDatabaseUrl)("データ操作(実 DB)", () => {
+// 実 DB のテストだけ、1 件の制限時間を 15 秒にする(既定は 5 秒)。全体を並列で走らせると、CPU の取り合いで遅れて落ちることがある(単独なら数秒で通る)。
+// 全体の設定ではなく、ここに絞るのは、DB 以外のテストの性能の劣化を見逃さないため
+describe.runIf(testDatabaseUrl)("データ操作(実 DB)", { timeout: 15_000 }, () => {
   let dbModule: typeof import("@/db");
   let schema: typeof import("@/db/schema");
   let daysModule: typeof import("@/lib/days");

@@ -47,14 +47,14 @@ export function DayJumpForm() {
           onChange={(event) => setChosen(event.target.value)}
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? "day-jump-date-error" : undefined}
-          className="rounded-md border border-zinc-300 bg-transparent px-3 py-1.5 text-sm dark:border-zinc-700"
+          className="rounded-md border border-line bg-surface-raised px-3 py-1.5 text-sm text-ink"
         />
         <button type="submit" className={buttonClass()}>
           開く
         </button>
       </div>
       {error && (
-        <p id="day-jump-date-error" role="alert" className="text-xs text-red-600">
+        <p id="day-jump-date-error" role="alert" className="text-xs text-red-600 dark:text-red-400">
           {error}
         </p>
       )}

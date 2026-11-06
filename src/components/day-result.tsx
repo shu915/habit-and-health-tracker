@@ -24,15 +24,15 @@ export async function DayResult({ date }: { date: string }) {
   });
 
   return (
-    <section aria-label="この日の結果" className="flex flex-col gap-3 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
-      <h2 className="text-sm font-medium text-zinc-500">この日の結果</h2>
+    <section aria-label="この日の結果" className="flex flex-col gap-3 rounded-lg bg-surface-raised p-5">
+      <h2 className="text-sm font-bold text-ink-muted">この日の結果</h2>
 
       {result.mealCount === 0 ? (
-        <p className="text-sm text-zinc-500">食事の記録がありません。</p>
+        <p className="text-sm text-ink-muted">食事の記録がありません。</p>
       ) : (
         <>
           {/* 実際の収支(食べた − 使った = 差。左から右へ計算の順)。目標との比べは、栄養のレーダー(meal-nutrition.tsx)が担当する */}
-          <dl className="grid grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-3">
+          <dl className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <Tile label="摂取" value={number(result.intakeKcal)} unit="kcal" caption={`記録した食事 ${result.mealCount} 回の合計`} />
 
             {result.burn && (
@@ -61,12 +61,12 @@ export async function DayResult({ date }: { date: string }) {
       )}
 
       {result.mealCount > 0 && result.burn === null && (
-        <p className="text-xs text-zinc-500">消費の目安は、プロフィール(身長・体重・年齢・性別・活動係数)がそろうと出ます。</p>
+        <p className="text-xs text-ink-muted">消費の目安は、プロフィール(身長・体重・年齢・性別・活動係数)がそろうと出ます。</p>
       )}
       {result.burn?.exerciseUncalculated && (
-        <p className="text-xs text-zinc-500">体重が分からない運動は、消費に足していません。</p>
+        <p className="text-xs text-ink-muted">体重が分からない運動は、消費に足していません。</p>
       )}
-      <p className="text-xs text-zinc-400">
+      <p className="text-xs text-ink-subtle">
         推定どうしの目安(誤差は 1 割前後あります)で、医療上の指示ではありません。消費の目安は、{weightNote(weight)}{bodyFatNote(bodyFat)}と、その日に記録したときのプロフィールの活動係数で計算しています。過ぎた日は、あとでプロフィールを直しても数字は変わりません。
       </p>
     </section>
@@ -77,11 +77,11 @@ export async function DayResult({ date }: { date: string }) {
 function Tile({ label, value, unit, caption }: { label: string; value: string; unit: string; caption: string }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <dt className="text-xs text-zinc-500">{label}</dt>
+      <dt className="text-xs text-ink-muted">{label}</dt>
       <dd>
-        <span className="text-2xl font-semibold tabular-nums">{value}</span> <span className="text-sm text-zinc-500">{unit}</span>
+        <span className="text-2xl font-semibold tabular-nums">{value}</span> <span className="text-sm text-ink-muted">{unit}</span>
       </dd>
-      <dd className="text-xs text-zinc-500">{caption}</dd>
+      <dd className="text-xs text-ink-muted">{caption}</dd>
     </div>
   );
 }

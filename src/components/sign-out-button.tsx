@@ -26,8 +26,8 @@ export function SignOutButton() {
 
   return (
     <div className="flex items-center gap-2">
-      {failed && <span className="text-sm text-red-600">ログアウトに失敗しました</span>}
-      <button type="button" onClick={onClick} className="text-sm text-zinc-500 hover:underline">
+      {failed && <span className="text-sm text-red-600 dark:text-red-400">ログアウトに失敗しました</span>}
+      <button type="button" onClick={onClick} className="text-sm text-ink-muted hover:underline">
         ログアウト
       </button>
     </div>

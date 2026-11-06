@@ -51,19 +51,19 @@ function CalorieTooltip({ active, payload }: { active?: boolean; payload?: reado
   const point = active ? payload?.find((item) => item.payload !== undefined)?.payload : undefined;
   if (!point) return null;
   return (
-    <div className="rounded-md border border-zinc-200 bg-background px-3 py-2 text-xs shadow-sm dark:border-zinc-700">
-      <p className="text-zinc-500">
+    <div className="rounded-md border border-line bg-surface-raised px-3 py-2 text-xs shadow-sm">
+      <p className="text-ink-muted">
         {point.date}
         {point.inProgress && "(途中)"}
       </p>
       <p className="tabular-nums">
-        <span className="font-medium">{point.intake === null ? "食事の記録なし" : kcal(point.intake)}</span> {point.intake !== null && <span className="text-zinc-500">摂取</span>}
+        <span className="font-medium">{point.intake === null ? "食事の記録なし" : kcal(point.intake)}</span> {point.intake !== null && <span className="text-ink-muted">摂取</span>}
       </p>
       {point.target !== null && (
         <p className="tabular-nums">
-          <span className="font-medium">{kcal(point.target)}</span> <span className="text-zinc-500">目標となるカロリー</span>
+          <span className="font-medium">{kcal(point.target)}</span> <span className="text-ink-muted">目標となるカロリー</span>
           {point.exerciseKcal > 0 && point.baseKcal !== null && (
-            <span className="block text-zinc-500">
+            <span className="block text-ink-muted">
               目標カロリー {point.baseKcal.toLocaleString("ja-JP")} + 運動 {point.exerciseKcal.toLocaleString("ja-JP")}
             </span>
           )}

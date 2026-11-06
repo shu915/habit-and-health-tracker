@@ -18,7 +18,7 @@ import { getAdjacentDays, getDay } from "@/lib/days";
 // params は Suspense の内側で読む(読み込み中の表示を先に出すため)
 export default function DayPage({ params }: PageProps<"/days/[date]">) {
   return (
-    <Suspense fallback={<p className="text-zinc-500">読み込み中...</p>}>
+    <Suspense fallback={<p className="text-ink-muted">読み込み中...</p>}>
       <DayContent params={params} />
     </Suspense>
   );
@@ -32,10 +32,10 @@ async function DayContent({ params }: Pick<PageProps<"/days/[date]">, "params">)
   const [day, adjacent] = await Promise.all([getDay(date), getAdjacentDays(date)]);
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-8">
       <div>
         <BackLink href="/">ダッシュボードに戻る</BackLink>
-        <h1 className="text-2xl font-semibold">{date}</h1>
+        <h1 className="text-[32px] leading-10 font-bold tabular-nums">{date}</h1>
         <DayNavigation previous={adjacent.previous} next={nextDate(date, adjacent.next, todayString())} hrefOf={(d) => `/days/${d}`} />
       </div>
 
@@ -53,17 +53,17 @@ async function DayContent({ params }: Pick<PageProps<"/days/[date]">, "params">)
       </Suspense>
 
       {/* その日の食事(日の記録が無い日でも、「食事を追加」から追加できる)。一覧の読み込みは別に待つ */}
-      <Suspense fallback={<p className="text-zinc-500">食事を読み込み中...</p>}>
+      <Suspense fallback={<p className="text-ink-muted">食事を読み込み中...</p>}>
         <MealList date={date} />
       </Suspense>
 
       {/* いつもより多く動いた分の運動 */}
-      <Suspense fallback={<p className="text-zinc-500">運動を読み込み中...</p>}>
+      <Suspense fallback={<p className="text-ink-muted">運動を読み込み中...</p>}>
         <ExerciseList date={date} />
       </Suspense>
 
       {/* ポジティブ3行日記(良かったこと) */}
-      <Suspense fallback={<p className="text-zinc-500">良かったことを読み込み中...</p>}>
+      <Suspense fallback={<p className="text-ink-muted">良かったことを読み込み中...</p>}>
         <PositiveList date={date} />
       </Suspense>
 

@@ -39,8 +39,8 @@ describe("ProfileForm: 消費カロリーの目安", () => {
     const save = screen.getByRole("button", { name: "保存" });
     expect(isBefore(cancel, save)).toBe(true);
     expect(isLastChild(save)).toBe(true);
-    expect(save.className).toContain("bg-zinc-900"); // 決定は濃い色
-    expect(cancel.className).toContain("bg-zinc-200"); // キャンセルはグレー
+    expect(save.className).toContain("bg-accent"); // 決定は濃い色
+    expect(cancel.className).toContain("bg-neutral"); // キャンセルはグレー
     expect(cancel.className).toContain("py-2"); // 高さはそろえる
     expect(save.className).toContain("py-2");
     expect(save.className).toContain("min-w-24"); // 決定も、字が少なくても細くならない(キャンセルと同じ幅)

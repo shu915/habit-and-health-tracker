@@ -54,7 +54,7 @@ export function PairInput({
 }) {
   const [first, setFirst] = useState(initial.first);
   const [second, setSecond] = useState(initial.second);
-  const inputClass = "w-16 rounded-md border border-zinc-300 bg-transparent px-3 py-1.5 dark:border-zinc-700";
+  const inputClass = "w-16 rounded-md border border-line bg-surface-raised px-3 py-2 text-right text-[15px] text-ink tabular-nums";
   const invalid = error ? true : undefined;
   const describedBy = error ? errorId : undefined;
 
@@ -76,7 +76,7 @@ export function PairInput({
         aria-describedby={describedBy}
         className={inputClass}
       />
-      <span className="text-zinc-500">{units[0]}</span>
+      <span className="text-ink-muted">{units[0]}</span>
       <input
         type="text"
         inputMode="numeric"
@@ -92,7 +92,7 @@ export function PairInput({
         aria-describedby={describedBy}
         className={inputClass}
       />
-      <span className="text-zinc-500">{units[1]}</span>
+      <span className="text-ink-muted">{units[1]}</span>
       <input type="hidden" name={name} value={join(first, second)} />
     </>
   );

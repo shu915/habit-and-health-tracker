@@ -13,7 +13,9 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // 認証 API、ログインページ、静的ファイルは除く。
+  // 認証 API、ログインページ、静的ファイル、アイコンと manifest(ログイン前のページのタブや、ホーム画面への追加でも読まれる)は除く。
   // 前方一致で除外すると /apiary や /login-history のような将来のページまで外れるので、パスの区切りまで書く
-  matcher: ["/((?!api/|login$|_next/static/|_next/image|favicon\\.ico$).*)"],
+  matcher: [
+    "/((?!api/|login$|_next/static/|_next/image|favicon\\.ico$|icon\\.png$|apple-icon\\.png$|manifest\\.webmanifest$|icon-192\\.png$|icon-512\\.png$|icon-maskable-512\\.png$|logo\\.webp$).*)",
+  ],
 };

@@ -12,7 +12,7 @@ import { saveReflectionAction } from "./actions";
 // params は Suspense の内側で読む(読み込み中の表示を先に出すため)
 export default function ReflectionPage({ params }: PageProps<"/days/[date]/reflection">) {
   return (
-    <Suspense fallback={<p className="text-zinc-500">読み込み中...</p>}>
+    <Suspense fallback={<p className="text-ink-muted">読み込み中...</p>}>
       <ReflectionContent params={params} />
     </Suspense>
   );
@@ -27,10 +27,10 @@ async function ReflectionContent({ params }: Pick<PageProps<"/days/[date]/reflec
   const day = await getDay(date);
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
+    <div className="mx-auto flex w-full max-w-2xl flex-col gap-5">
       <div>
         <BackLink href={`/days/${date}`}>{date} の詳細に戻る</BackLink>
-        <h1 className="text-2xl font-semibold">{date} の気づき</h1>
+        <h1 className="text-[26px] leading-9 font-bold sm:text-[32px] sm:leading-10">{date} の気づき</h1>
       </div>
       <ReflectionForm date={date} initial={day?.reflection ?? ""} action={saveReflectionAction.bind(null, date)} />
     </div>

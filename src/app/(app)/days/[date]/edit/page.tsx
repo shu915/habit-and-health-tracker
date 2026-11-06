@@ -14,7 +14,7 @@ import { saveDayAction } from "./actions";
 // params は Suspense の内側で読む(読み込み中の表示を先に出すため)
 export default function DayEditPage({ params }: PageProps<"/days/[date]/edit">) {
   return (
-    <Suspense fallback={<p className="text-zinc-500">読み込み中...</p>}>
+    <Suspense fallback={<p className="text-ink-muted">読み込み中...</p>}>
       <DayEditContent params={params} />
     </Suspense>
   );
@@ -36,10 +36,10 @@ async function DayEditContent({ params }: Pick<PageProps<"/days/[date]/edit">, "
   };
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
+    <div className="mx-auto flex w-full max-w-2xl flex-col gap-5">
       <div>
         <BackLink href={`/days/${date}`}>{date} の詳細に戻る</BackLink>
-        <h1 className="text-2xl font-semibold">{date} の{day ? "編集" : "記録"}</h1>
+        <h1 className="text-[26px] leading-9 font-bold sm:text-[32px] sm:leading-10">{date} の{day ? "編集" : "記録"}</h1>
         <DayNavigation previous={adjacent.previous} next={nextDate(date, adjacent.next, todayString())} hrefOf={(d) => `/days/${d}/edit`} />
       </div>
       {/* 日付を bind した Server Action を渡す(日付はフォームの入力ではなく、このページの URL から決まる) */}

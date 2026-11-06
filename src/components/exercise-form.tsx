@@ -31,7 +31,7 @@ type Props = {
   defaultToNow?: boolean;
 };
 
-const INPUT_CLASS = "rounded-md border border-zinc-300 bg-transparent px-3 py-1.5 dark:border-zinc-700";
+const INPUT_CLASS = "rounded-md border border-line bg-surface-raised px-3 py-2 text-[15px] text-ink";
 
 export function ExerciseForm({ date, initial, action, deleteAction, defaultToNow = false }: Props) {
   const [state, formAction, isPending] = useActionState<ExerciseFormState, FormData>(action, null);
@@ -54,25 +54,25 @@ export function ExerciseForm({ date, initial, action, deleteAction, defaultToNow
   return (
     <div className="flex flex-col gap-6">
       {/* 二重に数えないための注意。仕事やふだんの運動は、プロフィールで選んだ活動係数に織り込まれている(含めていれば足さない) */}
-      <p className="rounded-lg bg-zinc-100 p-3 text-sm text-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
+      <p className="rounded-lg bg-neutral px-4.5 py-3.5 text-sm leading-[1.8] text-ink">
         プロフィールで選んだ活動係数に、仕事や、ふだんの運動(散歩や軽い運動など)を含めている場合、それらは 1 日の消費にすでに入っています。同じ運動を記録すると二重に数えてしまうので、足しません。
-        <strong className="font-semibold">活動係数に含めていない、追加の運動だけ</strong>を記録してください。
+        <strong className="font-bold">活動係数に含めていない、追加の運動だけ</strong>を記録してください。
       </p>
 
       <form key={state?.submittedAt ?? "initial"} action={formAction} className="flex flex-col gap-6">
         {state?.message ? (
-          <p role="alert" className="text-sm text-red-600">
+          <p role="alert" className="text-sm text-red-600 dark:text-red-400">
             {state.message}
           </p>
         ) : (
           state &&
           Object.keys(state.errors).length > 0 && (
-            <p role="alert" className="text-sm text-red-600">
+            <p role="alert" className="text-sm text-red-600 dark:text-red-400">
               入力内容を確認してください。
             </p>
           )
         )}
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-5 rounded-lg bg-surface-raised p-4 sm:p-5">
           <Row name="type" label="種類" error={errorOf("type")}>
             <select id="exercise-type" name="type" defaultValue={valueOf("type")} {...describe("type", errorOf("type"))} className={INPUT_CLASS}>
               <option value="">選んでください</option>
@@ -101,7 +101,7 @@ export function ExerciseForm({ date, initial, action, deleteAction, defaultToNow
             error={errorOf("startTime")}
             description="任意。深夜(午前 3 時まで)の運動は、前の日の記録として、24 時以降(例: 25 時 30 分)で入れます。"
           >
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {/* 初期値が決まったとき(サーバーの空 → ブラウザの今の時刻)に、入力欄を作り直す */}
               <PairInput
                 key={defaultStartTime}
@@ -118,7 +118,7 @@ export function ExerciseForm({ date, initial, action, deleteAction, defaultToNow
             </div>
           </Row>
           <Row name="minutes" label="時間" error={errorOf("minutes")} description={`分で入力します(${formatExerciseRange("minutes")})。`}>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <input
                 id="exercise-minutes"
                 name="minutes"
@@ -129,7 +129,7 @@ export function ExerciseForm({ date, initial, action, deleteAction, defaultToNow
                 {...describe("minutes", errorOf("minutes"))}
                 className={`${INPUT_CLASS} w-28`}
               />
-              <span className="text-zinc-500">分</span>
+              <span className="text-ink-muted">分</span>
             </div>
           </Row>
           <Row name="memo" label="メモ" error={errorOf("memo")} description={`自分用のメモ(任意、${EXERCISE_MEMO_MAX_LENGTH} 文字まで)。AI レポートを作るときだけ、同意したうえで、AI に送って分析します。`}>
@@ -164,7 +164,7 @@ export function ExerciseForm({ date, initial, action, deleteAction, defaultToNow
       </form>
 
       {deleteAction && confirmingDelete && (
-        <div role="alertdialog" aria-label="削除の確認" className="flex flex-wrap items-center gap-3 rounded-lg border border-red-300 p-3 text-sm dark:border-red-900">
+        <div role="alertdialog" aria-label="削除の確認" className="flex flex-wrap items-center gap-3 rounded-lg bg-surface-raised px-4.5 py-3.5 text-sm ring-[1.5px] ring-red-700 ring-inset">
           <span>この運動を削除します。元に戻せません。よろしいですか。</span>
           <button type="button" onClick={() => setConfirmingDelete(false)} disabled={busy} className={buttonClass({ variant: "secondary", size: "action" })}>
             やめる
@@ -185,15 +185,15 @@ function describe(name: ExerciseField, error: string | undefined) {
 function Row({ name, label, error, description, children }: { name: ExerciseField; label: string; error: string | undefined; description?: string; children: React.ReactNode }) {
   const controlId = { type: "exercise-type", intensity: "exercise-intensity", minutes: "exercise-minutes", startTime: "exercise-startTime", memo: "exercise-memo" }[name];
   return (
-    <div className="grid grid-cols-[9rem_1fr] items-start gap-x-4 gap-y-1 text-sm">
-      <label htmlFor={controlId} className="pt-1.5 text-zinc-500">
+    <div className="grid items-start gap-x-4 gap-y-1.5 text-sm sm:grid-cols-[10rem_1fr]">
+      <label htmlFor={controlId} className="pt-2 text-ink-muted">
         {label}
       </label>
-      <div className="flex flex-col gap-1">
+      <div className="flex min-w-0 flex-col gap-1">
         {children}
-        {description && <p className="text-xs text-zinc-500">{description}</p>}
+        {description && <p className="text-xs leading-relaxed text-ink-muted">{description}</p>}
         {error && (
-          <p id={`exercise-${name}-error`} className="text-xs text-red-600">
+          <p id={`exercise-${name}-error`} className="text-xs text-red-600 dark:text-red-400">
             {error}
           </p>
         )}

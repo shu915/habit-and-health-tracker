@@ -8,19 +8,19 @@ export async function PositiveList({ date }: { date: string }) {
 
   return (
     <section aria-label="良かったこと" className="flex flex-col gap-3">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">良かったこと</h2>
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-xl font-bold">良かったこと</h2>
         <Link href={`/days/${date}/positive`} className={buttonClass()}>
           {entries.length === 0 ? "書く" : "編集"}
         </Link>
       </div>
 
       {entries.length === 0 ? (
-        <p className="text-sm text-zinc-500">今日の良かったことは、まだ書かれていません。</p>
+        <p className="text-sm text-ink-muted">今日の良かったことは、まだ書かれていません。</p>
       ) : (
-        <ol className="flex flex-col gap-3 text-sm">
+        <ol className="overflow-hidden rounded-lg bg-surface-raised">
           {entries.map((entry) => (
-            <li key={entry.id} className="whitespace-pre-wrap rounded-lg border border-zinc-200 px-4 py-2 dark:border-zinc-800">
+            <li key={entry.id} className="whitespace-pre-wrap border-t border-line-soft px-5 py-3.5 text-[15px] first:border-t-0">
               {entry.body}
             </li>
           ))}
