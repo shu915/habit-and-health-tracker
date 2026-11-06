@@ -125,10 +125,10 @@ export function ProfileForm({ initial }: { initial: ProfileFormInitial }) {
       key={`${state?.submittedAt ?? "initial"}-${draft?.at ?? 0}`}
       action={formAction}
       onChange={handleChange}
-      className="flex flex-col gap-6"
+      className="flex flex-col gap-5"
     >
       {state && Object.keys(state.errors).length > 0 && (
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
           入力内容を確認してください。
         </p>
       )}
@@ -144,10 +144,10 @@ export function ProfileForm({ initial }: { initial: ProfileFormInitial }) {
         onSuggest={handleSuggest}
         footer={
           // 説明と注意書きは別の段落にして、左寄せで1行ずつ読めるようにする
-          <div className="flex flex-col gap-1 text-left text-xs text-zinc-500">
+          <div className="flex flex-col gap-1 border-t border-line-soft pt-4 text-left text-xs leading-relaxed text-ink-muted">
             <p>「提案」ボタンは、いま入力されている値から計算して、その欄を埋めるだけです。まだ保存されません。</p>
             <p>確認して、必要なら直してから「保存」を押してください。</p>
-            <p className="text-zinc-400">計算は一般的な式による目安で、医療上の指示ではありません（18 歳以上が対象です）。</p>
+            <p className="text-ink-subtle">計算は一般的な式による目安で、医療上の指示ではありません（18 歳以上が対象です）。</p>
           </div>
         }
       />
@@ -176,7 +176,7 @@ function Group({
 }: {
   title: string;
   fields: FieldDef[];
-  gapBefore?: ProfileField; // この項目の前に、少し間を空ける
+  gapBefore?: ProfileField; // この項目の前に、区切り線を引く
   valueOf: (name: ProfileField) => string;
   errors: Partial<Record<ProfileField, string>> | undefined;
   live: FormValues;
@@ -185,12 +185,12 @@ function Group({
   footer?: React.ReactNode;
 }) {
   return (
-    <fieldset className="flex flex-col gap-3 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
-      <legend className="px-1 text-sm font-bold text-zinc-500">{title}</legend>
+    <fieldset className="flex min-w-0 flex-col gap-5 rounded-lg bg-surface-raised p-5">
+      <legend className="float-left mb-1 w-full text-xs font-bold text-ink-muted">{title}</legend>
       {fields.map((field) => {
         const suggestable = SUGGESTABLE_FIELDS.find((name) => name === field.name);
         return (
-          <div key={field.name} className={field.name === gapBefore ? "mt-6" : undefined}>
+          <div key={field.name} className={field.name === gapBefore ? "border-t border-line-soft pt-5" : undefined}>
             <Field
               field={field}
               value={valueOf(field.name)}
@@ -237,32 +237,32 @@ function Field({
     defaultValue: value,
     "aria-invalid": error ? true : undefined,
     "aria-describedby": error ? errorId : undefined,
-    className: "w-48 rounded-md border border-zinc-300 bg-transparent px-3 py-1.5 dark:border-zinc-700",
+    className: "w-44 rounded-md border border-line bg-surface-raised px-3 py-2 text-[15px] text-ink tabular-nums",
   } as const;
 
   return (
-    <div className="grid grid-cols-[13rem_1fr] items-start gap-x-4 gap-y-1 text-sm">
+    <div className="grid items-start gap-x-4 gap-y-1.5 text-sm sm:grid-cols-[11rem_1fr]">
       {field.kind === "activity" || field.kind === "radio" ? (
-        <span id={`${id}-label`} className="pt-1.5 text-zinc-500">
+        <span id={`${id}-label`} className="pt-2 text-ink-muted">
           {field.label}
         </span>
       ) : (
-        <label htmlFor={id} className="pt-1.5 text-zinc-500">
+        <label htmlFor={id} className="pt-2 text-ink-muted">
           {field.label}
         </label>
       )}
-      <div className="flex flex-col gap-1">
-        <div className="flex items-center gap-2">
+      <div className="flex min-w-0 flex-col gap-1">
+        <div className="flex flex-wrap items-center gap-2">
           {field.kind === "text" && (
             <>
               <input {...common} type="text" inputMode={field.inputMode} autoComplete="off" />
-              {field.unit && <span className="text-zinc-500">{field.unit}</span>}
+              {field.unit && <span className="text-ink-muted">{field.unit}</span>}
               {suggestion && (
                 <button
                   type="button"
                   onClick={suggestion.onSuggest}
                   aria-label={`${field.label}を提案`}
-                  className={`ml-2 ${buttonClass({ variant: "secondary", size: "sm" })}`}
+                  className={`sm:ml-2 ${buttonClass({ variant: "secondary", size: "sm" })}`}
                 >
                   提案
                 </button>
@@ -303,18 +303,18 @@ function Field({
             <EnergyPreview values={live} />
           </>
         )}
-        <p className="text-xs text-zinc-500">
+        <p className="text-xs text-ink-muted">
           {field.description}
           {(field.kind === "text" || field.kind === "duration") && (
-            <span className="text-zinc-400"> ({field.range})</span>
+            <span className="text-ink-subtle"> ({field.range})</span>
           )}
         </p>
         {suggestion?.note && (
-          <p className="text-xs text-emerald-700 dark:text-emerald-400">提案の根拠: {suggestion.note}</p>
+          <p className="text-xs leading-relaxed text-accent">提案の根拠: {suggestion.note}</p>
         )}
-        {suggestion?.error && <p className="text-xs text-red-600">{suggestion.error}</p>}
+        {suggestion?.error && <p className="text-xs text-red-600 dark:text-red-400">{suggestion.error}</p>}
         {error && (
-          <p id={errorId} className="text-xs text-red-600">
+          <p id={errorId} className="text-xs text-red-600 dark:text-red-400">
             {error}
           </p>
         )}
@@ -326,7 +326,7 @@ function Field({
 // 活動係数の下に出す、1 日の消費カロリーの目安(基礎代謝 × 活動係数)。入力に合わせて自動で変わる
 function EnergyPreview({ values }: { values: FormValues }) {
   const energy = energySummary(values);
-  const box = "mt-1 rounded-md bg-zinc-50 px-3 py-2 text-xs text-zinc-600 dark:bg-zinc-900 dark:text-zinc-400";
+  const box = "mt-1 rounded-md bg-surface px-3 py-2.5 text-xs leading-relaxed text-ink-muted";
 
   if (!energy.ok) {
     return (
@@ -343,7 +343,7 @@ function EnergyPreview({ values }: { values: FormValues }) {
   }
   return (
     <p className={box}>
-      <strong className="text-sm text-zinc-900 dark:text-zinc-100">
+      <strong className="text-sm text-ink">
         1日の消費カロリーの目安: 約 {energy.tdeeKcal.toLocaleString("ja-JP")} kcal
       </strong>
       （基礎代謝 {energy.bmrKcal.toLocaleString("ja-JP")} × {energy.activityLevel}。{method}）
@@ -366,7 +366,7 @@ function ActivityLevelRadios({
   errorId: string;
 }) {
   const known = ACTIVITY_LEVEL_OPTIONS.some((option) => Number(option.value) === Number(value));
-  const rowClass = "flex cursor-pointer items-baseline gap-3 rounded-md px-2 py-1 hover:bg-zinc-50 dark:hover:bg-zinc-900";
+  const rowClass = "flex cursor-pointer flex-wrap items-center gap-x-3 gap-y-0.5 rounded-md px-2.5 py-1.5 hover:bg-surface-hover";
 
   return (
     <div
@@ -378,7 +378,7 @@ function ActivityLevelRadios({
     >
       <label className={rowClass}>
         <input type="radio" name={name} value="" defaultChecked={value === ""} />
-        <span className="text-zinc-500">未選択</span>
+        <span className="text-ink-muted">未選択</span>
       </label>
       {ACTIVITY_LEVEL_OPTIONS.map((option) => (
         <label key={option.value} className={rowClass}>
@@ -388,9 +388,9 @@ function ActivityLevelRadios({
             value={option.value}
             defaultChecked={value !== "" && Number(value) === Number(option.value)}
           />
-          <span className="w-16 font-medium tabular-nums">×{option.multiplier}</span>
-          <span className="w-24">{option.name}</span>
-          <span className="text-xs text-zinc-500">{option.detail}</span>
+          <span className="w-14 font-semibold tabular-nums">×{option.multiplier}</span>
+          <span className="w-20">{option.name}</span>
+          <span className="text-xs text-ink-muted">{option.detail}</span>
         </label>
       ))}
       {/* DB の値が選択肢に無いとき(AI の提案など)に、黙って「未選択」に見えて消えないよう、現在の値を出す。
@@ -398,8 +398,8 @@ function ActivityLevelRadios({
       {value !== "" && !known && (
         <label className={rowClass}>
           <input type="radio" name={name} value={value} defaultChecked />
-          <span className="w-16 font-medium tabular-nums">×{Number(value)}</span>
-          <span className="text-xs text-zinc-500">現在の値。選択肢から選び直してください</span>
+          <span className="w-14 font-semibold tabular-nums">×{Number(value)}</span>
+          <span className="text-xs text-ink-muted">現在の値。選択肢から選び直してください</span>
         </label>
       )}
     </div>
@@ -423,7 +423,7 @@ function RadioRow({
   errorId: string;
 }) {
   const known = options.some((option) => option.value === value);
-  const itemClass = "flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-1 hover:bg-zinc-50 dark:hover:bg-zinc-900";
+  const itemClass = "flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-1.5 hover:bg-surface-hover";
 
   return (
     <div
@@ -448,7 +448,7 @@ function RadioRow({
       )}
       <label className={itemClass}>
         <input type="radio" name={name} value="" defaultChecked={value === ""} />
-        <span className="text-zinc-500">未選択</span>
+        <span className="text-ink-muted">未選択</span>
       </label>
     </div>
   );

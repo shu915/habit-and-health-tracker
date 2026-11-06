@@ -23,8 +23,8 @@ export function ReflectionForm({ date, initial, action }: Props) {
 
   return (
     <form key={state?.submittedAt ?? "initial"} action={formAction} className="flex flex-col gap-6">
-      <div className="flex flex-col gap-1 text-sm">
-        <label htmlFor="reflection" className="text-zinc-500">
+      <div className="flex flex-col gap-2 rounded-lg bg-surface-raised p-4 text-sm sm:p-5">
+        <label htmlFor="reflection" className="text-ink-muted">
           今日の気づき
         </label>
         <textarea
@@ -35,11 +35,11 @@ export function ReflectionForm({ date, initial, action }: Props) {
           placeholder="例: 夜に食べすぎた。寝る前のお菓子が原因かも。明日は目につく所に置かないようにする"
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? "reflection-error" : undefined}
-          className="w-full rounded-md border border-zinc-300 bg-transparent px-3 py-1.5 dark:border-zinc-700"
+          className="w-full rounded-md border border-line bg-surface-raised px-3 py-2 text-[15px] text-ink leading-[1.8]"
         />
-        <p className="text-xs text-zinc-500">うまくいかなかったこと、気づいたこと、明日どうするかを自由に。(良い出来事は「良かったこと」へ){REFLECTION_MAX_LENGTH} 文字まで。</p>
+        <p className="text-xs text-ink-muted">うまくいかなかったこと、気づいたこと、明日どうするかを自由に。(良い出来事は「良かったこと」へ){REFLECTION_MAX_LENGTH} 文字まで。</p>
         {error && (
-          <p id="reflection-error" role="alert" className="text-xs text-red-600">
+          <p id="reflection-error" role="alert" className="text-xs text-red-600 dark:text-red-400">
             {error}
           </p>
         )}

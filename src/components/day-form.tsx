@@ -69,11 +69,11 @@ export function DayForm({ date, initial, action }: Props) {
   return (
     <form key={state?.submittedAt ?? "initial"} action={formAction} className="flex flex-col gap-6">
       {state && Object.keys(state.errors).length > 0 && (
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
           入力内容を確認してください。
         </p>
       )}
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-5 rounded-lg bg-surface-raised p-4 sm:p-5">
         {FIELDS.map((field) => (
           <Field key={field.name} field={field} value={valueOf(field.name)} error={state?.errors[field.name]} />
         ))}
@@ -99,23 +99,23 @@ function Field({ field, value, error }: { field: FieldDef; value: string; error:
     defaultValue: value,
     "aria-invalid": error ? true : undefined,
     "aria-describedby": error ? errorId : undefined,
-    className: "rounded-md border border-zinc-300 bg-transparent px-3 py-1.5 dark:border-zinc-700",
+    className: "rounded-md border border-line bg-surface-raised px-3 py-2 text-[15px] text-ink",
   } as const;
 
   return (
-    <div className="grid grid-cols-[9rem_1fr] items-start gap-x-4 gap-y-1 text-sm">
-      <label htmlFor={id} className="pt-1.5 text-zinc-500">
+    <div className="grid items-start gap-x-4 gap-y-1.5 text-sm sm:grid-cols-[10rem_1fr]">
+      <label htmlFor={id} className="pt-2 text-ink-muted">
         {field.label}
       </label>
-      <div className="flex flex-col gap-1">
+      <div className="flex min-w-0 flex-col gap-1">
         {field.kind === "text" && (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <input {...common} type="text" inputMode={field.inputMode} autoComplete="off" className={`${common.className} w-28`} />
-            <span className="text-zinc-500">{field.unit}</span>
+            <span className="text-ink-muted">{field.unit}</span>
           </div>
         )}
         {field.kind === "time" && (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <PairInput
               id={id}
               name={field.name}
@@ -128,12 +128,12 @@ function Field({ field, value, error }: { field: FieldDef; value: string; error:
             />
           </div>
         )}
-        <p className="text-xs text-zinc-500">
+        <p className="text-xs text-ink-muted">
           {field.description}
-          {field.kind === "text" && <span className="text-zinc-400"> ({field.range})</span>}
+          {field.kind === "text" && <span className="text-ink-subtle"> ({field.range})</span>}
         </p>
         {error && (
-          <p id={errorId} className="text-xs text-red-600">
+          <p id={errorId} className="text-xs text-red-600 dark:text-red-400">
             {error}
           </p>
         )}

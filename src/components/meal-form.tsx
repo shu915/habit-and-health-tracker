@@ -141,20 +141,20 @@ export function MealForm({ date, mode, mealId, initial }: Props) {
   return (
     <div className="flex flex-col gap-6">
       {previousDay !== "" && !estimate && (
-        <p role="note" className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+        <p role="note" className="rounded-lg bg-badge-morning px-4.5 py-3.5 text-sm leading-relaxed text-badge-morning-ink">
           午前 {MEAL_DAY_START_HOUR} 時より前です。深夜の食事は、前の日({previousDay})の記録として入れます。{" "}
           <Link href={`/days/${previousDay}/meals/new`} className="font-medium underline">
             {previousDay} に追加する
           </Link>
         </p>
       )}
-      <fieldset disabled={estimating || saving} className="flex flex-col gap-4">
-        <div className="grid grid-cols-[9rem_1fr] items-start gap-x-4 gap-y-1 text-sm">
-          <label htmlFor="meal-time" className="pt-1.5 text-zinc-500">
+      <fieldset disabled={estimating || saving} className="flex min-w-0 flex-col gap-5 rounded-lg bg-surface-raised p-4 sm:p-5">
+        <div className="grid items-start gap-x-4 gap-y-1.5 text-sm sm:grid-cols-[10rem_1fr]">
+          <label htmlFor="meal-time" className="pt-2 text-ink-muted">
             食べた時刻
           </label>
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center gap-2">
+          <div className="flex min-w-0 flex-col gap-1">
+            <div className="flex flex-wrap items-center gap-2">
               {/* 初期値が決まったとき(サーバーの空 → ブラウザの今の時刻)に、入力欄を作り直す */}
               <PairInput
                 key={defaultTime}
@@ -173,24 +173,24 @@ export function MealForm({ date, mode, mealId, initial }: Props) {
             </div>
             {/* 時刻が空・不正だと保存できないので、理由を出す(別の日の食事は、初期値が空) */}
             {(estimate !== null || chosenTime !== null) && !timeIsValid && (
-              <p role="alert" className="text-xs text-amber-700 dark:text-amber-400">
+              <p role="alert" className="text-xs text-badge-morning-ink">
                 食べた時刻を入れてください(時は 0〜26、分は 0〜59)。入れると、保存できます。
               </p>
             )}
-            <p className="text-xs text-zinc-500">深夜(午前 3 時まで)の食事は、前の日の記録として、24 時以降(例: 25 時 30 分)で入れます。</p>
+            <p className="text-xs text-ink-muted">深夜(午前 3 時まで)の食事は、前の日の記録として、24 時以降(例: 25 時 30 分)で入れます。</p>
             {saveErrors.eatenTime && (
-              <p id="meal-time-error" className="text-xs text-red-600">
+              <p id="meal-time-error" className="text-xs text-red-600 dark:text-red-400">
                 {saveErrors.eatenTime}
               </p>
             )}
           </div>
         </div>
 
-        <div className="grid grid-cols-[9rem_1fr] items-start gap-x-4 gap-y-1 text-sm">
-          <label htmlFor="meal-text" className="pt-1.5 text-zinc-500">
+        <div className="grid items-start gap-x-4 gap-y-1.5 text-sm sm:grid-cols-[10rem_1fr]">
+          <label htmlFor="meal-text" className="pt-2 text-ink-muted">
             {estimate ? "説明" : "食べたもの"}
           </label>
-          <div className="flex flex-col gap-1">
+          <div className="flex min-w-0 flex-col gap-1">
             <textarea
               id="meal-text"
               value={text}
@@ -198,9 +198,9 @@ export function MealForm({ date, mode, mealId, initial }: Props) {
               rows={estimate ? 5 : 4}
               maxLength={TEXT_MAX_LENGTH}
               placeholder="例: 焼鮭1切れ、白ご飯茶碗1杯、わかめのみそ汁(量が分かれば書く)"
-              className="w-full rounded-md border border-zinc-300 bg-transparent px-3 py-1.5 dark:border-zinc-700"
+              className="w-full rounded-md border border-line bg-surface-raised px-3 py-2 text-[15px] text-ink leading-[1.8]"
             />
-            <p className="text-xs text-zinc-500">
+            <p className="text-xs text-ink-muted">
               {estimate
                 ? "AI が読み取った内容です。違うところ(量、品目、食べなかったもの)を直して「推定し直す」を押すと、数字が計算し直されます。"
                 : "文章か写真のどちらか(両方でもよい)を入れます。写真と文章が食い違うときは、文章を優先します。"}
@@ -208,8 +208,8 @@ export function MealForm({ date, mode, mealId, initial }: Props) {
           </div>
         </div>
 
-        <div className="grid grid-cols-[9rem_1fr] items-start gap-x-4 gap-y-1 text-sm">
-          <label htmlFor="meal-photo" className="pt-1.5 text-zinc-500">
+        <div className="grid items-start gap-x-4 gap-y-1.5 text-sm sm:grid-cols-[10rem_1fr]">
+          <label htmlFor="meal-photo" className="pt-2 text-ink-muted">
             写真
           </label>
           <div className="flex flex-col gap-2">
@@ -217,7 +217,7 @@ export function MealForm({ date, mode, mealId, initial }: Props) {
               <ul className="flex flex-wrap gap-3">
                 {photos.map((photo, index) => (
                   <li key={photo.id} className="flex flex-col items-center gap-1">
-                    <div role="img" aria-label={`選んだ写真 ${index + 1}`} style={{ backgroundImage: `url(${photo.dataUrl})` }} className="h-24 w-24 rounded-md bg-cover bg-center" />
+                    <div role="img" aria-label={`選んだ写真 ${index + 1}`} style={{ backgroundImage: `url(${photo.dataUrl})` }} className="h-24 w-24 rounded-md bg-neutral bg-cover bg-center" />
                     <button
                       type="button"
                       onClick={() => setPhotos((current) => current.filter((item) => item.id !== photo.id))}
@@ -246,33 +246,33 @@ export function MealForm({ date, mode, mealId, initial }: Props) {
               />
               <label
                 htmlFor="meal-photo"
-                className={`${buttonClass({ variant: "secondary" })} inline-flex cursor-pointer items-center gap-2 peer-focus-visible:ring-2 peer-focus-visible:ring-zinc-500 peer-disabled:cursor-not-allowed peer-disabled:opacity-50`}
+                className={`${buttonClass({ variant: "secondary" })} inline-flex cursor-pointer items-center gap-2 peer-focus-visible:ring-2 peer-focus-visible:ring-accent peer-disabled:cursor-not-allowed peer-disabled:opacity-50`}
               >
                 <CameraIcon />
                 {resizing ? "縮小しています…" : photos.length === 0 ? "写真を選ぶ" : photos.length >= MAX_PHOTOS ? `写真は ${MAX_PHOTOS} 枚までです` : "写真を追加"}
               </label>
-              <span className="text-xs text-zinc-500">
+              <span className="text-xs text-ink-muted">
                 {photos.length} / {MAX_PHOTOS} 枚
               </span>
             </div>
             {photoNote && (
-              <p role="status" className="text-xs text-zinc-500">
+              <p role="status" className="text-xs text-ink-muted">
                 {photoNote}
               </p>
             )}
             {photoError && (
-              <p role="alert" className="text-xs text-red-600">
+              <p role="alert" className="text-xs text-red-600 dark:text-red-400">
                 {photoError}
               </p>
             )}
-            <p className="text-xs text-zinc-500">最大 4 枚まで(同じ食事の別の角度や、別の皿)。スマホでは、撮影か、写真ライブラリから選べます。写真は保存しません(推定にだけ使います)。大きい写真は、このあと縮小して送ります。位置情報などは、縮小のときに取り除かれます。食べ物の写真だけを選んでください(他の人の顔や、個人が分かるものは、写さないでください)。</p>
-            <p className="text-xs text-zinc-500">パッケージの栄養成分表示(栄養の表)の写真だけでも推定できます。表があれば、その数値をもとにするので、いちばん正確です。このときは、食べ物そのものの写真は要りません。</p>
+            <p className="text-xs text-ink-muted">最大 4 枚まで(同じ食事の別の角度や、別の皿)。スマホでは、撮影か、写真ライブラリから選べます。写真は保存しません(推定にだけ使います)。大きい写真は、このあと縮小して送ります。位置情報などは、縮小のときに取り除かれます。食べ物の写真だけを選んでください(他の人の顔や、個人が分かるものは、写さないでください)。</p>
+            <p className="text-xs text-ink-muted">パッケージの栄養成分表示(栄養の表)の写真だけでも推定できます。表があれば、その数値をもとにするので、いちばん正確です。このときは、食べ物そのものの写真は要りません。</p>
           </div>
         </div>
       </fieldset>
 
       <div className="flex flex-col gap-2">
-        {descriptionChanged && !estimating && <span className="text-xs text-amber-700 dark:text-amber-400">説明を変えました。「推定し直す」を押してから、保存してください。</span>}
+        {descriptionChanged && !estimating && <span className="text-xs text-badge-morning-ink">説明を変えました。「推定し直す」を押してから、保存してください。</span>}
         <FormActions>
           {/* 下の保存の行が出ていないとき(推定する前と、推定し直している間)は、ここにキャンセルを置く */}
           {!(estimate && !estimating) && (
@@ -289,7 +289,7 @@ export function MealForm({ date, mode, mealId, initial }: Props) {
 
       {estimating && <ProcessingIndicator hasPhoto={photos.length > 0} />}
       {estimateError && (
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
           {estimateError}
         </p>
       )}
@@ -299,7 +299,7 @@ export function MealForm({ date, mode, mealId, initial }: Props) {
           <EstimateResult estimate={estimate} stale={descriptionChanged} />
 
           {saveErrors.form && (
-            <p role="alert" className="text-sm text-red-600">
+            <p role="alert" className="text-sm text-red-600 dark:text-red-400">
               {saveErrors.form}
             </p>
           )}
@@ -320,7 +320,7 @@ export function MealForm({ date, mode, mealId, initial }: Props) {
             </button>
           </FormActions>
           {confirmingDelete && (
-            <div role="alertdialog" aria-label="削除の確認" className="flex flex-wrap items-center gap-3 rounded-lg border border-red-300 p-3 text-sm dark:border-red-900">
+            <div role="alertdialog" aria-label="削除の確認" className="flex flex-wrap items-center gap-3 rounded-lg bg-surface-raised px-4.5 py-3.5 text-sm ring-[1.5px] ring-red-700 ring-inset">
               <span>この食事を削除します。元に戻せません。よろしいですか。</span>
               <button type="button" onClick={() => setConfirmingDelete(false)} disabled={saving} className={buttonClass({ variant: "secondary", size: "action" })}>
                 やめる
@@ -352,14 +352,14 @@ const nutrient = (value: number | null, unit: string) => (value === null ? "-" :
 function EstimateResult({ estimate, stale }: { estimate: MealEstimate; stale: boolean }) {
   const { totals } = estimate;
   return (
-    <div className={`flex flex-col gap-3 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800 ${stale ? "opacity-50" : ""}`} aria-busy={stale || undefined}>
+    <div className={`flex flex-col gap-4 rounded-lg bg-surface-raised p-4 sm:p-5 ${stale ? "opacity-50" : ""}`} aria-busy={stale || undefined}>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-lg font-semibold">{estimate.dishName}</h2>
+        <h2 className="text-xl font-bold">{estimate.dishName}</h2>
         <p className="text-2xl font-semibold tabular-nums">
-          {totals.kcal} <span className="text-sm font-normal text-zinc-500">kcal</span>
+          {totals.kcal} <span className="text-sm font-normal text-ink-muted">kcal</span>
         </p>
       </div>
-      <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:grid-cols-5">
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-[15px] sm:grid-cols-5">
         <Total label="たんぱく質" value={nutrient(totals.proteinG, "g")} />
         <Total label="脂質" value={nutrient(totals.fatG, "g")} />
         <Total label="糖質" value={nutrient(totals.netCarbG, "g")} />
@@ -368,25 +368,25 @@ function EstimateResult({ estimate, stale }: { estimate: MealEstimate; stale: bo
       </dl>
       <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
-          <thead className="text-zinc-500">
+          <thead className="text-xs text-ink-muted">
             <tr>
-              <th className="py-1 pr-4 font-medium">品目</th>
-              <th className="py-1 pr-4 font-medium">量の目安</th>
-              <th className="py-1 text-right font-medium">kcal</th>
+              <th className="py-2 pr-4 font-medium">品目</th>
+              <th className="py-2 pr-4 font-medium">量の目安</th>
+              <th className="py-2 text-right font-medium">kcal</th>
             </tr>
           </thead>
           <tbody>
             {estimate.items.map((item, index) => (
-              <tr key={`${item.name}-${index}`} className="border-t border-zinc-100 dark:border-zinc-900">
-                <td className="py-1 pr-4">{item.name}</td>
-                <td className="py-1 pr-4 text-zinc-500">{item.amount}</td>
-                <td className="py-1 text-right tabular-nums">{item.kcal}</td>
+              <tr key={`${item.name}-${index}`} className="border-t border-line-soft">
+                <td className="py-2 pr-4">{item.name}</td>
+                <td className="py-2 pr-4 text-ink-muted">{item.amount}</td>
+                <td className="py-2 text-right tabular-nums">{item.kcal}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      <p className="text-xs text-zinc-500">AI の推定です。誤差があります(量が見えにくい写真や、書かれていない量は、特にずれます)。違うときは、上の説明を直して「推定し直す」を押してください。</p>
+      <p className="text-xs text-ink-muted">AI の推定です。誤差があります(量が見えにくい写真や、書かれていない量は、特にずれます)。違うときは、上の説明を直して「推定し直す」を押してください。</p>
     </div>
   );
 }
@@ -394,7 +394,7 @@ function EstimateResult({ estimate, stale }: { estimate: MealEstimate; stale: bo
 function Total({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <dt className="text-xs text-zinc-500">{label}</dt>
+      <dt className="text-xs text-ink-muted">{label}</dt>
       <dd className="tabular-nums">{value}</dd>
     </div>
   );

@@ -126,6 +126,12 @@ button:disabled {
   cursor: not-allowed;
 }
 
+/* ラジオボタンとチェックボックスの色を、決定の色にそろえる */
+input[type="radio"],
+input[type="checkbox"] {
+  accent-color: var(--accent);
+}
+
 /* 処理中の「動いている」印: 長さの分からない待ちのための、左右に流れる帯。動きを減らす設定のときは、止めて薄い帯にする */
 @keyframes indeterminate-slide {
   0% {

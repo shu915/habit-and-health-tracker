@@ -24,7 +24,7 @@ export function LoginForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="flex w-full flex-col gap-3 rounded-lg bg-surface-raised p-6">
+    <form onSubmit={onSubmit} className="flex w-full flex-col gap-3 rounded-lg bg-surface-raised p-5 sm:p-6">
       <label htmlFor="email" className="text-sm font-medium">
         メールアドレス
       </label>
@@ -61,7 +61,7 @@ export function LoginForm() {
         </p>
       )}
       {status === "error" && (
-        <p role="alert" className="text-sm text-red-600">送信に失敗しました。もう一度試してください。</p>
+        <p role="alert" className="text-sm text-red-600 dark:text-red-400">送信に失敗しました。もう一度試してください。</p>
       )}
     </form>
   );
