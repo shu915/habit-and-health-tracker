@@ -6,7 +6,7 @@ import { isBefore, isLastChild } from "./dom-order";
 import { ProfileForm, type ProfileFormInitial } from "./profile-form";
 
 // 保存の Server Action は使わない(このテストが見るのは、提案ボタンと表示の動き)
-const saveProfileAction = vi.hoisted(() => vi.fn(async () => null));
+const saveProfileAction = vi.hoisted(() => vi.fn(async (): Promise<unknown> => null));
 vi.mock("@/app/(app)/profile/actions", () => ({ saveProfileAction }));
 
 afterEach(() => {
@@ -70,6 +70,87 @@ describe("ProfileForm: 消費カロリーの目安", () => {
 
     await user.type(screen.getByLabelText("年齢"), "39");
     expect(screen.getByText(/1日の消費カロリーの目安: 約 2,603 kcal/)).toBeTruthy(); // 体脂肪率が無いので Mifflin-St Jeor 式
+  });
+});
+
+describe("ProfileForm: 直近の記録から入れる(体重・体脂肪率の欄の隣のボタン)", () => {
+  const recent = {
+    weight: { value: "96.50", count: 5, from: "2026-11-05", to: "2026-11-09" },
+    bodyFat: { value: "30.5", count: 3, from: "2026-11-07", to: "2026-11-09" },
+  };
+  const fillButton = (label: string) => screen.getByRole("button", { name: `${label}を直近の記録から入れる` }) as HTMLButtonElement;
+
+  it("体重のボタンは、体重の欄だけを中央値にする(保存はしない)。入れた値と日数を、その欄の下に知らせる", async () => {
+    const user = userEvent.setup();
+    render(<ProfileForm initial={initial} recent={recent} />);
+    await user.click(fillButton("現在の体重"));
+
+    expect(valueOf("現在の体重")).toBe("96.50");
+    expect(valueOf("体脂肪率")).toBe("32.0"); // 押していない欄は、そのまま
+    expect(valueOf("年齢")).toBe("39");
+    const note = screen.getByRole("status").textContent ?? "";
+    expect(note).toContain("96.50(5 日分、11/5〜11/9)");
+    expect(note).toContain("まだ保存されていません");
+    expect(saveProfileAction).not.toHaveBeenCalled();
+  });
+
+  it("体脂肪率のボタンは、体脂肪率の欄だけを中央値にする。消費カロリーの目安は、入れた値で変わる", async () => {
+    const user = userEvent.setup();
+    render(<ProfileForm initial={initial} recent={recent} />);
+    expect(screen.getByText(/基礎代謝 1,814/)).toBeTruthy();
+    await user.click(fillButton("体脂肪率"));
+
+    expect(valueOf("体脂肪率")).toBe("30.5");
+    expect(valueOf("現在の体重")).toBe("98.30");
+    expect(screen.queryByText(/基礎代謝 1,814/)).toBeNull();
+  });
+
+  it("両方押しても、お互いの知らせと値を消さない。入れたあとにその欄を直すと、その欄の知らせだけ消える", async () => {
+    const user = userEvent.setup();
+    render(<ProfileForm initial={initial} recent={recent} />);
+    await user.click(fillButton("現在の体重"));
+    await user.click(fillButton("体脂肪率"));
+    expect(valueOf("現在の体重")).toBe("96.50");
+    expect(valueOf("体脂肪率")).toBe("30.5");
+    expect(screen.getAllByRole("status")).toHaveLength(2);
+
+    await user.type(screen.getByLabelText("現在の体重"), "1");
+    expect(screen.getAllByRole("status")).toHaveLength(1);
+    expect(screen.getByRole("status").textContent).toContain("30.5(3 日分");
+  });
+
+  it("記録が無い欄のボタンは押せない。全く無いときは、その理由を出す", () => {
+    const { unmount } = render(<ProfileForm initial={initial} recent={{ weight: recent.weight, bodyFat: null }} />);
+    expect(fillButton("現在の体重").disabled).toBe(false);
+    expect(fillButton("体脂肪率").disabled).toBe(true);
+    unmount();
+
+    render(<ProfileForm initial={initial} />);
+    expect(fillButton("現在の体重").disabled).toBe(true);
+    expect(screen.getByText(/朝の体重・体脂肪率の記録が、まだありません/)).toBeTruthy();
+  });
+
+  it("保存に失敗してエラーが出たあと、その欄を入れ直すと、その欄の古いエラーは消える(ほかの欄のエラーは残る)", async () => {
+    const user = userEvent.setup();
+    saveProfileAction.mockResolvedValueOnce({
+      errors: { currentWeightKg: "体重は範囲外です", age: "年齢は範囲外です" },
+      values: { ...initial, currentWeightKg: "9999", age: "999" },
+      submittedAt: 1,
+    });
+    render(<ProfileForm initial={initial} recent={recent} />);
+    await user.click(screen.getByRole("button", { name: "保存" }));
+    expect(await screen.findByText("体重は範囲外です")).toBeTruthy();
+
+    await user.click(fillButton("現在の体重"));
+    expect(valueOf("現在の体重")).toBe("96.50");
+    expect(screen.queryByText("体重は範囲外です")).toBeNull();
+    expect(screen.getByText("年齢は範囲外です")).toBeTruthy();
+  });
+
+  it("ボタンは、体重・体脂肪率の欄の隣にある(ウエストなどには無い)", () => {
+    render(<ProfileForm initial={initial} recent={recent} />);
+    expect(screen.getAllByRole("button", { name: /を直近の記録から入れる$/ })).toHaveLength(2);
+    expect(fillButton("現在の体重").closest("div.flex")?.contains(screen.getByLabelText("現在の体重"))).toBe(true);
   });
 });
 

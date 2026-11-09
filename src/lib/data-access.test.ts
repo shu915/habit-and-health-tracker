@@ -276,6 +276,25 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", { timeout: 15_000 }, 
       await expect(daysModule.getMorningWeightBefore("2026-02-30")).rejects.toThrow("invalid date");
     });
 
+    it("直近の朝の記録の中央値: 自分の最新 5 日分だけ(他のユーザーと、6 件目より古い記録は使わない)。項目ごとに数える", async () => {
+      currentUser.id = USER_B;
+      await daysModule.saveDay("2026-10-20", { morningWeightKg: "50.00", morningBodyFatPercent: "10.0" });
+
+      currentUser.id = USER_A;
+      expect(await daysModule.getRecentMorningMeasures()).toEqual({ weight: null, bodyFat: null });
+
+      await daysModule.saveDay("2026-10-01", { morningWeightKg: "60.00" }); // 6 件目(古い): 使わない
+      const weights = ["98.00", "97.00", "101.00", "99.00", "98.50"];
+      for (const [i, weight] of weights.entries()) await daysModule.saveDay(`2026-10-${String(10 + i).padStart(2, "0")}`, { morningWeightKg: weight });
+      await daysModule.saveDay("2026-10-12", { morningWeightKg: "101.00", morningBodyFatPercent: "32.0" });
+      await daysModule.saveDay("2026-10-14", { morningBodyFatPercent: "31.0" });
+
+      expect(await daysModule.getRecentMorningMeasures()).toEqual({
+        weight: { value: "98.50", count: 5, from: "2026-10-10", to: "2026-10-14" },
+        bodyFat: { value: "31.5", count: 2, from: "2026-10-12", to: "2026-10-14" },
+      });
+    });
+
     it("その日より前の朝の体脂肪率: 自分の記録だけから、いちばん新しい日を返す(その日自身は含めない)", async () => {
       currentUser.id = USER_B;
       await daysModule.saveDay("2026-10-14", { morningBodyFatPercent: "10.0" });
