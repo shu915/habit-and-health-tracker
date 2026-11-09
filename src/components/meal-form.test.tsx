@@ -67,6 +67,40 @@ afterEach(async () => {
 });
 
 describe("MealForm: 食べた時刻の初期値", () => {
+  it("推定している間に時刻が進んでも、入力欄の時刻は変わらない(初めに入った時刻のまま)", async () => {
+    const user = userEvent.setup();
+    const pending = deferred<{ ok: true; estimate: MealEstimate }>();
+    actions.estimateMealAction.mockReturnValue(pending.promise);
+    render(<MealForm date={DATE} mode="new" />);
+    await user.type(field("食べたもの"), "焼鮭定食");
+    await user.click(button("AI で推定する"));
+
+    setNow(2026, 9, 30, 12, 9); // 推定の待ち時間で、4 分進んだ
+    await act(async () => pending.resolve({ ok: true, estimate }));
+
+    expect(field("食べた時刻（時）").value).toBe("12");
+    expect(field("食べた時刻（分）").value).toBe("5");
+  });
+
+  it("時刻を直してから推定すると、推定が終わって時刻が進んでも、直した時刻のまま(水の泡にならない)", async () => {
+    const user = userEvent.setup();
+    const pending = deferred<{ ok: true; estimate: MealEstimate }>();
+    actions.estimateMealAction.mockReturnValue(pending.promise);
+    render(<MealForm date={DATE} mode="new" />);
+    await user.clear(field("食べた時刻（時）"));
+    await user.type(field("食べた時刻（時）"), "11");
+    await user.clear(field("食べた時刻（分）"));
+    await user.type(field("食べた時刻（分）"), "40");
+    await user.type(field("食べたもの"), "焼鮭定食");
+    await user.click(button("AI で推定する"));
+
+    setNow(2026, 9, 30, 12, 20); // 待っている間に、時刻が進んだ
+    await act(async () => pending.resolve({ ok: true, estimate }));
+
+    expect(field("食べた時刻（時）").value).toBe("11");
+    expect(field("食べた時刻（分）").value).toBe("40");
+  });
+
   it("今日の食事なら、今の時刻が入り、昼食のバッジが付く", () => {
     render(<MealForm date={DATE} mode="new" />);
     expect(field("食べた時刻（時）").value).toBe("12");
@@ -196,7 +230,7 @@ describe("MealForm: 推定", () => {
     await user.click(button("AI で推定する"));
 
     // 処理中: 動く印(role=status)、ボタンの表示、入力が止まる
-    expect(actions.estimateMealAction).toHaveBeenCalledWith({ text: "焼鮭定食", imageDataUrls: [] });
+    expect(actions.estimateMealAction).toHaveBeenCalledWith({ text: "焼鮭定食", images: [] });
     expect(screen.getByRole("status").textContent).toContain("AI に送っています");
     expect(button("推定中...").disabled).toBe(true);
     expect(field("食べたもの").matches(":disabled")).toBe(true); // fieldset の disabled は、:disabled に当たる
@@ -329,7 +363,7 @@ describe("MealForm: 推定", () => {
     await user.click(button("推定し直す"));
 
     // 直した説明(と、写真があれば写真)で、もう一度推定する
-    expect(actions.estimateMealAction).toHaveBeenLastCalledWith({ text: "焼鮭1切れ、白ご飯、みそ汁、右上はいくら", imageDataUrls: [] });
+    expect(actions.estimateMealAction).toHaveBeenLastCalledWith({ text: "焼鮭1切れ、白ご飯、みそ汁、右上はいくら", images: [] });
     expect(await screen.findByRole("heading", { name: "焼鮭定食(いくら付き)" })).toBeTruthy();
     expect(button("この内容で保存").disabled).toBe(false);
   });
@@ -381,7 +415,7 @@ describe("MealForm: 写真(最大 4 枚)", () => {
     expect(resize.resizeImageToDataUrl).toHaveBeenCalledWith(file);
 
     await user.click(button("AI で推定する"));
-    expect(actions.estimateMealAction).toHaveBeenCalledWith({ text: "", imageDataUrls: ["data:image/jpeg;base64,A"] });
+    expect(actions.estimateMealAction).toHaveBeenCalledWith({ text: "", images: [{ dataUrl: "data:image/jpeg;base64,A" }] });
   });
 
   it("何枚か追加でき、推定には、足した順に全部が付く。1 枚ずつ外せる", async () => {
@@ -401,7 +435,7 @@ describe("MealForm: 写真(最大 4 枚)", () => {
     expect(screen.getByText("2 / 4 枚")).toBeTruthy();
 
     await user.click(button("AI で推定する"));
-    expect(actions.estimateMealAction).toHaveBeenCalledWith({ text: "", imageDataUrls: ["data:image/jpeg;base64,A", "data:image/jpeg;base64,C"] });
+    expect(actions.estimateMealAction).toHaveBeenCalledWith({ text: "", images: [{ dataUrl: "data:image/jpeg;base64,A" }, { dataUrl: "data:image/jpeg;base64,C" }] });
   });
 
   it("同じ写真を何枚選んでも、1 枚にまとめる(1 回分として扱う)。まとめたことを知らせる", async () => {
@@ -418,7 +452,7 @@ describe("MealForm: 写真(最大 4 枚)", () => {
 
     await user.type(field("食べたもの"), "これ 4 人前食べた");
     await user.click(button("AI で推定する"));
-    expect(actions.estimateMealAction).toHaveBeenCalledWith({ text: "これ 4 人前食べた", imageDataUrls: ["data:image/jpeg;base64,SAME"] });
+    expect(actions.estimateMealAction).toHaveBeenCalledWith({ text: "これ 4 人前食べた", images: [{ dataUrl: "data:image/jpeg;base64,SAME" }] });
   });
 
   it("すでにある写真と同じ写真を、あとから足しても、足さない", async () => {
@@ -511,7 +545,7 @@ describe("MealForm: 写真(最大 4 枚)", () => {
 
     await user.type(field("食べたもの"), "焼鮭定食");
     await user.click(button("AI で推定する"));
-    expect(actions.estimateMealAction).toHaveBeenCalledWith({ text: "焼鮭定食", imageDataUrls: [] });
+    expect(actions.estimateMealAction).toHaveBeenCalledWith({ text: "焼鮭定食", images: [] });
   });
 
   it("写真があるときの処理中の表示は、写真を読み取る段階を含む", async () => {
@@ -618,7 +652,7 @@ describe("MealForm: 保存", () => {
 
     expect(await screen.findByText("食べた時刻は、時を 0〜26 で入力してください")).toBeTruthy();
     expect(screen.getByText("推定の内容が正しくありません。")).toBeTruthy();
-    expect(button("この内容で保存").disabled).toBe(false);
+    await waitFor(() => expect(button("この内容で保存").disabled).toBe(false)); // やり直せる(処理が終わるまで、少し待つ)
   });
 
   it("保存中は、ボタンが「保存中...」で止まる", async () => {
@@ -704,7 +738,7 @@ describe("MealForm: 編集", () => {
     actions.estimateMealAction.mockResolvedValue({ ok: true, estimate: { ...estimate, description: "焼鮭2切れ、白ご飯" } });
     await user.click(button("推定し直す"));
     await waitFor(() => expect(button("この内容で保存").disabled).toBe(false));
-    expect(actions.estimateMealAction).toHaveBeenCalledWith({ text: "焼鮭2切れ、白ご飯", imageDataUrls: [] });
+    expect(actions.estimateMealAction).toHaveBeenCalledWith({ text: "焼鮭2切れ、白ご飯", images: [] });
   });
 
   it("ボタンの並び: 削除(左端に離す)、キャンセル、この内容で保存(右端)。削除の確認は、やめる(左)→ 削除する(右)", async () => {
