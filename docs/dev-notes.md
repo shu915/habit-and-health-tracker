@@ -14,6 +14,7 @@ CLAUDE.md から分けた詳細。仕様を変えたら、ここも直す。
 - `npm run dev` / `build` / `check`(lint + typecheck。**テストは含まない**)/ `test`
 - DB: `docker compose up -d --wait`(ホストのポートは **5433**)、`npm run db:generate` / `db:migrate` / `db:studio`
 - ダミーデータ: `npm run db:seed-dummy`(`scripts/seed-dummy.mts`)。3 人(崩れた俺 / 優等生 / 穴だらけ)に 100 日分を入れる。AI は呼ばない。**開発用 DB(`localhost:5433` の `habit_health`)以外では、何もせずに止まる**。id が `dummy-` で始まるユーザーだけを消して入れ直す。`-- --delete` で消すだけ。ログインは `dummy-collapsed@example.com` などにマジックリンクを送る(`ALLOWED_EMAILS` を設定しているときは、ダミーのメールも足す)。`src/` を import せず、列の名前は `schema.ts` と手で合わせる(**スキーマを変えたら、スクリプトも直し、通ることを確かめる**。静かに壊れる)。ダミーは本物のアカウント(`email_verified` が true)として入るので、**データを本番へ移す前に `-- --delete` で消す**
+- デモ用の人物: `npm run db:seed-demo`(`scripts/seed-demo.mts`)。「今の自分が 1 年後に、こうなっていたい」という想定の、400 日分(約 9 割の日に記録)。最初は夜食・体重の悩みが多く、少しずつ夜食が減り、睡眠が整い、筋トレが習慣になる(体重 約 96kg → 85kg。活動係数と目標カロリーは、日に固定した値が途中で変わる)。日記・良かったことも、悩みから達成へ移る(長期レポートと、日記の「悩みの推移」の確認用)。**メールアドレスと表示名は、`scripts/demo.local.json`(`.gitignore`。追跡しない)から読む。無ければ `scripts/demo.example.json`(ダミー)。このリポジトリは公開なので、本物のメールアドレスをコミットしない**。`--dry-run`(DB に入れず、100 日ずつの様子を出す)/ `--delete`。id は `demo-user`。同じメールの別ユーザーがいると、消さずに止まる。**開発用 DB 以外では止まる(本番のデモの入口は、まだ無い)**。共通の部品は `scripts/seed-lib.mts`(`seed-dummy.mts` と共有)
 - ルート(`app/` のページ)を足す・消したら `npx next typegen`(`PageProps` の型を作り直す)
 - Better Auth の設定(`lib/auth.ts`)を変えたら、`DATABASE_URL=... BETTER_AUTH_SECRET=... npm run db:auth-schema` で `auth-schema.ts` を再生成する
 - `drizzle-kit generate` は、テーブルの削除と作成が同時にあると対話で聞いてくる(非対話では失敗する)。別のマイグレーションに分ける
