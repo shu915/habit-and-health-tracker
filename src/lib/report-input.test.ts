@@ -73,7 +73,8 @@ describe("データ不足の日(食事が 1 回だけ、または摂取が目標
   it("集計の差の日数は、データ不足の日を除く。除いた日数は別に出す(AI が、1 食しか食べなかったと読まない)。データがそろった日が足りない(3 日未満)間は、摂取の中央値を出さない", () => {
     const input = buildReportInput({ period, dates, views: sparseViews, source, recordedDates: recorded, badges: [] });
     expect(input.集計.摂取kcalの中央値).toBeNull(); // データがそろった日は 1 日だけ(3 日要る)
-    expect(input.集計.食事を記録した日数).toBe(1);
+    expect(input.集計["食事の記録がそろった日数(データ不足の日を除く)"]).toBe(1);
+    expect(input.集計.食事の記録がある日数).toBeGreaterThan(1); // データ不足の日も、記録がある日に数える
     expect(input.集計.差を計算できた日数).toBe(1);
     expect(input.集計.データ不足の日数).toBe(2);
   });
@@ -147,7 +148,7 @@ describe("buildReportInput", () => {
     const input = buildReportInput({ period, dates, views, source, recordedDates: recorded, badges: [{ key: "sleep", tier: "gold", passed: 5, judged: 5, unit: "day" }] });
     expect(input.期間).toEqual({ 開始: "2026-10-29", 終了: "2026-11-04", 日数: 7 });
     expect(input.バッジ).toEqual([{ 項目: "睡眠", 段階: "ゴールド", 収まった数: 5, 判定した数: 5 }]);
-    expect(input.集計).toMatchObject({ 記録のある日数: 4, 食事を記録した日数: 2, 運動の回数: 1, 運動した日数: 1 });
+    expect(input.集計).toMatchObject({ 記録のある日数: 4, 食事の記録がある日数: 2, "食事の記録がそろった日数(データ不足の日を除く)": 2, 運動の回数: 1, 運動した日数: 1 });
     expect(input.記録のない日).toEqual(["2026-11-01", "2026-11-02", "2026-11-03"]);
     expect(JSON.parse(JSON.stringify(input))).toEqual(input);
   });

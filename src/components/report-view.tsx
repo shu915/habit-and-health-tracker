@@ -19,17 +19,24 @@ function DateChips({ dates }: { dates: readonly string[] }) {
   return <p className="mt-0.5 text-xs text-ink-muted">注目の日: {dates.map(shortDate).join("、")}</p>;
 }
 
-function Findings({ findings }: { findings: readonly Finding[] }) {
-  if (findings.length === 0) return null;
+function Findings({ findings, lead }: { findings: readonly Finding[]; lead?: string }) {
+  if (findings.length === 0 && !lead) return null;
+  // 総合評価と同じ白い枠に入れる(枠なしで背景に直接置くと、上の部分と見た目がそろわない)。気づきの間は、薄い線で区切る。
+  // lead(運動の「28 日のうち 17 日…」など)は、別の枠にせず、同じ枠の先頭に小さく出す(枠が 2 つに分かれて見えないように)
   return (
-    <ul className="flex flex-col gap-3 text-[15px] leading-[1.8]">
-      {findings.map((finding, i) => (
-        <li key={i}>
-          <p>{finding.text}</p>
-          <DateChips dates={finding.dates} />
-        </li>
-      ))}
-    </ul>
+    <div className="flex flex-col gap-4 rounded-lg bg-surface-raised p-4 text-[15px] leading-[1.8] sm:p-6">
+      {lead && <p className="text-sm text-ink-muted">{lead}</p>}
+      {findings.length > 0 && (
+        <ul className={`flex flex-col gap-4 [&>li+li]:border-t [&>li+li]:border-line-soft [&>li+li]:pt-4 ${lead ? "border-t border-line-soft pt-4" : ""}`}>
+          {findings.map((finding, i) => (
+            <li key={i}>
+              <p>{finding.text}</p>
+              <DateChips dates={finding.dates} />
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
@@ -45,6 +52,15 @@ function BadgeChip({ badge }: { badge: Badge }) {
       </span>
     </li>
   );
+}
+
+// 運動の項目の先頭に出す 1 文(日付の一覧は出さない。日付は、グラフの注目日と、記録のカレンダーに出る)
+function exerciseLead(report: StoredReport): string | undefined {
+  if (!report.snapshot) return undefined;
+  const days = new Set(report.snapshot.exercises.map((e) => e.date)).size;
+  // 1〜2 日のときは、見出しや気づきの文章が、同じことを言うので、出さない(3 回も同じことが並ぶ)
+  if (days === 0) return "いつもより多く動いた記録は、この期間にありませんでした。";
+  return days <= 2 ? undefined : `${report.snapshot.dates.length} 日のうち ${days} 日で、いつもより多く動いた記録があります。`;
 }
 
 function Charts({ sectionKey, report, highlightDates }: { sectionKey: SectionKey; report: StoredReport; highlightDates: string[] }) {
@@ -68,11 +84,7 @@ function Charts({ sectionKey, report, highlightDates }: { sectionKey: SectionKey
       </div>
     );
   }
-  if (sectionKey === "exercise") {
-    const days = [...new Set(report.snapshot.exercises.map((e) => e.date))].sort();
-    return <p className="text-sm text-ink-muted">{days.length === 0 ? "いつもより多く動いた記録は、この期間にありませんでした。" : `いつもより多く動いた日: ${days.map(shortDate).join("、")}`}</p>;
-  }
-  return null; // 気持ち・日記と記録の習慣は、グラフなし
+  return null; // 運動・気持ち・日記・記録の習慣は、グラフなし(運動の「いつもより動いた日数」の文は、気づきの枠の先頭に出す)
 }
 
 function Overall({ overall }: { overall: ReportContent["overall"] }) {
@@ -183,7 +195,7 @@ export function ReportView({ report }: { report: StoredReport }) {
             <h2 className="text-xl font-bold">{SECTION_LABELS[section.key]}</h2>
             <p className="text-base leading-relaxed font-semibold">{section.headline}</p>
             <Charts sectionKey={section.key} report={report} highlightDates={highlightDates} />
-            <Findings findings={section.findings} />
+            <Findings findings={section.findings} lead={section.key === "exercise" ? exerciseLead(report) : undefined} />
           </section>
         );
       })}

@@ -8,6 +8,7 @@ import { parseReportContent } from "@/lib/report-content";
 import { AI_CONSENT_VERSION } from "@/lib/report-consent-text";
 import { getAiConsent, grantAiConsent } from "@/lib/report-consent";
 import { buildReportInput, type ReportInput } from "@/lib/report-input";
+import { periodActivityLevel } from "@/lib/report-exercise";
 import { isPastMonth, isReportKind, isYearMonth, reportEligibility, reportPeriod, type ReportKind, type ReportPeriod } from "@/lib/report-period";
 import { REPORT_SYSTEM_PROMPT, reportJsonSchema } from "@/lib/report-prompt";
 import { loadReportSource } from "@/lib/report-source";
@@ -89,7 +90,7 @@ export async function createReport(kind: unknown, options: { consent: boolean; m
   try {
     // 文章を含む材料(AI への入力にだけ使う。保存しない)
     const source = await loadReportSource(period.start, period.end);
-    const input = buildReportInput({ period, dates, views, source, recordedDates: new Set(kinds.keys()), badges });
+    const input = buildReportInput({ period, dates, views, source, recordedDates: new Set(kinds.keys()), badges, activityLevel: periodActivityLevel(snapshot.rows, dates, snapshot.profile.activityLevel) });
     deps.schedule(() => runReport({ userId, reportId, period, input }));
   } catch (error) {
     await failReport(userId, reportId, FAILURE_MESSAGES.response); // 想定外の失敗でも、「作成中」のまま残さない

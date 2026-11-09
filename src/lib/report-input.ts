@@ -2,6 +2,8 @@ import { hasEnoughDays } from "@/lib/sparse-day";
 import { BADGE_LABELS, BADGE_TIER_LABELS, type Badge } from "@/lib/report-badges";
 import type { ReportPeriod } from "@/lib/report-period";
 import { shiftDate } from "@/lib/date";
+import { buildExerciseSummary } from "@/lib/report-exercise";
+import { buildNutritionSummary } from "@/lib/report-nutrition";
 import { median, nightOffset } from "@/lib/trend";
 import type { TrendViews } from "@/lib/trend-views";
 
@@ -191,8 +193,16 @@ export type ReportInput = {
   記録のない日: string[];
 };
 
-export function buildReportInput(args: { period: ReportPeriod; dates: readonly string[]; views: TrendViews; source: ReportSource; recordedDates: ReadonlySet<string>; badges: readonly Badge[] }): ReportInput {
-  const { period, dates, views, source, recordedDates, badges } = args;
+export function buildReportInput(args: {
+  period: ReportPeriod;
+  dates: readonly string[];
+  views: TrendViews;
+  source: ReportSource;
+  recordedDates: ReadonlySet<string>;
+  badges: readonly Badge[];
+  activityLevel?: string | null; // 期間の活動係数(lib/report-exercise.ts の periodActivityLevel)。運動の項目で、記録の少なさを評価するかどうかの根拠になる
+}): ReportInput {
+  const { period, dates, views, source, recordedDates, badges, activityLevel = null } = args;
   const records = buildDayRecords(dates, views, source, recordedDates);
   const features = buildFeatures(records);
   const sleeps = records.flatMap((r) => (r.睡眠.時間分 === null ? [] : [r.睡眠.時間分]));
@@ -212,13 +222,41 @@ export function buildReportInput(args: { period: ReportPeriod; dates: readonly s
       睡眠を記録した日数: sleeps.length,
       体重: weights.length === 0 ? null : { 最初: weights[0], 最後: weights[weights.length - 1], 記録日数: weights.length },
       摂取kcalの中央値: enoughIntake ? median(intakes) : null,
-      食事を記録した日数: intakes.length,
+      // 2 つを分ける: AI が「食事は 25 日記録」と、データ不足の日を除いた数を、記録した日数と読み違えたため
+      食事の記録がある日数: records.filter((r) => r.食事.length > 0).length,
+      "食事の記録がそろった日数(データ不足の日を除く)": intakes.length,
       食事が1回だけの日数: records.filter((r) => r.食事.length === 1).length,
       データ不足の日数: records.filter((r) => r.データ不足).length,
       摂取マイナス消費の合計: diffs.length === 0 ? null : diffs.reduce((a, b) => a + b, 0),
       差を計算できた日数: diffs.length,
       運動の回数: records.reduce((n, r) => n + r.運動.length, 0),
       運動した日数: records.filter((r) => r.運動.length > 0).length,
+      // 栄養素ごとの評価(たんぱく質・脂質・糖質・食物繊維・塩分。日の詳細のレーダーと同じ判定。データがそろった日だけ)。食事と栄養の項目は、これを読んで、多すぎ・少なすぎを書く
+      栄養: buildNutritionSummary(
+        records.map((r) => {
+          const point = views.calories[dates.indexOf(r.日付)];
+          return {
+            meals: r.食事.map((m) => ({
+              kcal: m.kcal,
+              proteinG: String(m.たんぱく質g),
+              fatG: String(m.脂質g),
+              netCarbG: String(m.糖質g),
+              fiberG: m.食物繊維g === null ? null : String(m.食物繊維g),
+              saltG: m.塩分g === null ? null : String(m.塩分g),
+            })),
+            baseKcal: point.target === null ? null : point.target - point.exerciseKcal,
+            exerciseKcal: point.exerciseKcal,
+            usable: !point.inProgress && !point.sparse,
+          };
+        }),
+      ),
+      // 運動の要約(種類別・強さ別・週ごと・連続・消費・活動係数)。運動の項目は、これを読んで書く
+      運動: buildExerciseSummary({
+        dates,
+        exercises: source.exercises,
+        weightByDate: new Map(records.flatMap((r) => (r.体重kg === null ? [] : [[r.日付, r.体重kg] as [string, number]]))),
+        activityLevel,
+      }),
     },
     日ごとの記録: records,
     分析材料: buildAnalysis(features),

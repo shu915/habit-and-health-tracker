@@ -789,7 +789,8 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", { timeout: 15_000 }, 
       ai.complete.mockResolvedValue(reportJson(daysOfMonth(earlier)));
       const other = await create("monthly", true, earlier); // 別の月は、別に作れる
       expect(other.ok).toBe(true);
-      expect((await reportsModule.listReports()).filter((r) => r.kind === "monthly").map((r) => r.periodStart).sort()).toEqual([`${earlier}-01`, `${lastMonth}-01`].sort());
+      // 一覧は、作った順(先月が先、3 か月前があと)ではなく、月の新しい順
+      expect((await reportsModule.listReports()).filter((r) => r.kind === "monthly").map((r) => r.periodStart)).toEqual([`${lastMonth}-01`, `${earlier}-01`]);
     });
 
     it("月次: 今の月・未来の月・月が無い・形が違う月は、AI を呼ばず、行も作らずに断る。記録が足りない月も断る", async () => {

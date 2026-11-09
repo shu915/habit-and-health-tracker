@@ -139,7 +139,7 @@ export async function failReport(userId: string, id: number, message: string): P
 
 // ---- 読み出し ----
 
-// 新しい順(作成中・失敗も含む)。一覧用(中身とスナップショットは読まない)
+// 期間の新しい順(作成中・失敗も含む)。作った順ではなく、月の順に並べる(過去の月を、あとから作っても、ばらばらにならない)。随時の直近 4 週間は、期間が今日で終わるので、いちばん上に来る。一覧用(中身とスナップショットは読まない)
 export async function listReports(): Promise<ReportSummary[]> {
   const userId = await getCurrentUserId();
   await failStale(db, userId);
@@ -147,7 +147,7 @@ export async function listReports(): Promise<ReportSummary[]> {
     .select({ id: reports.id, kind: reports.kind, periodStart: reports.periodStart, periodEnd: reports.periodEnd, createdAt: reports.createdAt, status: reports.status, errorMessage: reports.errorMessage, badges: reports.badges })
     .from(reports)
     .where(eq(reports.userId, userId))
-    .orderBy(desc(reports.createdAt), desc(reports.id));
+    .orderBy(desc(reports.periodEnd), desc(reports.periodStart), desc(reports.id));
   return rows.flatMap((row) =>
     isReportKind(row.kind) && isStatus(row.status) ? [{ id: row.id, kind: row.kind, periodStart: row.periodStart, periodEnd: row.periodEnd, createdAt: row.createdAt, status: row.status, errorMessage: row.errorMessage, badges: parseBadges(row.badges) }] : [],
   );
