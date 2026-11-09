@@ -134,3 +134,17 @@ describe("入力の確認", () => {
     ).toThrow("日ごとの点の数");
   });
 });
+
+describe("kcal の中央値は、整数に丸める", () => {
+  it("偶数個の日の中央値(2 つの値の平均)が小数になっても、整数で出す(2538.5 → 2539)", () => {
+    const even: Parameters<typeof summarize>[0] = [
+      { date: "2026-10-29", kcal: 2500, mealCount: 3 },
+      { date: "2026-10-30", kcal: 2577, mealCount: 3 },
+      { date: "2026-10-31", kcal: 2400, mealCount: 3 },
+      { date: "2026-11-04", kcal: 2600, mealCount: 3 },
+    ];
+    const food = summarize(even).summary.食事;
+    expect(food.摂取kcalの中央値).toBe(2539); // 2500 と 2577 の平均 2538.5 → 2539
+    expect(Number.isInteger(food.差の中央値)).toBe(true);
+  });
+});

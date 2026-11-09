@@ -79,6 +79,7 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", { timeout: 15_000 }, 
   let reportGenerateModule: typeof import("@/lib/report-generate");
   let reportOptionsModule: typeof import("@/lib/report-options");
   let monthThemesModule: typeof import("@/lib/month-themes");
+  let longTermOptionsModule: typeof import("@/lib/long-term-options");
   let positiveActionsModule: typeof import("@/app/(app)/days/[date]/positive/actions");
   let aiLimitModule: typeof import("@/lib/ai-limit");
   // 全期間の記録(期間の絞り込みが要らないテスト用)
@@ -111,6 +112,7 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", { timeout: 15_000 }, 
     recordKindsModule = await import("@/lib/record-kinds");
     reportsModule = await import("@/lib/reports");
     monthThemesModule = await import("@/lib/month-themes");
+    longTermOptionsModule = await import("@/lib/long-term-options");
     reportConsentModule = await import("@/lib/report-consent");
     reportSourceModule = await import("@/lib/report-source");
     reportGenerateModule = await import("@/lib/report-generate");
@@ -602,7 +604,7 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", { timeout: 15_000 }, 
       await started.runTasks();
       return started.result;
     };
-    const insertReport = async (userId: string, kind: "four-weeks" | "monthly", overrides: Partial<typeof schema.reports.$inferInsert> = {}) => {
+    const insertReport = async (userId: string, kind: "four-weeks" | "monthly" | "quarterly" | "yearly", overrides: Partial<typeof schema.reports.$inferInsert> = {}) => {
       const [row] = await dbModule.db
         .insert(schema.reports)
         .values({ userId, kind, periodStart: "2026-01-01", periodEnd: "2026-01-07", status: "done", content: JSON.parse(reportJson(["2026-01-01"])), badges: [], snapshot: {}, consentVersion: AI_CONSENT_VERSION, ...overrides })
@@ -753,6 +755,17 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", { timeout: 15_000 }, 
       expect((await reportsModule.getReport(freshId))?.status).toBe("creating"); // 新しい作成中は、そのまま
       ai.complete.mockResolvedValue(reportJson(dates));
       expect(await create("four-weeks")).toMatchObject({ ok: true }); // 止まった行があっても、作れる
+    });
+
+    it("止まったとみなす時間は、随時・月次は 6 分、長期(四半期・年次)は 12 分(長期は、最悪の所要時間が約 8 分なので、まだ動いている行を失敗にしない)", async () => {
+      currentUser.id = USER_A;
+      const minutesAgo = (n: number) => new Date(Date.now() - n * 60 * 1000);
+      const monthly7 = await insertReport(USER_A, "monthly", { status: "creating", content: null, periodStart: "2026-01-01", periodEnd: "2026-01-31", createdAt: minutesAgo(7) });
+      const quarterly8 = await insertReport(USER_A, "quarterly", { status: "creating", content: null, periodStart: "2026-01-01", periodEnd: "2026-03-31", createdAt: minutesAgo(8) });
+      const yearly13 = await insertReport(USER_A, "yearly", { status: "creating", content: null, periodStart: "2025-01-01", periodEnd: "2025-12-31", createdAt: minutesAgo(13) });
+      expect((await reportsModule.getReport(monthly7))?.status).toBe("failed"); // 月次は 7 分で、止まったとみなす
+      expect((await reportsModule.getReport(quarterly8))?.status).toBe("creating"); // 長期は 8 分では、まだ動いているとみなす
+      expect((await reportsModule.getReport(yearly13))?.status).toBe("failed"); // 長期も 13 分で、止まったとみなす
     });
 
     it("AI の返事が形違い・想定外の例外でも、裏の処理は例外を外に出さず、失敗にして理由を残す(「作成中」のまま残さない)", async () => {
@@ -967,6 +980,7 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", { timeout: 15_000 }, 
       await started.runTasks();
       return started.result;
     };
+    const longTermPeriodTitle = (id: string) => `${id.slice(0, 4)} 年 ${(Number(id.slice(6)) - 1) * 3 + 1}〜${(Number(id.slice(6)) - 1) * 3 + 3} 月(第 ${id.slice(6)} 四半期)`;
     const themesJson = JSON.stringify({ worries: ["夜食"], wins: ["筋トレ"], topics: [] });
     // AI の呼び出しを、用途(schemaName)で出し分ける: 月ごとのテーマと、レポート本体
     const answerBySchema = (themes: () => Promise<string> | string = () => themesJson) =>
@@ -1138,12 +1152,51 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", { timeout: 15_000 }, 
       expect(await createLongTerm("quarterly", quarter.id)).toMatchObject({ ok: true });
     });
 
+    it("長期レポートの再作成の待ち: 開発サーバーでは待たせない(0 分)。テストと本番は、10 分", async () => {
+      const { longTermRetryWaitMinutes } = await import("@/lib/reports");
+      expect(longTermRetryWaitMinutes({ NODE_ENV: "development" })).toBe(0);
+      expect(longTermRetryWaitMinutes({ NODE_ENV: "production" })).toBe(10);
+      expect(longTermRetryWaitMinutes({ NODE_ENV: "test" })).toBe(10);
+      expect(longTermRetryWaitMinutes({})).toBe(10);
+    });
+
     it("長期レポート: 種類が違う値(画面から届きうる)は、例外にせず、断る", async () => {
       currentUser.id = USER_A;
       await readyProfile();
       expect(await createLongTerm("monthly", quarterOf(-1).id)).toMatchObject({ ok: false, reason: "invalid" });
       expect(await createLongTerm("bogus", quarterOf(-1).id)).toMatchObject({ ok: false, reason: "invalid" });
       expect(ai.complete).not.toHaveBeenCalled();
+    });
+
+    it("長期レポートの選べる期間(getLongTermOptions): 解禁された期間だけ。作れる条件・作成済み・次の解禁を返す", async () => {
+      currentUser.id = USER_A;
+      await readyProfile();
+      const quarter = quarterOf(-1);
+      await recordDays(daysOfMonth(quarter.months[0]));
+      await recordDays(daysOfMonth(quarter.months[1]));
+
+      const before = await longTermOptionsModule.getLongTermOptions();
+      expect(before.quarterly.choices[0]).toMatchObject({ id: quarter.id, released: true, partial: false, ok: true, usableMonths: 2, requiredMonths: 2, existingId: null, creatingId: null });
+      expect(before.quarterly.choices.map((c) => c.id)).not.toContain(quarterOf(0).id); // 今の四半期は、解禁前なので入らない
+      expect(before.quarterly.next.title).toBe(longTermPeriodTitle(quarterOf(0).id));
+      expect(before.quarterly.next.daysLeft).toBeGreaterThan(0);
+
+      answerBySchema();
+      const created = await createLongTerm("quarterly", quarter.id);
+      expect(created.ok).toBe(true);
+      const after = await longTermOptionsModule.getLongTermOptions();
+      expect(after.quarterly.choices[0]).toMatchObject({ id: quarter.id, existingId: created.ok ? created.id : -1, creatingId: null });
+    });
+
+    it("長期レポートの選べる期間: ほかのユーザーの記録は、数えない。記録が無ければ、選べる期間が無い", async () => {
+      currentUser.id = USER_B;
+      await readyProfile();
+      await recordDays(daysOfMonth(quarterOf(-1).months[0]));
+      currentUser.id = USER_A;
+      await readyProfile();
+      const options = await longTermOptionsModule.getLongTermOptions();
+      expect(options.quarterly.choices).toEqual([]);
+      expect(options.yearly.choices).toEqual([]);
     });
 
     it("長期レポート: ほかのユーザーの記録は、混ざらない", async () => {

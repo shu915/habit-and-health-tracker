@@ -63,6 +63,8 @@ function measure(points: readonly TrendPoint[], digits: number): Measure {
   };
 }
 
+const roundOrNull = (value: number | null): number | null => (value === null ? null : Math.round(value));
+
 const hourOf = (time: string) => Number(time.slice(0, 2));
 
 export function buildMonthSummary(input: MonthInput): MonthSummary {
@@ -101,8 +103,9 @@ export function buildMonthSummary(input: MonthInput): MonthSummary {
       食事の記録がある日数: records.filter((r) => r.食事.length > 0).length,
       "食事の記録がそろった日数(データ不足の日を除く)": intakes.length,
       データ不足の日数: calories.filter((p) => p.sparse).length,
-      摂取kcalの中央値: enoughIntake ? median(intakes) : null,
-      差の中央値: enoughDiff ? median(diffs) : null,
+      // 中央値は、2 つの値の平均になると小数(2538.5)が出る。kcal は整数に丸める(AI が、小数のまま書かないように)
+      摂取kcalの中央値: enoughIntake ? roundOrNull(median(intakes)) : null,
+      差の中央値: enoughDiff ? roundOrNull(median(diffs)) : null,
       差の合計: diffs.length === 0 ? null : diffs.reduce((a, b) => a + b, 0),
       "24時以降に食べた日数": records.filter((r) => r.食事.some((m) => hourOf(m.時刻) >= 24)).length,
     },

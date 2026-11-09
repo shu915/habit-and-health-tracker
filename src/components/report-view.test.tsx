@@ -138,4 +138,19 @@ describe("ReportView", () => {
     expect(errorLog.mock.calls.flat().join(" ")).not.toContain("same key");
     errorLog.mockRestore();
   });
+  it("長期レポート(四半期): 題名は期間の名前。グラフは、日ごとではなく、週ごと(1 本 = 1 週間)。バッジが無ければ、バッジの節を出さない", () => {
+    const longTerm: StoredReport = { ...report, kind: "quarterly", periodStart: "2026-07-01", periodEnd: "2026-09-30", badges: [] };
+    render(<ReportView report={longTerm} />);
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("2026 年 7〜9 月(第 3 四半期)");
+    expect(screen.getAllByText(/1 本が 1 週間\(月曜始まり\)/).length).toBeGreaterThan(0); // 睡眠・体重・体脂肪率・摂取
+    expect(screen.getByText("運動した日数")).toBeTruthy(); // 運動は、週ごとの日数の棒
+    expect(screen.queryByText(/7 日移動平均/)).toBeNull(); // 日ごとのグラフの注記は出ない
+    expect(screen.queryByRole("region", { name: "今期のバッジ" })).toBeNull();
+    expect(screen.queryByText(/日のうち 1 日で、いつもより多く動いた記録があります/)).toBeNull(); // 運動の先頭の 1 文は、短い期間のもの
+  });
+
+  it("長期レポート(年)の題名は「2026 年」", () => {
+    render(<ReportView report={{ ...report, kind: "yearly", periodStart: "2026-01-01", periodEnd: "2026-12-31", badges: [] }} />);
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("2026 年");
+  });
 });

@@ -221,7 +221,7 @@ export function buildReportInput(args: {
       睡眠時間の中央値分: median(sleeps),
       睡眠を記録した日数: sleeps.length,
       体重: weights.length === 0 ? null : { 最初: weights[0], 最後: weights[weights.length - 1], 記録日数: weights.length },
-      摂取kcalの中央値: enoughIntake ? median(intakes) : null,
+      摂取kcalの中央値: enoughIntake ? Math.round(median(intakes) ?? 0) : null, // 2 つの値の平均が小数(2538.5)にならないよう、整数に丸める(月ごとのまとめと同じ)
       // 2 つを分ける: AI が「食事は 25 日記録」と、データ不足の日を除いた数を、記録した日数と読み違えたため
       食事の記録がある日数: records.filter((r) => r.食事.length > 0).length,
       "食事の記録がそろった日数(データ不足の日を除く)": intakes.length,

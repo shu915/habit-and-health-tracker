@@ -8,6 +8,7 @@ import { ReportCreateForm } from "@/components/report-create-form";
 import { parsePage } from "@/lib/day-pages";
 import { getAiConsent } from "@/lib/report-consent";
 import { badgeLabel, reportTitle } from "@/lib/report-format";
+import { getLongTermOptions } from "@/lib/long-term-options";
 import { getReportOptions } from "@/lib/report-options";
 import { pageOfReports } from "@/lib/report-pages";
 import { listReports } from "@/lib/reports";
@@ -39,9 +40,12 @@ export default function ReportsPage({ searchParams }: PageProps<"/reports">) {
 
 async function ReportsContent({ searchParams }: { searchParams: Promise<{ page?: string | string[] }> }) {
   await connection();
-  const [consent, options, reports] = await Promise.all([getAiConsent(), getReportOptions(), listReports()]);
+  const [consent, options, longTermOptions, reports] = await Promise.all([getAiConsent(), getReportOptions(), getLongTermOptions(), listReports()]);
 
   const onDemand = reports.filter((report) => report.kind === "four-weeks");
+  // 四半期・年次は、新しい期間から(件数が少ないので、ページ分けしない。四半期は 1 年に 4 件、年次は 1 年に 1 件)
+  const quarterlyReports = reports.filter((report) => report.kind === "quarterly");
+  const yearlyReports = reports.filter((report) => report.kind === "yearly");
   // 定期(月次)は、新しい月から 12 件ずつ。随時は、ページの外に、最新の 1 件だけ出す
   const periodic = pageOfReports(
     reports.filter((report) => report.kind === "monthly"),
@@ -55,6 +59,9 @@ async function ReportsContent({ searchParams }: { searchParams: Promise<{ page?:
       revokeAction={revokeConsentAction}
       onDemand={{ start: options.onDemand.period.start, end: options.onDemand.period.end, recorded: options.onDemand.eligibility.recorded, required: options.onDemand.eligibility.required, missing: options.onDemand.eligibility.missing, ok: options.onDemand.eligibility.ok, creatingId: options.onDemand.creatingId, blockedToday: options.onDemand.blockedToday }}
       months={options.months.map((m) => ({ month: m.month, recorded: m.eligibility.recorded, required: m.eligibility.required, missing: m.eligibility.missing, ok: m.eligibility.ok, existingId: m.existingId, creatingId: m.creatingId }))}
+      longTerm={longTermOptions}
+      quarterlySaved={<ReportList reports={quarterlyReports} />}
+      yearlySaved={<ReportList reports={yearlyReports} />}
       onDemandSaved={<ReportList reports={onDemand} />}
       periodicSaved={
         <div id={PERIODIC_LIST_ID} className="flex scroll-mt-4 flex-col gap-3">
