@@ -947,6 +947,216 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", { timeout: 15_000 }, 
       expect(source.exercises).toEqual([{ date: "2026-10-12", type: "walk", intensity: "normal", minutes: 30, startTime: "07:00", memo: "朝の散歩" }]);
       await expect(reportSourceModule.loadReportSource("2026-02-30", "2026-10-15")).rejects.toThrow("invalid date");
     });
+
+    // ---- 長期レポート(四半期・年。lib/report-generate.ts の createLongTermReport) ----
+    // 今の食事の日から見た、前の四半期と、今の四半期(まだ終わっていない)
+    const quarterOf = (offset: number) => {
+      let year = Number(mealDay().slice(0, 4));
+      let quarter = Math.floor((Number(mealDay().slice(5, 7)) - 1) / 3) + 1 + offset;
+      while (quarter < 1) [year, quarter] = [year - 1, quarter + 4];
+      const first = (quarter - 1) * 3 + 1;
+      return { id: `${year}-Q${quarter}`, months: [0, 1, 2].map((n) => `${year}-${String(first + n).padStart(2, "0")}`) };
+    };
+    const startCreateLongTerm = async (kind: string, id: string, consent = true) => {
+      const tasks: (() => Promise<void>)[] = [];
+      const result = await reportGenerateModule.createLongTermReport(kind, id, { consent }, { schedule: (task) => void tasks.push(task) });
+      return { result, runTasks: () => Promise.all(tasks.map((task) => task())).then(() => undefined) };
+    };
+    const createLongTerm = async (kind: string, id: string, consent = true) => {
+      const started = await startCreateLongTerm(kind, id, consent);
+      await started.runTasks();
+      return started.result;
+    };
+    const themesJson = JSON.stringify({ worries: ["夜食"], wins: ["筋トレ"], topics: [] });
+    // AI の呼び出しを、用途(schemaName)で出し分ける: 月ごとのテーマと、レポート本体
+    const answerBySchema = (themes: () => Promise<string> | string = () => themesJson) =>
+      ai.complete.mockImplementation(async (args: { schemaName: string }) => (args.schemaName === "month_themes" ? themes() : reportJson(["2026-01-01"])));
+    const reportCalls = () => ai.complete.mock.calls.map((call) => call[0] as { schemaName: string; messages: { role: string; content: string }[] }).filter((c) => c.schemaName === "feedback_report");
+
+    it("長期レポート: 作れる。終わった月の分だけ、テーマを作って保存し、AI には、数字とテーマだけを渡す(日記の文章は渡さない)", async () => {
+      currentUser.id = USER_A;
+      await readyProfile();
+      const quarter = quarterOf(-1);
+      await recordDays(daysOfMonth(quarter.months[0]));
+      await recordDays(daysOfMonth(quarter.months[1])); // 3 か月中 2 か月に記録(第 3 の月は空でも、作れる)
+      answerBySchema();
+
+      const started = await startCreateLongTerm("quarterly", quarter.id);
+      expect(started.result.ok).toBe(true);
+      expect(await dbModule.db.select().from(schema.monthThemes)).toHaveLength(0); // 裏の処理は、まだ走っていない
+      await started.runTasks();
+
+      const report = await reportsModule.getReport(started.result.ok ? started.result.id : -1);
+      expect(report).toMatchObject({ kind: "quarterly", status: "done", periodStart: `${quarter.months[0]}-01` });
+      expect(report?.periodEnd.slice(0, 7)).toBe(quarter.months[2]);
+      expect(report?.badges).toEqual([]); // 長期には、まだバッジを付けない
+
+      // 日記のある月(2 か月)の、テーマを保存した
+      const rows = await dbModule.db.select().from(schema.monthThemes);
+      expect(rows.map((r) => r.monthStart.slice(0, 7)).sort()).toEqual([quarter.months[0], quarter.months[1]]);
+
+      // レポート本体の AI には、長期のプロンプトと、まとめ(テーマつき)を渡す。日記の文章は、入っていない
+      const [call] = reportCalls();
+      expect(call.messages[0].content).toContain("数か月を通した変化");
+      const input = JSON.parse(call.messages[1].content);
+      expect(input.数えた月).toEqual([quarter.months[0], quarter.months[1]]);
+      expect(input.記録が足りない月).toEqual([quarter.months[2]]);
+      expect(input.月ごとのまとめ[0].日記.テーマ).toEqual({ 悩み: ["夜食"], 達成: ["筋トレ"], 話題: [] });
+      const text = call.messages[1].content;
+      for (const secret of ["秘密の日記", "秘密の良かったこと", "秘密の焼鮭定食"]) expect(text).not.toContain(secret);
+    });
+
+    it("長期レポート: 解禁前の期間(今の四半期)は、作れない。AI を呼ばず、行も作らない", async () => {
+      currentUser.id = USER_A;
+      await readyProfile();
+      const result = await createLongTerm("quarterly", quarterOf(0).id);
+      expect(result).toMatchObject({ ok: false, reason: "not-released" });
+      expect(ai.complete).not.toHaveBeenCalled();
+      expect(await dbModule.db.select().from(schema.reports)).toHaveLength(0);
+    });
+
+    it("長期レポート: 記録が足りなければ断る(使える月が 3 分の 2 に足りない)。形が違う期間も断る", async () => {
+      currentUser.id = USER_A;
+      await readyProfile();
+      const quarter = quarterOf(-1);
+      await recordDays(daysOfMonth(quarter.months[0])); // 3 か月中 1 か月だけ
+      expect(await createLongTerm("quarterly", quarter.id)).toMatchObject({ ok: false, reason: "not-enough" });
+      expect(await createLongTerm("quarterly", "2026-Q5")).toMatchObject({ ok: false, reason: "invalid" });
+      expect(await createLongTerm("yearly", "20x6")).toMatchObject({ ok: false, reason: "invalid" });
+      expect(ai.complete).not.toHaveBeenCalled();
+      expect(await dbModule.db.select().from(schema.reports)).toHaveLength(0);
+    });
+
+    it("長期レポート: 同じ期間は 1 回だけ(exists)。作成中なら、二重に作らない(in-progress。AI も呼ばない)", async () => {
+      currentUser.id = USER_A;
+      await readyProfile();
+      const quarter = quarterOf(-1);
+      await recordDays(daysOfMonth(quarter.months[0]));
+      await recordDays(daysOfMonth(quarter.months[1]));
+      answerBySchema();
+
+      const first = await startCreateLongTerm("quarterly", quarter.id);
+      const duplicate = await startCreateLongTerm("quarterly", quarter.id); // 作成中のうちに、もう 1 回
+      expect(duplicate.result).toMatchObject({ ok: false, reason: "in-progress" });
+      await first.runTasks();
+      expect(ai.complete).toHaveBeenCalled();
+
+      ai.complete.mockClear();
+      const again = await createLongTerm("quarterly", quarter.id);
+      expect(again).toMatchObject({ ok: false, reason: "exists" });
+      expect(ai.complete).not.toHaveBeenCalled();
+    });
+
+    it("長期レポート: 同意が無ければ断る。月ごとのテーマの作成が失敗しても、数字だけでレポートはできる", async () => {
+      currentUser.id = USER_A;
+      await readyProfile();
+      const quarter = quarterOf(-1);
+      await recordDays(daysOfMonth(quarter.months[0]));
+      await recordDays(daysOfMonth(quarter.months[1]));
+
+      expect(await createLongTerm("quarterly", quarter.id, false)).toMatchObject({ ok: false, reason: "consent" });
+      expect(ai.complete).not.toHaveBeenCalled();
+
+      const { OpenRouterError } = await import("@/lib/openrouter");
+      answerBySchema(async () => {
+        throw new OpenRouterError("network", "接続できない");
+      });
+      const started = await startCreateLongTerm("quarterly", quarter.id);
+      await started.runTasks();
+      const report = await reportsModule.getReport(started.result.ok ? started.result.id : -1);
+      expect(report?.status).toBe("done");
+      expect(await dbModule.db.select().from(schema.monthThemes)).toHaveLength(0);
+      const input = JSON.parse(reportCalls()[0].messages[1].content);
+      expect(input.月ごとのまとめ.every((m: { 日記: { テーマ: unknown } }) => m.日記.テーマ === null)).toBe(true);
+    });
+
+    it("長期レポート: 作成を始めたあとで同意を撤回されたら、日記から作ったテーマ(読み込み済みのものも)を AI に送らず、失敗にする", async () => {
+      currentUser.id = USER_A;
+      await readyProfile();
+      const quarter = quarterOf(-1);
+      await recordDays(daysOfMonth(quarter.months[0]));
+      await recordDays(daysOfMonth(quarter.months[1]));
+      answerBySchema();
+      await createLongTerm("quarterly", quarter.id); // 1 回作って、テーマを保存する
+      await dbModule.db.delete(schema.reports); // 同じ期間を、もう一度作れるようにする(テーマは残る)
+      ai.complete.mockClear();
+
+      const started = await startCreateLongTerm("quarterly", quarter.id); // 保存済みのテーマを、読み込む
+      expect(started.result.ok).toBe(true);
+      await reportConsentModule.revokeAiConsent(); // 裏の処理が走る前に、撤回する
+      await started.runTasks();
+
+      const failed = await reportsModule.getReport(started.result.ok ? started.result.id : -1);
+      expect(failed).toMatchObject({ status: "failed" });
+      expect(failed?.errorMessage).toContain("同意が取り消された");
+      expect(ai.complete).not.toHaveBeenCalled(); // テーマの作成も、レポート本体も、呼ばない
+    });
+
+    it("長期レポート: テーマを作っている最中に撤回されたら、レポート本体の AI を呼ばず、失敗にする(テーマも残さない)", async () => {
+      currentUser.id = USER_A;
+      await readyProfile();
+      const quarter = quarterOf(-1);
+      await recordDays(daysOfMonth(quarter.months[0]));
+      await recordDays(daysOfMonth(quarter.months[1]));
+      // どのテーマの AI も、同じ撤回が終わってから返す(並行して作るため、撤回の前に保存してしまう、タイミング次第の結果にしない)
+      let revocation: Promise<unknown> | null = null;
+      answerBySchema(async () => {
+        revocation ??= reportConsentModule.revokeAiConsent(); // 最初のテーマの AI が返る前に、撤回された
+        await revocation;
+        return themesJson;
+      });
+      const started = await startCreateLongTerm("quarterly", quarter.id);
+      await started.runTasks();
+
+      const failed = await reportsModule.getReport(started.result.ok ? started.result.id : -1);
+      expect(failed?.status).toBe("failed");
+      expect(reportCalls()).toHaveLength(0); // レポート本体は、呼ばれない
+      expect(await dbModule.db.select().from(schema.monthThemes)).toEqual([]); // 撤回のあとに、テーマが残らない
+    });
+
+    it("長期レポート: 失敗した直後は、作り直せない(AI の費用が膨らまないよう、10 分あける)。間隔があけば、作り直せる", async () => {
+      currentUser.id = USER_A;
+      await readyProfile();
+      const quarter = quarterOf(-1);
+      await recordDays(daysOfMonth(quarter.months[0]));
+      await recordDays(daysOfMonth(quarter.months[1]));
+      const { OpenRouterError } = await import("@/lib/openrouter");
+      ai.complete.mockImplementation(async (args: { schemaName: string }) => {
+        if (args.schemaName === "month_themes") return themesJson;
+        throw new OpenRouterError("network", "接続できない");
+      });
+      const failed = await startCreateLongTerm("quarterly", quarter.id);
+      await failed.runTasks();
+      expect((await reportsModule.getReport(failed.result.ok ? failed.result.id : -1))?.status).toBe("failed");
+
+      ai.complete.mockClear();
+      expect(await createLongTerm("quarterly", quarter.id)).toMatchObject({ ok: false, reason: "retry-wait" });
+      expect(ai.complete).not.toHaveBeenCalled();
+
+      await dbModule.db.update(schema.reports).set({ createdAt: new Date(Date.now() - 11 * 60 * 1000) }); // 11 分前に失敗したことにする
+      answerBySchema();
+      expect(await createLongTerm("quarterly", quarter.id)).toMatchObject({ ok: true });
+    });
+
+    it("長期レポート: 種類が違う値(画面から届きうる)は、例外にせず、断る", async () => {
+      currentUser.id = USER_A;
+      await readyProfile();
+      expect(await createLongTerm("monthly", quarterOf(-1).id)).toMatchObject({ ok: false, reason: "invalid" });
+      expect(await createLongTerm("bogus", quarterOf(-1).id)).toMatchObject({ ok: false, reason: "invalid" });
+      expect(ai.complete).not.toHaveBeenCalled();
+    });
+
+    it("長期レポート: ほかのユーザーの記録は、混ざらない", async () => {
+      currentUser.id = USER_B;
+      await readyProfile();
+      const quarter = quarterOf(-1);
+      await recordDays(daysOfMonth(quarter.months[0]));
+      await recordDays(daysOfMonth(quarter.months[1]));
+      currentUser.id = USER_A;
+      await readyProfile();
+      expect(await createLongTerm("quarterly", quarter.id)).toMatchObject({ ok: false, reason: "not-enough" }); // A には記録が無い
+      expect(ai.complete).not.toHaveBeenCalled();
+    });
   });
 
   describe("profiles", () => {
@@ -2969,10 +3179,11 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", { timeout: 15_000 }, 
     it("ensureMonthThemes: 作っている途中で撤回されたら、残りの月は作らず、保存もしない", async () => {
       await consentNow();
       const { eq } = await import("drizzle-orm");
-      let calls = 0;
+      // 数か月は並行して作る。どの呼び出しも、同じ撤回が終わってから返す(撤回の前に保存してしまう、タイミング次第の結果にしない)
+      let revocation: Promise<unknown> | null = null;
       const complete = vi.fn(async () => {
-        calls += 1;
-        if (calls === 1) await dbModule.db.delete(schema.aiConsents).where(eq(schema.aiConsents.userId, USER_A)); // 1 か月目の AI が返る前に、撤回された
+        revocation ??= dbModule.db.delete(schema.aiConsents).where(eq(schema.aiConsents.userId, USER_A)); // 最初の AI が返る前に、撤回された
+        await revocation;
         return okReply;
       });
       const result = await monthThemesModule.ensureMonthThemes({ userId: USER_A, diaries: [diary("2026-06"), diary("2026-07"), diary("2026-08"), diary("2026-09")], existing: new Map(), complete });

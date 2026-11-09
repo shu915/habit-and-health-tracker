@@ -303,7 +303,7 @@ export const aiConsents = pgTable("ai_consents", {
 // 1 件 = 1 レポート。AI の返事(content)・バッジ・作った時点の元の数字(snapshot)を、JSON で保存する。
 // グラフは snapshot から描き直す(作った時点の数字なので、あとで記録を直しても、文章・バッジ・グラフがずれない)。画像は保存しない。
 // snapshot には、日記や食事の名前の文章を入れない(日記を消しても残ってしまうため)。
-// 種類: four-weeks(随時。直近 4 週間)/ monthly(定期。過去の、どの暦の月でも。period_start が月の 1 日)。monthly は同じ月を 1 回だけ作る(一意制約)。
+// 種類: four-weeks(随時。直近 4 週間)/ monthly(定期。過去の、どの暦の月でも。period_start が月の 1 日)/ quarterly・yearly(長期。暦に固定。period_start が期間の最初の月の 1 日)。monthly と長期は、同じ期間を 1 回だけ作る(一意制約)。
 // (直近 1 週間のレポートは、2026-11-05 にやめた。先月だけだった種類は、どの月でも選べる monthly に広げた。)
 // 今すぐは、種類ごとに最新の 1 件だけを残す(できたとき、前の分を消す。lib/reports.ts)。今すぐは、1 日に 1 回まで(lib/report-period.ts)
 export const reports = pgTable(
@@ -333,7 +333,7 @@ export const reports = pgTable(
   (table) => [
     index("reports_user_created_idx").on(table.userId, table.createdAt),
     unique("reports_user_kind_period_unique").on(table.userId, table.kind, table.periodStart),
-    check("reports_kind_check", sql`${table.kind} IN ('four-weeks', 'monthly')`),
+    check("reports_kind_check", sql`${table.kind} IN ('four-weeks', 'monthly', 'quarterly', 'yearly')`),
     check("reports_status_check", sql`${table.status} IN ('creating', 'done', 'failed')`),
     // できた(done)レポートには、AI の返事が入っている
     check("reports_done_has_content", sql`${table.status} <> 'done' OR ${table.content} IS NOT NULL`),

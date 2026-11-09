@@ -8,7 +8,7 @@ import { isValidDateString } from "@/lib/date";
 import { startOfMealDay } from "@/lib/meal-day-sql";
 import { readStoredContent, type ReportContent } from "@/lib/report-content";
 import { BADGE_KEYS, BADGE_TIERS, type Badge } from "@/lib/report-badges";
-import { isOnDemandKind, isReportKind, ON_DEMAND_DAILY_LIMIT, ON_DEMAND_KINDS, type ReportKind } from "@/lib/report-period";
+import { isLongTermReportKind, isOnDemandKind, isPerPeriodKind, isReportKind, ON_DEMAND_DAILY_LIMIT, ON_DEMAND_KINDS, type ReportKind } from "@/lib/report-period";
 import type { TrendInputs } from "@/lib/trend-views";
 
 // レポートの保存と読み出し(docs/ai-feedback.md)。ログイン中のユーザーの分だけ(全部 user_id で絞る)。
@@ -77,7 +77,11 @@ export async function isOnDemandUsedToday(): Promise<boolean> {
 }
 
 export type NewReport = { kind: ReportKind; periodStart: string; periodEnd: string; badges: Badge[]; snapshot: TrendInputs; consentVersion: number };
-export type StartResult = { ok: true; id: number } | { ok: false; reason: "in-progress" | "exists" | "daily-limit"; id?: number };
+// 長期レポートは、1 回の作成で、月ごとのテーマ(最大 12 回)とレポート本体の AI を呼ぶ。失敗した行は、次の作成で消えるので、失敗を繰り返すと、AI の費用が膨らむ。
+// そのため、同じ期間を最後に作り始めてから、この分数は、作り直せない(失敗した時刻の列が無いので、作り始めの時刻から数える。同意の撤回で止めた行も、数える。2026-11-09 のレビュー。全ユーザー合計の費用の上限は、公開前に決める。docs/release-checklist.md)
+export const LONG_TERM_RETRY_WAIT_MINUTES = 10;
+
+export type StartResult = { ok: true; id: number } | { ok: false; reason: "in-progress" | "exists" | "daily-limit" | "retry-wait"; id?: number };
 
 // 作成を始める: creating の行を保存する(AI の返事は、まだ無い)。同時に届いた要求は、ユーザー単位のロックで直列にする。
 // 断る場合: 同じ種類(月次は、同じ月)が作成中(in-progress。その行の id を返す)/ その月が、もう作ってある(exists。同じ月は 1 回だけ)/ 今日の随時レポートを、もう作った(daily-limit)。
@@ -91,16 +95,24 @@ export async function startReport(input: NewReport): Promise<StartResult> {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`reports:${userId}`}))`);
     await failStale(tx, userId);
 
-    // 月次は、月ごとに別のレポート(別の月は、同時に作れる)。随時は、種類で 1 つ
-    const sameReport = and(eq(reports.userId, userId), eq(reports.kind, input.kind), input.kind === "monthly" ? eq(reports.periodStart, input.periodStart) : undefined);
+    // 月次と長期は、期間ごとに別のレポート(別の期間は、同時に作れる)。随時は、種類で 1 つ
+    const sameReport = and(eq(reports.userId, userId), eq(reports.kind, input.kind), isPerPeriodKind(input.kind) ? eq(reports.periodStart, input.periodStart) : undefined);
     const [creating] = await tx.select({ id: reports.id }).from(reports).where(and(sameReport, eq(reports.status, "creating"))).limit(1);
     if (creating) return { ok: false, reason: "in-progress", id: creating.id } as const;
 
-    if (input.kind === "monthly") {
+    if (isPerPeriodKind(input.kind)) {
       const [existing] = await tx.select({ id: reports.id }).from(reports).where(and(sameReport, eq(reports.status, "done"))).limit(1);
       if (existing) return { ok: false, reason: "exists", id: existing.id } as const;
     }
     if (isOnDemandKind(input.kind) && (await onDemandCountToday(tx, userId)) >= ON_DEMAND_DAILY_LIMIT) return { ok: false, reason: "daily-limit" } as const;
+    if (isLongTermReportKind(input.kind)) {
+      const [recentFailure] = await tx
+        .select({ id: reports.id })
+        .from(reports)
+        .where(and(sameReport, eq(reports.status, "failed"), sql`${reports.createdAt} > now() - make_interval(mins => ${LONG_TERM_RETRY_WAIT_MINUTES})`))
+        .limit(1);
+      if (recentFailure) return { ok: false, reason: "retry-wait", id: recentFailure.id } as const;
+    }
 
     // 失敗した行は、入れ替える(同じ種類・同じ月の失敗を消す。一意制約にも当たらない)
     await tx.delete(reports).where(and(sameReport, eq(reports.status, "failed")));

@@ -64,6 +64,13 @@
       "when": 1794198682930,
       "tag": "0008_month_themes",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1794200322294,
+      "tag": "0009_long_term_report_kinds",
+      "breakpoints": true
     }
   ]
 }

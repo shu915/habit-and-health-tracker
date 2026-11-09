@@ -1,0 +1,2 @@
+ALTER TABLE "reports" DROP CONSTRAINT "reports_kind_check";--> statement-breakpoint
+ALTER TABLE "reports" ADD CONSTRAINT "reports_kind_check" CHECK ("reports"."kind" IN ('four-weeks', 'monthly', 'quarterly', 'yearly'));

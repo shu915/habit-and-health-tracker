@@ -40,16 +40,30 @@ const AXES: { key: Exclude<RadarKey, "kcal">; name: string; reading: string }[] 
   { key: "salt", name: "塩分", reading: "多い日が課題(少ない日は問題なし)" },
 ];
 
+export type NutrientRow = {
+  栄養素: string;
+  単位: string;
+  判定した日数: number;
+  "1日の中央値": number;
+  目標に対する中央値の割合: number;
+  中央値の評価: string | null;
+  目標の範囲内の日数: number;
+  少ない日数: number;
+  多い日数: number;
+  見方: string;
+};
+export type NutritionSummary = { 判定した日数: number; 栄養素: NutrientRow[] };
+
 const round1 = (value: number) => Math.round(value * 10) / 10;
 
-export function buildNutritionSummary(days: readonly NutritionDay[]): Record<string, unknown> | null {
+export function buildNutritionSummary(days: readonly NutritionDay[]): NutritionSummary | null {
   const radars = days.flatMap((day) => {
     if (!day.usable || day.baseKcal === null || day.meals.length === 0) return [];
     return [mealRadar({ meals: day.meals, targetKcal: day.baseKcal, exerciseKcal: day.exerciseKcal })];
   });
   if (radars.length === 0) return null;
 
-  const nutrients = AXES.flatMap(({ key, name, reading }) => {
+  const nutrients = AXES.flatMap(({ key, name, reading }): NutrientRow[] => {
     // 軸ごとに、判定できる日だけ(目標が出る日。食物繊維・塩分は、分からない食事がある日を除く)
     const rows = radars.flatMap((radar) => {
       const axis = radar.axes.find((a) => a.key === key);
