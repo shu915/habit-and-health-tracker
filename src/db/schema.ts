@@ -8,6 +8,7 @@ import {
   jsonb,
   numeric,
   pgTable,
+  primaryKey,
   serial,
   text,
   timestamp,
@@ -337,5 +338,30 @@ export const reports = pgTable(
     // できた(done)レポートには、AI の返事が入っている
     check("reports_done_has_content", sql`${table.status} <> 'done' OR ${table.content} IS NOT NULL`),
     check("reports_period_order", sql`${table.periodStart} <= ${table.periodEnd}`),
+  ],
+);
+
+// ==========================================
+// 9. Month Themes (月ごとの日記のテーマ。長期レポートの材料。docs/ai-feedback.md)
+// ==========================================
+// 1 人 × 1 か月 = 1 行。その月の日記(良かったこと・今日の気づき)を AI に読ませて、短いラベルにしたもの
+// (themes: { worries: 悩み・困りごと, wins: 良かったこと・達成, topics: ほかのよく出る話題 }。それぞれ、短い言葉が数個)。
+// 長期レポートで、「悩みから達成へ」の変化を書くために使う。月次レポートとは別に持つので、月次レポートを作っていない月も、ラベルが付く。
+// **日記の文章は、複製しない**(短いラベルだけ)。長期レポートを作るとき、まだ無い月の分だけ作って保存し、あとは使い回す。
+// month_start は、月の 1 日。consent_version は、作ったときの同意の文面のバージョン(ai_consents.version)
+export const monthThemes = pgTable(
+  "month_themes",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    monthStart: date("month_start", { mode: "string" }).notNull(),
+    themes: jsonb("themes").notNull(),
+    consentVersion: integer("consent_version").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.monthStart] }),
+    check("month_themes_month_start_check", sql`EXTRACT(DAY FROM ${table.monthStart}) = 1`),
   ],
 );
