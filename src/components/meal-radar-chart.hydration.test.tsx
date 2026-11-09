@@ -20,7 +20,7 @@ describe("MealRadarChart: サーバーの HTML の引き継ぎ", () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     container.innerHTML = renderToString(element);
-    expect(container.innerHTML).toContain("width:280px;height:250px"); // 描かれる前から場所を確保している
+    expect(container.innerHTML).toContain("width:290px;height:270px"); // 描かれる前から場所を確保している
     expect(container.textContent).not.toContain("たんぱく質");
 
     const onRecoverableError = vi.fn();

@@ -59,18 +59,20 @@ function activityLevelRow(value: string | null): Row {
   };
 }
 
-// moreRows は、同じ枠の中で、少し間を空けて続ける項目
+// moreRows は、同じ枠の中で、大きく間を空けて続ける項目(目標値の枠の睡眠など、別の意味のまとまり)
+// 1 行に「ラベル(左)と値(右)」。値を右寄せにして桁を縦にそろえ、行の間に細い線を引く
 function RowList({ title, rows, moreRows }: { title: string; rows: Row[]; moreRows?: Row[] }) {
   return (
-    <div className="rounded-lg bg-surface-raised p-4 sm:p-5">
-      <h3 className="mb-2 text-sm font-bold text-ink-muted">{title}</h3>
-      <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+    <div className="flex flex-col rounded-lg bg-surface-raised px-4 pt-4 pb-2 sm:px-5 sm:pt-4.5">
+      <h3 className="mb-1 text-xs font-bold text-ink-muted">{title}</h3>
+      {/* 続きの項目(moreRows)があるときは、この枠の最後の行(目標カロリー)にも、下線を引く */}
+      <dl className={`tabular-nums ${moreRows ? "border-b border-line-soft" : ""}`}>
         {rows.map((row) => (
           <Item key={row.label} row={row} />
         ))}
       </dl>
       {moreRows && (
-        <dl className="mt-6 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+        <dl className="mt-9 tabular-nums">
           {moreRows.map((row) => (
             <Item key={row.label} row={row} />
           ))}
@@ -80,21 +82,22 @@ function RowList({ title, rows, moreRows }: { title: string; rows: Row[]; moreRo
   );
 }
 
+// 値は少し大きく太く、単位は小さく薄く(数字が先に目に入るように)。補足(測定日・活動係数の説明)は値の下に右寄せ
 function Item({ row }: { row: Row }) {
   return (
-    <>
-      <dt className="text-ink-muted">{row.label}</dt>
-      <dd>
+    <div className="flex items-baseline justify-between gap-4 border-b border-line-soft py-2.5 last:border-b-0">
+      <dt className="shrink-0 text-sm text-ink-muted">{row.label}</dt>
+      <dd className="min-w-0 text-right text-[15px] font-medium">
         {row.value === null ? (
-          <span className="text-ink-subtle">未入力</span>
+          <span className="font-normal text-ink-subtle">未入力</span>
         ) : (
           <>
             {row.value}
-            {row.unit ? ` ${row.unit}` : ""}
-            {row.detail && <span className="block text-xs text-ink-subtle">{row.detail}</span>}
+            {row.unit && <span className="ml-1 text-xs font-normal text-ink-muted">{row.unit}</span>}
+            {row.detail && <span className="mt-0.5 block text-xs font-normal text-ink-subtle">{row.detail}</span>}
           </>
         )}
       </dd>
-    </>
+    </div>
   );
 }

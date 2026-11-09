@@ -204,7 +204,7 @@ describe("MealForm: 推定", () => {
 
     await act(async () => pending.resolve({ ok: true, estimate }));
 
-    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.getByRole("status").textContent).toContain("ここに進み具合が出ます"); // 枠は残り、案内に戻る
     expect(screen.getByRole("heading", { name: "焼鮭定食" })).toBeTruthy();
     expect(screen.getByText("402")).toBeTruthy();
     expect(screen.getByText("焼鮭")).toBeTruthy();
@@ -212,6 +212,91 @@ describe("MealForm: 推定", () => {
     expect(field("説明").value).toBe("焼鮭1切れ、白ご飯、みそ汁"); // AI が整えた説明に置き換わる
     expect(button("この内容で保存").disabled).toBe(false);
     expect(button("推定し直す")).toBeTruthy();
+  });
+
+  it("品目の表に、量・kcal・たんぱく質・脂質・糖質・食物繊維・食塩を出す(押して開く形ではない)。前提(調理法・油・砂糖の仮定)は、品目の下に小さく出す", async () => {
+    const user = userEvent.setup();
+    const withAssumption: MealEstimate = {
+      ...estimate,
+      items: [{ ...estimate.items[0], assumption: "グリルで焼く。油は使わないと仮定" }, estimate.items[1]],
+    };
+    actions.estimateMealAction.mockResolvedValue({ ok: true, estimate: withAssumption });
+    render(<MealForm date={DATE} mode="new" />);
+    await user.type(field("食べたもの"), "焼鮭定食");
+    await user.click(button("AI で推定する"));
+
+    const table = await screen.findByRole("table");
+    const headers = within(table).getAllByRole("columnheader").map((header) => header.textContent);
+    expect(headers).toEqual(["品目", "量の目安", "kcal", "たんぱく質", "脂質", "糖質", "食物繊維", "食塩"]);
+    const salmon = within(table).getByText("焼鮭").closest("tr");
+    expect(salmon).not.toBeNull();
+    expect(within(salmon as HTMLElement).getAllByRole("cell").map((cell) => cell.textContent)).toEqual(["焼鮭グリルで焼く。油は使わないと仮定", "1切れ 約80g", "150", "18", "8", "0", "0", "1.4"]);
+    const rice = within(table).getByText("白ご飯").closest("tr");
+    expect(within(rice as HTMLElement).getAllByRole("cell").map((cell) => cell.textContent)).toEqual(["白ご飯", "約150g", "252", "3.8", "0.5", "55.2", "0.5", "0"]); // 糖質 = 炭水化物 55.7 − 食物繊維 0.5
+    expect(within(table).queryAllByRole("button")).toEqual([]); // 押して開く形にしない
+  });
+
+  it("進み具合の枠は、ボタンの行のすぐ上に、最初から置いてある(案内と空の帯)。押すと、同じ場所で動き出す(画面がずれない・隠れない)", async () => {
+    const user = userEvent.setup();
+    const pending = deferred<{ ok: true; estimate: MealEstimate }>();
+    actions.estimateMealAction.mockReturnValue(pending.promise);
+    render(<MealForm date={DATE} mode="new" />);
+    const region = screen.getByRole("status");
+    expect(region.textContent).toContain("ここに進み具合が出ます"); // 最初は、案内
+    const estimateButton = button("AI で推定する");
+    expect(isBefore(region, estimateButton)).toBe(true); // ボタンより前(上)にある
+
+    await user.type(field("食べたもの"), "焼鮭定食");
+    await user.click(estimateButton);
+
+    expect(screen.getByRole("status")).toBe(region); // 同じ領域
+    expect(region.textContent).toContain("AI に送っています");
+    await act(async () => pending.resolve({ ok: true, estimate }));
+    expect(screen.getByRole("status").textContent).toContain("ここに進み具合が出ます"); // 終わると、案内に戻る
+  });
+
+  it("推定が終わって結果が出たら、結果の先頭へ画面を動かす(ボタンの下に出て、画面の外に隠れて気づかれないため)。編集の画面を開いたときの、もともとある結果へは動かさない", async () => {
+    const user = userEvent.setup();
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView; // jsdom には無いので、このテストの間だけ足す
+    try {
+      actions.estimateMealAction.mockResolvedValue({ ok: true, estimate });
+      render(<MealForm date={DATE} mode="new" />);
+      await user.type(field("食べたもの"), "焼鮭定食");
+      expect(scrollIntoView).not.toHaveBeenCalled();
+      await user.click(button("AI で推定する"));
+
+      await screen.findByRole("heading", { name: "焼鮭定食" });
+      expect(scrollIntoView).toHaveBeenCalledTimes(1);
+      expect(scrollIntoView).toHaveBeenCalledWith(expect.objectContaining({ block: "start" }));
+      expect(scrollIntoView.mock.contexts[0]).toBe(screen.getByRole("region", { name: "AI の推定" }));
+
+      cleanup();
+      scrollIntoView.mockClear();
+      render(<MealForm date={DATE} mode="edit" mealId={1} initial={{ eatenTime: "12:00", estimate }} />);
+      expect(screen.getByRole("heading", { name: "焼鮭定食" })).toBeTruthy();
+      expect(scrollIntoView).not.toHaveBeenCalled();
+    } finally {
+      Reflect.deleteProperty(Element.prototype, "scrollIntoView");
+    }
+  });
+
+  it("推定に失敗したら、そのメッセージへ画面を動かす(同じ理由で、隠れないように)", async () => {
+    const user = userEvent.setup();
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    try {
+      actions.estimateMealAction.mockResolvedValue({ ok: false, message: "AI が混み合っています。" });
+      render(<MealForm date={DATE} mode="new" />);
+      await user.type(field("食べたもの"), "焼鮭定食");
+      await user.click(button("AI で推定する"));
+
+      const alert = await screen.findByRole("alert");
+      expect(alert.textContent).toContain("AI が混み合っています。");
+      expect(scrollIntoView.mock.contexts[0]).toBe(alert);
+    } finally {
+      Reflect.deleteProperty(Element.prototype, "scrollIntoView");
+    }
   });
 
   it("推定に失敗したら、メッセージを出し、推定は出さない(保存もできない)", async () => {

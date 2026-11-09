@@ -28,6 +28,23 @@ describe("buildTrendViews", () => {
     expect(views.calories.map((p) => p.intake)).toEqual([1900, null, 500]);
   });
 
+  it("過ぎた日で、食事が 1 回だけ、または摂取が目標の 6 割未満の日は sparse(データ不足)。書きかけの日と、記録が無い日は sparse にしない", () => {
+    const views = buildTrendViews({
+      ...base,
+      finishedBefore: "2026-10-05", // 10-03 も、過ぎた日にする
+      dates: ["2026-10-01", "2026-10-02", "2026-10-03", "2026-10-04"],
+      intake: [
+        { date: "2026-10-01", kcal: 1900, mealCount: 3 }, // ふつう
+        { date: "2026-10-03", kcal: 500, mealCount: 1 }, // 1 回だけ
+        { date: "2026-10-04", kcal: 1000, mealCount: 3 }, // 目標 2000 の 5 割
+      ],
+    });
+    expect(views.calories.map((p) => p.sparse)).toEqual([false, false, true, true]);
+    expect(views.calories.map((p) => p.mealCount)).toEqual([3, 0, 1, 3]);
+    // 書きかけの日は、まだ記録が増えるので、sparse にしない
+    expect(buildTrendViews(base).calories.map((p) => p.sparse)).toEqual([false, false, false]);
+  });
+
   it("書きかけの日(finishedBefore 以降)だけ inProgress", () => {
     expect(buildTrendViews(base).calories.map((p) => p.inProgress)).toEqual([false, false, true]);
   });

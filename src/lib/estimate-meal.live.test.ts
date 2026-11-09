@@ -9,7 +9,7 @@ vi.mock("server-only", () => ({}));
 // 結果は毎回変わるので、栄養素の値は確かめず、形と範囲だけを確かめる
 describe.runIf(process.env.RUN_LIVE_AI === "1" && process.env.OPENROUTER_API_KEY)("estimateMeal（実際の AI）", () => {
   it("文章から推定して、検証を通った推定が返る", { timeout: 90_000 }, async () => {
-    const result = await estimateMeal({ text: "焼鮭1切れ、白ご飯茶碗1杯、わかめのみそ汁", knownDishNames: ["カレーライス"] });
+    const result = await estimateMeal({ text: "焼鮭1切れ、白ご飯茶碗1杯、わかめのみそ汁" });
 
     console.log(JSON.stringify(result, null, 2));
     expect(result.ok, result.ok ? "" : result.message).toBe(true);

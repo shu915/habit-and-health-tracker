@@ -2,8 +2,7 @@
 
 import { Bar, CartesianGrid, Cell, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { highlightLines } from "@/components/chart-highlights";
-import { calorieAxis, type CalorieDayPoint } from "@/lib/calorie-trend";
-import { median } from "@/lib/trend";
+import { calorieAxis, intakeSummary, type CalorieDayPoint } from "@/lib/calorie-trend";
 
 // 日ごとの摂取カロリーの棒と、目標となるカロリーの線。
 // 棒は 0 から始める(棒の長さが値)。食事の記録が無い日は、棒を出さない(0 にしない)。書きかけの日(inProgress)の棒は薄くする(まだ増える値)。
@@ -11,7 +10,8 @@ import { median } from "@/lib/trend";
 // 高さを固定にするのは、サーバーが出す空の枠で場所を確保し、ブラウザで描かれてもレイアウトがずれないようにするため
 export const CALORIE_CHART_HEIGHT = 220;
 
-export type CalorieChartPoint = CalorieDayPoint & { inProgress: boolean };
+// sparse: データが不足している日(lib/sparse-day.ts)。棒を薄くし、中央値から外す
+export type CalorieChartPoint = CalorieDayPoint & { inProgress: boolean; sparse?: boolean };
 
 const kcal = (value: number) => `${value.toLocaleString("ja-JP")} kcal`;
 
@@ -20,7 +20,7 @@ export function CalorieChart({ points, syncId, highlightDates = [] }: { points: 
   const shortDate = (date: string) => `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}`;
   const recorded = points.filter((p) => p.intake !== null).length;
   // 読み上げ用の数字(見出しと同じ: 過ぎた日の摂取の中央値、いちばん新しい日の目標となるカロリー)
-  const medianIntake = median(points.flatMap((p) => (p.intake === null || p.inProgress ? [] : [p.intake])));
+  const { median: medianIntake } = intakeSummary(points); // データがそろった日が足りないときは null(読み上げでも、不正確な値を言わない)
   const latestTarget = [...points].reverse().find((p) => p.target !== null)?.target ?? null;
 
   return (
@@ -35,7 +35,7 @@ export function CalorieChart({ points, syncId, highlightDates = [] }: { points: 
           {/* 摂取: 細い棒(14px まで)。データの端(上)だけ 4px 丸め、基線側は四角 */}
           <Bar dataKey="intake" maxBarSize={14} radius={[4, 4, 0, 0]} isAnimationActive={false}>
             {points.map((point) => (
-              <Cell key={point.date} fill="var(--viz-series)" fillOpacity={point.inProgress ? 0.35 : 0.85} />
+              <Cell key={point.date} fill="var(--viz-series)" fillOpacity={point.inProgress || point.sparse === true ? 0.35 : 0.85} />
             ))}
           </Bar>
           {/* 目標となるカロリー: 破線の細い線。目標が決まっていない日は途切れる */}
@@ -55,6 +55,7 @@ function CalorieTooltip({ active, payload }: { active?: boolean; payload?: reado
       <p className="text-ink-muted">
         {point.date}
         {point.inProgress && "(途中)"}
+        {point.sparse === true && "(データ不足)"}
       </p>
       <p className="tabular-nums">
         <span className="font-medium">{point.intake === null ? "食事の記録なし" : kcal(point.intake)}</span> {point.intake !== null && <span className="text-ink-muted">摂取</span>}

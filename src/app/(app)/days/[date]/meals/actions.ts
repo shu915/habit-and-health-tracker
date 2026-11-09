@@ -11,14 +11,14 @@ import { checkEstimateInput, estimateMeal } from "@/lib/estimate-meal";
 import { buildEstimate, type ParseResult } from "@/lib/meal-estimate";
 import { isMealId } from "@/lib/meal-limits";
 import { parseMealSave, type MealSaveErrors } from "@/lib/meal-schema";
-import { deleteMeal, getMeal, listRecentDishNames, saveMeal, updateMeal, type MealInput } from "@/lib/meals";
+import { deleteMeal, getMeal, saveMeal, updateMeal, type MealInput } from "@/lib/meals";
 
 // 食事の Server Action。どれも、最初に getCurrentUserId() で認証を確かめる(未ログインなら /login へ送られ、何も実行されない)。
 // 届く値は誰でも送れるので、unknown として受け、zod で検証する
 
 const estimateInputSchema = z.object({ text: z.string(), imageDataUrls: z.array(z.string()).optional() });
 
-// AI で推定する(何も保存しない)。順序: 認証 → 入力の検証 → 回数の制限 → 過去の料理名 → AI。
+// AI で推定する(何も保存しない)。順序: 認証 → 入力の検証 → 回数の制限 → AI。
 // 失敗(接続・AI のエラー・読めない返事)は、回数に数えない(数えた分を戻す)。「食べ物でない」の判定は、費用が出ているので数える
 export async function estimateMealAction(raw: unknown): Promise<ParseResult> {
   await getCurrentUserId();
@@ -32,8 +32,7 @@ export async function estimateMealAction(raw: unknown): Promise<ParseResult> {
   if (!limit.ok) return limit;
 
   try {
-    const knownDishNames = await listRecentDishNames(100);
-    const result = await estimateMeal({ text: checked.text, imageDataUrls: checked.imageDataUrls, knownDishNames });
+    const result = await estimateMeal({ text: checked.text, imageDataUrls: checked.imageDataUrls });
     if (!result.ok && !result.notMeal) await limit.release();
     return result;
   } catch (error) {

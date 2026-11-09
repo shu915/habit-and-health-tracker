@@ -1,9 +1,12 @@
+import Link from "next/link";
 import { dayResult, isFinishedDay } from "@/lib/day-result";
 import { energyOverview } from "@/lib/energy-overview";
+import { exerciseKcal } from "@/lib/exercise";
 import { listExercisesOfDay } from "@/lib/exercises";
 import { getDayBasis } from "@/lib/days";
 import type { DayMeasure, DayWeight } from "@/lib/day-weight";
 import { listMealsOfDay } from "@/lib/meals";
+import { SPARSE_REASON_TEXT } from "@/lib/sparse-day";
 
 // 過ぎた日の結果(摂取と消費の目安、その差)。今日と未来は、まだ記録が増えるので出さない(isFinishedDay)。
 // 数字は推定どうしの比べで、保存せず、表示のたびに記録から計算する
@@ -21,6 +24,8 @@ export async function DayResult({ date }: { date: string }) {
     weightKg: weight.kg,
     // 基礎代謝も、その日の体重・体脂肪率・活動係数で計算する(getDayBasis。過ぎた日を今のプロフィールで書き換えない)
     energy: energyOverview(profile),
+    // 目標となるカロリー = その日に固定した目標カロリー + 運動の消費(栄養の比べと同じ)。データ不足の判定に使う
+    targetKcal: profile.targetCalories === null ? null : profile.targetCalories + exercises.reduce((total, e) => total + (exerciseKcal(e.type, e.intensity, e.minutes, weight.kg) ?? 0), 0),
   });
 
   return (
@@ -48,7 +53,9 @@ export async function DayResult({ date }: { date: string }) {
               />
             )}
 
-            {result.diffKcal !== null && (
+            {/* データが不足している日は、差を出さない(1 食しか入れていない日を、ダイエットが進んだ日と誤解させない) */}
+            {result.sparse !== null && <Tile label="差(摂取 − 消費の目安)" value="—" unit="" caption="データが不足しているので、出しません" />}
+            {result.sparse === null && result.diffKcal !== null && (
               <Tile
                 label="差(摂取 − 消費の目安)"
                 value={signed(result.diffKcal)}
@@ -60,6 +67,14 @@ export async function DayResult({ date }: { date: string }) {
         </>
       )}
 
+      {result.sparse !== null && (
+        <p role="note" className="rounded-md bg-neutral px-4 py-3 text-sm leading-relaxed">
+          {SPARSE_REASON_TEXT[result.sparse]}。食事の記録に、もれはありませんか?データが不足しているので、この日の差は出さず、推移のグラフの合計にも入れていません。{" "}
+          <Link href={`/days/${date}/meals/new`} className="font-medium underline">
+            食事を追加する
+          </Link>
+        </p>
+      )}
       {result.mealCount > 0 && result.burn === null && (
         <p className="text-xs text-ink-muted">消費の目安は、プロフィール(身長・体重・年齢・性別・活動係数)がそろうと出ます。</p>
       )}

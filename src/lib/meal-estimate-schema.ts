@@ -21,6 +21,14 @@ export const estimatedItemSchema = z.object({
   carbohydrateG: amount(MEAL_LIMITS.netCarbG.app.max).describe("炭水化物（g。食物繊維を含む）"),
   fiberG: amount(MEAL_LIMITS.fiberG.app.max).nullable().describe("食物繊維（g）。分からなければ null"),
   saltG: amount(MEAL_LIMITS.saltG.app.max).nullable().describe("食塩相当量（g）。分からなければ null"),
+  // この品目の数字の、見えない前提(調理法・油・砂糖・量)。画面の品目の下に出す。以前に保存した品目には無い(省略できる)
+  assumption: z
+    .string()
+    .trim()
+    .max(100)
+    .refine(oneLine, ONE_LINE_MESSAGE)
+    .optional()
+    .describe("この品目の数字の前提を、20〜30 文字ほどで短く。量や重さは書かない（例: フライパンで油を引くと仮定、ノンフライヤーで油を使わない、砂糖入りのたれと仮定）。調理法・油・砂糖の仮定が無ければ空文字"),
 });
 
 export const mealEstimateSchema = z.object({
@@ -30,7 +38,7 @@ export const mealEstimateSchema = z.object({
     .min(1)
     .max(DISH_NAME_MAX_LENGTH)
     .refine(oneLine, ONE_LINE_MESSAGE)
-    .describe("この食事全体の料理名。短く一般的な名前（例: 焼鮭定食）。過去の料理名の一覧に同じ料理があれば、その名前をそのまま使う"),
+    .describe("この食事全体の料理名。短い名前。調理法が分かるときは入れる（例: 焼鮭定食、ノンフライヤーの鶏もも肉、バター炒めの野菜）"),
   description: z.string().trim().max(1000).describe("ユーザーが書いた内容（写真から読み取った内容を含む）を、意味を変えずに読みやすく整えた説明。再推定の入力になる"),
   items: z.array(estimatedItemSchema).min(1).max(30).describe("品目ごとの内訳"),
 });

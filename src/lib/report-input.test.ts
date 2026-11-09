@@ -51,6 +51,48 @@ describe("buildDayRecords", () => {
   });
 });
 
+describe("データ不足の日(食事が 1 回だけ、または摂取が目標の 6 割未満)", () => {
+  const sparseViews = buildTrendViews({
+    ...inputs,
+    intake: [
+      { date: "2026-10-29", kcal: 1900, mealCount: 3 }, // ふつう(目標 2000 の 95%)
+      { date: "2026-10-30", kcal: 500, mealCount: 1 }, // 1 回だけ
+      { date: "2026-11-04", kcal: 1000, mealCount: 3 }, // 目標の 5 割
+    ],
+  });
+  const records = buildDayRecords(dates, sparseViews, source, recorded);
+
+  it("日ごとの記録に、データ不足の印が付く(食事の無い日は付けない)", () => {
+    expect(records.map((r) => r.データ不足)).toEqual([false, true, false, true]);
+  });
+  it("分析の材料(摂取・差)は、データ不足の日を null にして、比べに入れない", () => {
+    const features = buildFeatures(records);
+    expect(features.map((f) => f.intake)).toEqual([1900, null, null, null]);
+    expect(features.map((f) => f.diff === null)).toEqual([false, true, true, true]);
+  });
+  it("集計の差の日数は、データ不足の日を除く。除いた日数は別に出す(AI が、1 食しか食べなかったと読まない)。データがそろった日が足りない(3 日未満)間は、摂取の中央値を出さない", () => {
+    const input = buildReportInput({ period, dates, views: sparseViews, source, recordedDates: recorded, badges: [] });
+    expect(input.集計.摂取kcalの中央値).toBeNull(); // データがそろった日は 1 日だけ(3 日要る)
+    expect(input.集計.食事を記録した日数).toBe(1);
+    expect(input.集計.差を計算できた日数).toBe(1);
+    expect(input.集計.データ不足の日数).toBe(2);
+  });
+  it("データがそろった日が 3 日以上あれば、摂取の中央値を出す(データ不足の日は、元に入れない)", () => {
+    const enoughViews = buildTrendViews({
+      ...inputs,
+      intake: [
+        { date: "2026-10-29", kcal: 1900, mealCount: 3 },
+        { date: "2026-10-30", kcal: 2100, mealCount: 3 },
+        { date: "2026-10-31", kcal: 1800, mealCount: 3 },
+        { date: "2026-11-04", kcal: 300, mealCount: 1 }, // 1 回だけ(除く)
+      ],
+    });
+    const input = buildReportInput({ period, dates, views: enoughViews, source, recordedDates: recorded, badges: [] });
+    expect(input.集計.摂取kcalの中央値).toBe(1900);
+    expect(input.集計.データ不足の日数).toBe(1);
+  });
+});
+
 describe("buildFeatures", () => {
   const records = buildDayRecords(dates, views, source, recorded);
   const features = buildFeatures(records);

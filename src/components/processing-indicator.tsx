@@ -45,9 +45,52 @@ function Indicator({ stage, note, startSeconds = 0 }: { stage: (seconds: number)
   );
 }
 
-// 食事の推定(3〜15 秒)
-export function ProcessingIndicator({ hasPhoto }: { hasPhoto: boolean }) {
-  return <Indicator stage={(seconds) => processingStage(seconds, hasPhoto)} note="AI の推定には、10 秒ほどかかることがあります(写真は、もう少しかかります)。このままお待ちください。" />;
+// 食事の推定(3〜15 秒)の、進み具合の枠。入力の下、ボタンの行のすぐ上に、最初から置いておく。
+// 動き出してから出すと、画面の下に隠れて気づかれず、出たときに画面もずれる。枠は、使っていない間も、同じ大きさで(高さが変わらない)、
+// 中身だけが変わる: 使っていない間は、案内の 1 行と空の帯、動いている間は、回る輪・段階のメッセージ・経過秒数・流れる帯。下の目安の説明は、いつも出す。
+// role="status" の領域は、最初からあるので、メッセージが変わったときに読み上げられる(案内の行と、経過秒数は、読み上げない)
+const PROCESSING_NOTE = "AI の推定には、10 秒ほどかかることがあります(写真は、もう少しかかります)。";
+
+export function ProcessingPanel({ active, hasPhoto }: { active: boolean; hasPhoto: boolean }) {
+  return (
+    <div className="flex flex-col gap-3 rounded-lg bg-surface-raised p-4 sm:p-5">
+      <div role="status" aria-live="polite" className="min-h-6 text-[15px]">
+        {active ? (
+          <ProcessingLine hasPhoto={hasPhoto} />
+        ) : (
+          <span aria-hidden className="text-ink-muted">
+            推定すると、ここに進み具合が出ます
+          </span>
+        )}
+      </div>
+      <div aria-hidden className="relative h-1.5 w-full overflow-hidden rounded-sm bg-neutral">
+        {active && <div className="indeterminate-bar h-full w-1/3 rounded-sm bg-accent" />}
+      </div>
+      <p className="text-xs leading-relaxed text-ink-muted">{PROCESSING_NOTE}</p>
+    </div>
+  );
+}
+
+// 動いている間だけ置く(置くと数え始め、外すと止まる)
+function ProcessingLine({ hasPhoto }: { hasPhoto: boolean }) {
+  const [seconds, setSeconds] = useState(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => setSeconds((value) => value + 1), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <span className="flex min-w-0 items-center gap-2.5 font-semibold">
+        <span aria-hidden className="inline-block h-[18px] w-[18px] shrink-0 rounded-full border-[2.5px] border-neutral border-t-accent motion-safe:animate-spin" />
+        {processingStage(seconds, hasPhoto)}
+      </span>
+      <span aria-hidden className="text-sm tabular-nums text-ink-muted">
+        {seconds} 秒
+      </span>
+    </div>
+  );
 }
 
 // AI レポートの作成(30 秒ほど。長いときは 1〜2 分)。割合は出さない(嘘の進捗にしない)。待っている間に出す文言を、経過時間で切り替えるだけ

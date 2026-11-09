@@ -6,11 +6,15 @@ import { magicLink } from "better-auth/plugins";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { isEmailAllowed } from "@/lib/allowlist";
+import { devLanAddresses } from "@/lib/dev-lan";
 import { sendEmail } from "@/lib/email";
 
+// 本番は BETTER_AUTH_URL の 1 つに固定する。開発は、リクエストのホストから決める(Mac の localhost と、スマホから開く LAN のアドレスの両方で、ログインできるように)。
+// 許可するのは、localhost と、このマシン自身の LAN のアドレスだけ(dev-lan.ts)。開発では BETTER_AUTH_URL は使わない
 const baseURL =
-  process.env.BETTER_AUTH_URL ??
-  (process.env.NODE_ENV === "production" ? undefined : "http://localhost:3000");
+  process.env.NODE_ENV === "production"
+    ? process.env.BETTER_AUTH_URL
+    : { allowedHosts: ["localhost:3000", ...devLanAddresses().map((address) => `${address}:3000`)], fallback: "http://localhost:3000", protocol: "http" as const };
 if (!baseURL) throw new Error("BETTER_AUTH_URL is required in production");
 
 // 未設定だと Better Auth は公開されている既知の値で署名してしまうので、どの環境でも必須にする

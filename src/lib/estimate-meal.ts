@@ -38,7 +38,7 @@ const inputSchema = z.object({
 // 上限の値は meal-limits.ts(ブラウザ側の写真の縮小と共有する)。テストが参照できるよう、ここからも出す
 export { IMAGE_MAX_LENGTH, MAX_PHOTOS, TEXT_MAX_LENGTH };
 
-export type EstimateInput = { text: string; imageDataUrls?: readonly string[]; knownDishNames?: readonly string[] };
+export type EstimateInput = { text: string; imageDataUrls?: readonly string[] };
 
 type Complete = typeof completeJson;
 
@@ -67,7 +67,7 @@ export async function estimateMeal(input: EstimateInput, complete: Complete = co
   const checked = checkEstimateInput(input);
   if (!checked.ok) return checked;
 
-  const userText = buildUserText(checked.text, input.knownDishNames ?? []);
+  const userText = buildUserText(checked.text);
   const messages: ChatMessage[] = [
     { role: "system", content: SYSTEM_PROMPT },
     {
@@ -88,5 +88,5 @@ export async function estimateMeal(input: EstimateInput, complete: Complete = co
     return { ok: false, message: FAILURE_MESSAGES[error.kind] };
   }
 
-  return parseEstimate(content, input.knownDishNames ?? []);
+  return parseEstimate(content);
 }

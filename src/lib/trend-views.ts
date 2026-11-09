@@ -1,3 +1,4 @@
+import { isSparseDay } from "@/lib/sparse-day";
 import { buildCalorieTrend, latestBefore, type CalorieDayPoint } from "@/lib/calorie-trend";
 import { buildSleepTrend, buildTrend, valuesByDate, type SleepPoint, type TrendPoint } from "@/lib/trend";
 
@@ -42,7 +43,8 @@ export type TrendInputs = TrendRaw & {
   finishedBefore: string; // この日より前の日は「過ぎた日」(それ以降は書きかけで、薄く描く・中央値に数えない)
 };
 
-export type CalorieViewPoint = CalorieDayPoint & { inProgress: boolean };
+// sparse: データが不足している日(過ぎた日で、食事の記録が 1 回だけ、または摂取が目標の 6 割未満。lib/sparse-day.ts)。中央値・差の合計・体重の換算から外す
+export type CalorieViewPoint = CalorieDayPoint & { inProgress: boolean; mealCount: number; sparse: boolean };
 
 export type TrendViews = {
   weight: TrendPoint[];
@@ -60,6 +62,7 @@ export function buildTrendViews(inputs: TrendInputs): TrendViews {
   const priorMorningWeight = latestBefore(rows, dates[0], (d) => (d.morningWeightKg === null ? null : { weight: d.morningWeightKg, date: d.date }), inputs.weightBeforeFrom);
   const priorMorningBodyFat = latestBefore(rows, dates[0], (d) => (d.morningBodyFatPercent === null ? null : { weight: d.morningBodyFatPercent, date: d.date }), inputs.bodyFatBeforeFrom);
   const priorStampedTargetKcal = latestBefore(rows, dates[0], (d) => d.profileTargetCalories, inputs.targetBeforeFrom);
+  const mealCounts = new Map(inputs.intake.map((d) => [d.date, d.mealCount]));
   const calories = buildCalorieTrend(dates, {
     rows: rows.map((d) => ({ date: d.date, morningWeightKg: d.morningWeightKg, stampedTargetKcal: d.profileTargetCalories, morningBodyFatPercent: d.morningBodyFatPercent, stampedActivityLevel: d.profileActivityLevel })),
     intake: new Map(inputs.intake.map((d) => [d.date, d.kcal])),
@@ -77,7 +80,11 @@ export function buildTrendViews(inputs: TrendInputs): TrendViews {
       profileActivityLevel: profile.activityLevel,
       priorMorningBodyFat,
     },
-  }).map((point) => ({ ...point, inProgress: !isFinishedDay(point.date) }));
+  }).map((point) => {
+    const inProgress = !isFinishedDay(point.date);
+    const mealCount = mealCounts.get(point.date) ?? 0;
+    return { ...point, inProgress, mealCount, sparse: !inProgress && isSparseDay({ mealCount, intakeKcal: point.intake, targetKcal: point.target }) };
+  });
   const sleep = buildSleepTrend(dates, new Map(rows.map((d) => [d.date, { bedtime: d.sleepBedtime, wakeTime: d.sleepWakeTime }])));
   return { weight, bodyFat, sleep, calories };
 }

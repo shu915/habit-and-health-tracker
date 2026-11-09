@@ -1,3 +1,4 @@
+import { isSparseDay, SPARSE_MIN_MEALS } from "@/lib/sparse-day";
 import { nightOffset, type SleepPoint } from "@/lib/trend";
 
 // レポートのバッジ(docs/ai-feedback.md)。**生活習慣(睡眠・食事・運動)が整っているか**を、数字の範囲で測り、整っていれば贈る。
@@ -23,7 +24,7 @@ export const SLEEP_MIDPOINT_TOLERANCE_MINUTES = 60;
 // カロリー: 摂取が、目標となるカロリーの 85%〜115%(下限が「極端に食べない」日、上限が暴飲暴食を外す)。食事が 1 回だけの日(記録が不完全な可能性)は判定から外す
 export const CALORIE_LOW_RATIO = 0.85;
 export const CALORIE_HIGH_RATIO = 1.15;
-export const CALORIE_MIN_MEALS = 2;
+export const CALORIE_MIN_MEALS = SPARSE_MIN_MEALS; // データ不足の判定(lib/sparse-day.ts)と同じ。食事が 1 回だけの日、摂取が目標の 6 割未満の日は、判定から外す
 // 運動: 「いつもより多く動いた」運動の記録がある日が、その週(7 日)に 1 日以上ある
 
 export type Badge = { key: BadgeKey; tier: BadgeTier; passed: number; judged: number; unit: "day" | "week" };
@@ -53,7 +54,7 @@ export function sleepBadge(points: readonly SleepPoint[], targetMidpoint: string
 export type CalorieDay = { date: string; intake: number | null; target: number | null; mealCount: number; inProgress: boolean };
 
 export function calorieBadge(days: readonly CalorieDay[], periodDays: number): Badge | null {
-  const judged = days.filter((d) => !d.inProgress && d.intake !== null && d.target !== null && d.target > 0 && d.mealCount >= CALORIE_MIN_MEALS);
+  const judged = days.filter((d) => !d.inProgress && d.intake !== null && d.target !== null && d.target > 0 && !isSparseDay({ mealCount: d.mealCount, intakeKcal: d.intake, targetKcal: d.target }));
   const passed = judged.filter((d) => {
     const ratio = (d.intake ?? 0) / (d.target ?? 1);
     return ratio >= CALORIE_LOW_RATIO && ratio <= CALORIE_HIGH_RATIO;

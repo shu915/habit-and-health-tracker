@@ -47,12 +47,11 @@ describe("estimateMeal", () => {
     expect(call.messages[1].content).toContain("焼鮭定食");
   });
 
-  it("過去の料理名の一覧を AI に渡し、返事の料理名もそれにそろえる", async () => {
+  it("返事の料理名は、AI が付けたままにする(名前そろえはしない)", async () => {
     const complete = fakeComplete(goodReply.replace("焼鮭定食", "焼鮭 定食"));
-    const result = await estimateMeal({ text: "焼鮭定食", knownDishNames: ["カレー", "焼鮭定食"] }, complete);
+    const result = await estimateMeal({ text: "焼鮭定食" }, complete);
 
-    expect(complete.mock.calls[0][0].messages[1].content).toContain("- カレー");
-    expect(result.ok && result.estimate.dishName).toBe("焼鮭定食");
+    expect(result.ok && result.estimate.dishName).toBe("焼鮭 定食");
   });
 
   it("写真を付けると、user のメッセージに画像の部分が入る（文章が空でもよい）", async () => {

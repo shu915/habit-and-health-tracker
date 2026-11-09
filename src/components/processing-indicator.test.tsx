@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ProcessingIndicator, processingStage, ReportProcessingIndicator, reportProcessingStage } from "./processing-indicator";
+import { ProcessingPanel, processingStage, ReportProcessingIndicator, reportProcessingStage } from "./processing-indicator";
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -31,17 +31,29 @@ describe("processingStage", () => {
   });
 });
 
-describe("ProcessingIndicator", () => {
-  it("処理中の印(status)と、最初のメッセージ、0 秒、目安の説明を出す", () => {
-    render(<ProcessingIndicator hasPhoto={false} />);
-    const status = screen.getByRole("status");
-    expect(status.textContent).toContain("AI に送っています");
-    expect(status.textContent).toContain("0 秒");
-    expect(status.textContent).toContain("10 秒ほどかかる");
+describe("ProcessingPanel(食事の推定。ボタンの行の上に、最初から置く枠)", () => {
+  it("使っていない間は、案内の 1 行と、空の帯と、目安の説明を出す。動きも、タイマーも無い。案内の行は読み上げない", () => {
+    const { container } = render(<ProcessingPanel active={false} hasPhoto={false} />);
+    expect(container.textContent).toContain("推定すると、ここに進み具合が出ます");
+    expect(container.textContent).toContain("10 秒ほどかかる");
+    expect(container.querySelector(".indeterminate-bar")).toBeNull();
+    expect(vi.getTimerCount()).toBe(0);
+    expect(screen.getByRole("status").querySelector("[aria-hidden]")?.textContent).toContain("ここに進み具合が出ます"); // 案内は aria-hidden
+  });
+
+  it("動き出すと、最初のメッセージと 0 秒が出る(読み上げの領域は同じまま、中身だけ置き換わる)。目安の説明は、そのまま", () => {
+    const { rerender, container } = render(<ProcessingPanel active={false} hasPhoto={false} />);
+    const region = screen.getByRole("status");
+    rerender(<ProcessingPanel active hasPhoto={false} />);
+    expect(screen.getByRole("status")).toBe(region);
+    expect(region.textContent).toContain("AI に送っています");
+    expect(region.textContent).toContain("0 秒");
+    expect(region.textContent).not.toContain("ここに進み具合が出ます");
+    expect(container.textContent).toContain("10 秒ほどかかる");
   });
 
   it("1 秒ごとに経過秒数が増え、段階のメッセージが切り替わる(止まって見えない)", () => {
-    render(<ProcessingIndicator hasPhoto />);
+    render(<ProcessingPanel active hasPhoto />);
     const status = () => screen.getByRole("status").textContent ?? "";
 
     act(() => vi.advanceTimersByTime(3000));
@@ -57,15 +69,19 @@ describe("ProcessingIndicator", () => {
     expect(status()).toContain("栄養素を計算しています");
   });
 
-  it("外すと、タイマーが止まる(外したあとに更新しない)", () => {
-    const { unmount } = render(<ProcessingIndicator hasPhoto={false} />);
+  it("終わる(使っていない状態に戻る)と、タイマーが止まり、案内に戻る。次に動かすと、0 秒からやり直す", () => {
+    const { rerender } = render(<ProcessingPanel active hasPhoto={false} />);
     expect(vi.getTimerCount()).toBe(1);
-    unmount();
+    act(() => vi.advanceTimersByTime(4000));
+    rerender(<ProcessingPanel active={false} hasPhoto={false} />);
     expect(vi.getTimerCount()).toBe(0);
+    expect(screen.getByRole("status").textContent).toContain("ここに進み具合が出ます");
+    rerender(<ProcessingPanel active hasPhoto={false} />);
+    expect(screen.getByRole("status").textContent).toContain("0 秒");
   });
 
   it("動く装飾(帯・回る輪)は、読み上げの対象から外す(aria-hidden)", () => {
-    const { container } = render(<ProcessingIndicator hasPhoto={false} />);
+    const { container } = render(<ProcessingPanel active hasPhoto={false} />);
     expect(container.querySelectorAll("[aria-hidden]").length).toBeGreaterThanOrEqual(3);
   });
 });

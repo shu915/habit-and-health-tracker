@@ -46,7 +46,7 @@ async function EditMealContent({ params }: Pick<PageProps<"/days/[date]/meals/[i
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-5">
       <div>
         <BackLink href={`/days/${date}`}>{date} の詳細に戻る</BackLink>
-        <h1 className="text-[26px] leading-9 font-bold sm:text-[32px] sm:leading-10">{date} の食事を直す</h1>
+        <h1 className="text-[26px] leading-9 font-bold sm:text-[32px] sm:leading-10">{date} の食事の編集</h1>
       </div>
       {!meal.itemsValid && (
         <p role="alert" className="text-sm text-badge-morning-ink">

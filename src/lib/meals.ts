@@ -1,6 +1,6 @@
 import "server-only";
 import { cache } from "react";
-import { and, asc, count, desc, eq, gte, lte, max, sum } from "drizzle-orm";
+import { and, asc, count, eq, gte, lte, sum } from "drizzle-orm";
 import { db } from "@/db";
 import { days, meals } from "@/db/schema";
 import { getCurrentUserId } from "@/lib/current-user";
@@ -142,17 +142,4 @@ export async function deleteMeal(id: number): Promise<boolean> {
     .where(and(eq(meals.id, id), eq(meals.userId, userId)))
     .returning({ id: meals.id });
   return rows.length > 0;
-}
-
-// AI に渡す、過去の料理名(dish_name)。最近使った順に、重複なしで limit 件
-export async function listRecentDishNames(limit = 100): Promise<string[]> {
-  const userId = await getCurrentUserId();
-  const rows = await db
-    .select({ name: meals.dishName, lastUsed: max(meals.createdAt) })
-    .from(meals)
-    .where(eq(meals.userId, userId))
-    .groupBy(meals.dishName)
-    .orderBy(desc(max(meals.createdAt)))
-    .limit(limit);
-  return rows.map((row) => row.name);
 }

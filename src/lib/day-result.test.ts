@@ -80,6 +80,15 @@ describe("dayResult", () => {
     expect(result.burn).toEqual({ tdeeKcal: 2400, exerciseKcal: 175, totalKcal: 2575, exerciseUncalculated: true });
   });
 
+  it("データが不足している日(食事が 1 回だけ、または摂取が目標の 6 割未満)は、sparse に理由が付く。画面は、差を出さず、「もれていませんか」と尋ねる", () => {
+    const withTarget = { ...base, targetKcal: 2000 };
+    expect(dayResult(withTarget).sparse).toBeNull(); // 2 回・1500 kcal(目標の 75%)
+    expect(dayResult({ ...withTarget, meals: [{ kcal: 700, proteinG: "30" }] }).sparse).toBe("one-meal");
+    expect(dayResult({ ...withTarget, meals: [{ kcal: 500, proteinG: "20" }, { kcal: 500, proteinG: "20" }, { kcal: 100, proteinG: "5" }] }).sparse).toBe("low-intake"); // 1100 kcal = 55%
+    expect(dayResult({ ...base, meals: [{ kcal: 300, proteinG: "10" }, { kcal: 300, proteinG: "10" }] }).sparse).toBeNull(); // 目標が分からないときは、カロリーでは判定しない
+    expect(dayResult({ ...withTarget, meals: [] }).sparse).toBeNull(); // 記録が無い日は「記録なし」(別の表示)
+  });
+
   it("摂取と消費が同じなら、差は 0", () => {
     const result = dayResult({ ...base, meals: [{ kcal: 2400, proteinG: "50.0" }] });
     expect(result.diffKcal).toBe(0);

@@ -1,7 +1,9 @@
 import type { NextConfig } from "next";
+import { devLanAddresses } from "./src/lib/dev-lan";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // 開発中に、同じ Wi-Fi のスマホから LAN のアドレスで開くための許可(ないと、画面の部品が読み込まれず、ボタンが動かない)。このマシン自身のアドレスだけ。開発サーバーだけに効く
+  allowedDevOrigins: devLanAddresses(),
   experimental: {
     // 食事の写真(最大 4 枚)を、ブラウザ側で縮小して Server Action で送る(1 枚は数百 KB)。既定の 1MB だと足りない。
     // 4 枚 × 1 枚の上限(meal-limits.ts の MAX_PHOTOS × IMAGE_MAX_LENGTH = 3.6MB 相当)が、この 4MB に収まる。

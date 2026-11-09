@@ -17,8 +17,8 @@ describe("MealRadarChart", () => {
     render(<MealRadarChart axes={radar.axes} inProgress={false} />);
     const label = screen.getByRole("img").getAttribute("aria-label") ?? "";
     expect(label).toContain("カロリー 90%");
-    expect(label).toContain("たんぱく質 80%");
-    expect(label).toContain("塩分 120%");
+    expect(label).toContain("たんぱく質 97%");
+    expect(label).toContain("塩分 90%");
   });
 
   it("目標が無い軸は「目標なし」と読み上げる", () => {
@@ -36,6 +36,15 @@ describe("MealRadarChart", () => {
     };
     expect(dashed(false)).toBe(0);
     expect(dashed(true)).toBeGreaterThan(0);
+  });
+
+  it("目標のゾーンは、薄く塗った帯で描き、面の色でくり抜かない(中の格子線を隠さない)", () => {
+    const { container } = render(<MealRadarChart axes={radar.axes} inProgress={false} />);
+    const band = Array.from(container.querySelectorAll("path")).find((path) => path.getAttribute("fill") === "var(--viz-ring)");
+    expect(band, "ゾーンの帯").toBeDefined();
+    expect(band?.getAttribute("fill-rule")).toBe("evenodd"); // 外側と内側の輪郭の間だけ塗る(内側は塗らない。塗ると、グラフの最大のように見える)
+    expect(band?.getAttribute("fill-opacity")).toBe("0.18"); // 透けるので、格子線が見える
+    expect(container.querySelector('[fill="var(--viz-surface)"]:not(circle)')).toBeNull(); // 面の色で塗りつぶさない(くり抜きは使わない)
   });
 
   it("軸の名前(6 つ)が描かれる", () => {

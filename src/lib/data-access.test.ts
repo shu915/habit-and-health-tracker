@@ -1551,7 +1551,6 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", { timeout: 15_000 }, 
       await expect(mealsModule.getMeal(1)).rejects.toThrow("NEXT_REDIRECT:/login");
       await expect(mealsModule.updateMeal(1, input())).rejects.toThrow("NEXT_REDIRECT:/login");
       await expect(mealsModule.deleteMeal(1)).rejects.toThrow("NEXT_REDIRECT:/login");
-      await expect(mealsModule.listRecentDishNames()).rejects.toThrow("NEXT_REDIRECT:/login");
       await nothingWritten();
     });
 
@@ -1573,18 +1572,6 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", { timeout: 15_000 }, 
       expect(await mealsModule.listMealsOfDay(DATE)).toEqual([]);
     });
 
-    it("過去の料理名の一覧: 最近使った順で、重複なし、自分の分だけ、件数の上限がある", async () => {
-      currentUser.id = USER_A;
-      await mealsModule.saveMeal("2026-04-01", input({ dishName: "カレー" }));
-      await mealsModule.saveMeal("2026-04-02", input({ dishName: "焼鮭定食" }));
-      await mealsModule.saveMeal("2026-04-03", input({ dishName: "カレー" })); // 最後に使った
-      currentUser.id = USER_B;
-      await mealsModule.saveMeal("2026-04-04", input({ dishName: "他人の料理" }));
-
-      currentUser.id = USER_A;
-      expect(await mealsModule.listRecentDishNames()).toEqual(["カレー", "焼鮭定食"]);
-      expect(await mealsModule.listRecentDishNames(1)).toEqual(["カレー"]);
-    });
   });
 
   describe("AI の呼び出しの回数制限(lib/ai-limit.ts。食事の推定。1 日 10 回、03:00 区切り)", () => {
@@ -1726,18 +1713,6 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", { timeout: 15_000 }, 
         expect(ai.complete).toHaveBeenCalledTimes(1);
         expect(await aiRequestsOf(USER_A)).toBe(1);
         expect(await mealsOf(USER_A)).toEqual([]);
-      });
-
-      it("過去の料理名(自分の分だけ)を AI に渡す", async () => {
-        currentUser.id = USER_B;
-        await mealsModule.saveMeal(DATE, { eatenTime: "12:00", dishName: "他人のカレー", description: "x", items: [item], totals: { kcal: 1, proteinG: 1, fatG: 1, netCarbG: 1, fiberG: null, saltG: null } });
-        currentUser.id = USER_A;
-        await mealsModule.saveMeal(DATE, { eatenTime: "12:00", dishName: "自分の親子丼", description: "x", items: [item], totals: { kcal: 1, proteinG: 1, fatG: 1, netCarbG: 1, fiberG: null, saltG: null } });
-
-        await mealActionsModule.estimateMealAction({ text: "焼鮭定食" });
-        const userMessage = JSON.stringify(ai.complete.mock.calls[0][0].messages[1].content);
-        expect(userMessage).toContain("自分の親子丼");
-        expect(userMessage).not.toContain("他人のカレー");
       });
 
       it("未ログインなら /login へ送られ、AI も呼ばず、回数も数えない", async () => {

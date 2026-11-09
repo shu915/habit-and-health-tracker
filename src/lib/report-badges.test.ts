@@ -54,13 +54,18 @@ describe("カロリーのバッジ(摂取が目標となるカロリーの 85%�
 
   it("85% と 115% の境目は含む。それを外れる日(極端に少ない・暴飲暴食)は収まらない", () => {
     const days = [day(0, 1700, 2000), day(1, 2300, 2000), day(2, 1699, 2000), day(3, 2301, 2000), day(4, 1000, 2000), day(5, 4000, 2000)];
-    expect(calorieBadge(days, 6)).toBeNull(); // 2/6 = 33%
+    expect(calorieBadge(days, 6)).toBeNull(); // 収まったのは 2 日。1000 kcal の日(目標の 5 割)は、データ不足として判定から外れる(失敗にも数えない)
     expect(calorieBadge(days.slice(0, 2), 2)).toMatchObject({ key: "calorie", tier: "gold", passed: 2, judged: 2 });
   });
   it("食事が 1 回だけの日・摂取か目標が無い日・書きかけの日は、判定から外す", () => {
     const days = [day(0, 1900, 2000), day(1, 500, 2000, 1), day(2, null, 2000), day(3, 1900, null), day(4, 1900, 2000, 3, true), day(5, 2000, 2000)];
     expect(calorieBadge(days, 6)).toBeNull(); // 判定できたのは 2 日(6 日の 5 割 = 3 日に届かない)
     expect(calorieBadge(days, 4)).toMatchObject({ judged: 2, passed: 2 });
+  });
+  it("食事が 2 回以上でも、摂取が目標の 6 割未満の日は、データ不足として、判定から外す(収まらない日にも数えない)", () => {
+    const days = [day(0, 1900, 2000), day(1, 1100, 2000, 3), day(2, 2000, 2000), day(3, 1199, 2000, 3), day(4, 1200, 2000, 3)];
+    // 1100・1199 は 6 割未満で除外。1200(ちょうど 6 割)は判定される(85% に届かず、収まらない)
+    expect(calorieBadge(days, 5)).toMatchObject({ judged: 3, passed: 2 });
   });
   it("目標が 0 以下の日は判定しない", () => {
     expect(calorieBadge([day(0, 1000, 0)], 1)).toBeNull();
