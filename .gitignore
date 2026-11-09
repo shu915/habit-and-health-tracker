@@ -43,3 +43,6 @@ next-env.d.ts
 
 # Claude Code local settings
 .claude/settings.local.json
+
+# デモ用ダミーキャラの設定(本物のメールアドレスなどを含むので、コミットしない。見本は scripts/demo.example.json)
+/scripts/demo.local.*

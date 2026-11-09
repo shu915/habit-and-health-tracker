@@ -2,6 +2,9 @@
   "name": "habit-and-health-tracker",
   "version": "0.1.0",
   "private": true,
+  "imports": {
+    "#seed-lib": "./scripts/seed-lib.mts"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -13,6 +16,7 @@
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "db:seed-dummy": "node scripts/seed-dummy.mts",
+    "db:seed-demo": "node scripts/seed-demo.mts",
     "db:auth-schema": "auth generate --config src/lib/auth.ts --output src/db/auth-schema.ts -y",
     "test": "vitest run"
   },
