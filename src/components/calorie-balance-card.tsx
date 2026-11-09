@@ -42,6 +42,9 @@ export function CalorieBalanceCard({ points, syncId, highlightDates }: { points:
                   </p>
                 )}
                 <p className="text-xs text-ink-muted">差を計算できた日だけの合計です(食事の記録が無い日と、データが不足している日は入りません)。脂肪 1kg = 約 7,200 kcal で換算した目安で、実際の体重は水分などでも動きます。</p>
+                <p className="text-xs text-ink-muted">
+                  実際の体重は、この計算どおりには動きません。食事の推定(約 1 割)と消費の式(1 割ほど)のずれが積み重なり、水分・塩分・体質・停滞期でも動くためです。<strong className="font-medium text-ink">迷ったら、体重計の値を信じてください。</strong>この差は、体重の動きを読むための目安です。
+                </p>
               </>
             )}
           </>

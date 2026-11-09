@@ -82,6 +82,8 @@ describe("CalorieBalanceCard", () => {
     const week = Array.from({ length: 7 }, (_, i) => point(`2026-11-0${i + 1}`, 1480, 2200)); // 毎日 -720 → 合計 -5,040 kcal = -0.7kg
     render(<CalorieBalanceCard points={week} syncId="t" />);
     expect(screen.getByText(/体重に換算して約 -0\.7kg/)).toBeTruthy();
+    expect(screen.getByText(/計算どおりには動きません/)).toBeTruthy(); // 換算を出すときは、体重計を信じるよう添える
+    expect(screen.getByText("迷ったら、体重計の値を信じてください。")).toBeTruthy();
   });
 
   it("差を計算できる日が無ければ、図は出さず、必要な項目を案内する", () => {
