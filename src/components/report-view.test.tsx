@@ -82,12 +82,24 @@ describe("ReportView", () => {
     expect(screen.queryByText("注目の日: ")).toBeNull(); // 日付が無い気づきには、出さない
   });
 
-  it("グラフは、保存した数字から描き直す(睡眠・カロリー・差のカードが出る)。運動の項目は、動いた日を文で出す", () => {
+  it("グラフは、保存した数字から描き直す(睡眠・カロリー・差のカードが出る)。運動の項目は、動いた日数を文で出す(日付の一覧は出さない)", () => {
     render(<ReportView report={report} />);
     expect(screen.getByRole("heading", { level: 2, name: "睡眠" })).toBeTruthy();
     expect(screen.getAllByText("摂取カロリー").length).toBeGreaterThan(0);
     expect(screen.getAllByText("摂取 − 消費の目安").length).toBeGreaterThan(0);
-    expect(screen.getByText("いつもより多く動いた日: 10/31")).toBeTruthy();
+    expect(screen.queryByText(/いつもより多く動いた日:/)).toBeNull();
+  });
+
+  it("運動の先頭の 1 文: 3 日以上のとき「N 日のうち M 日で…」を出す。1〜2 日のときは、見出しや気づきと重なるので出さない。0 日は、記録が無いと出す", () => {
+    const withExerciseDays = (days: string[]) => ({ ...report, snapshot: { ...snapshot, exercises: days.map((date) => ({ date, type: "walk", intensity: "normal", minutes: 30 })) } });
+    const { unmount: u1 } = render(<ReportView report={withExerciseDays(["2026-10-30", "2026-10-31", "2026-11-01"])} />);
+    expect(screen.getByText("7 日のうち 3 日で、いつもより多く動いた記録があります。")).toBeTruthy();
+    u1();
+    const { unmount: u2 } = render(<ReportView report={withExerciseDays(["2026-10-31"])} />);
+    expect(screen.queryByText(/日のうち 1 日で/)).toBeNull();
+    u2();
+    render(<ReportView report={withExerciseDays([])} />);
+    expect(screen.getByText("いつもより多く動いた記録は、この期間にありませんでした。")).toBeTruthy();
   });
 
   it("総合評価: まとめ・良かったこと・気づいておきたいこと・見つかったこと・次の 1 歩。次の 1 歩は、関連する項目への印(リンク)つき", () => {
