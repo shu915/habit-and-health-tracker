@@ -3,10 +3,13 @@ import { Suspense } from "react";
 import { connection } from "next/server";
 import { BackLink } from "@/components/back-link";
 import { BadgeConditions } from "@/components/badge-conditions";
+import { PERIODIC_LIST_ID, ReportPager } from "@/components/report-pager";
 import { ReportCreateForm } from "@/components/report-create-form";
+import { parsePage } from "@/lib/day-pages";
 import { getAiConsent } from "@/lib/report-consent";
 import { badgeLabel, reportTitle } from "@/lib/report-format";
 import { getReportOptions } from "@/lib/report-options";
+import { pageOfReports } from "@/lib/report-pages";
 import { listReports } from "@/lib/reports";
 import { createReportAction, revokeConsentAction } from "./actions";
 
@@ -15,7 +18,7 @@ import { createReportAction, revokeConsentAction } from "./actions";
 // 「今日」を使うので、事前描画ではなく、リクエスト時に実行する
 export const maxDuration = 300;
 
-export default function ReportsPage() {
+export default function ReportsPage({ searchParams }: PageProps<"/reports">) {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
       <div>
@@ -28,18 +31,22 @@ export default function ReportsPage() {
         </div>
       </div>
       <Suspense fallback={<p className="text-ink-muted">読み込み中...</p>}>
-        <ReportsContent />
+        <ReportsContent searchParams={searchParams} />
       </Suspense>
     </div>
   );
 }
 
-async function ReportsContent() {
+async function ReportsContent({ searchParams }: { searchParams: Promise<{ page?: string | string[] }> }) {
   await connection();
   const [consent, options, reports] = await Promise.all([getAiConsent(), getReportOptions(), listReports()]);
 
   const onDemand = reports.filter((report) => report.kind !== "monthly");
-  const periodic = reports.filter((report) => report.kind === "monthly");
+  // 定期(月次)は、新しい月から 12 件ずつ。随時は、ページの外に、最新の 1 件だけ出す
+  const periodic = pageOfReports(
+    reports.filter((report) => report.kind === "monthly"),
+    parsePage((await searchParams).page),
+  );
 
   return (
     <ReportCreateForm
@@ -49,7 +56,12 @@ async function ReportsContent() {
       onDemand={{ start: options.onDemand.period.start, end: options.onDemand.period.end, recorded: options.onDemand.eligibility.recorded, required: options.onDemand.eligibility.required, missing: options.onDemand.eligibility.missing, ok: options.onDemand.eligibility.ok, creatingId: options.onDemand.creatingId, blockedToday: options.onDemand.blockedToday }}
       months={options.months.map((m) => ({ month: m.month, recorded: m.eligibility.recorded, required: m.eligibility.required, missing: m.eligibility.missing, ok: m.eligibility.ok, existingId: m.existingId, creatingId: m.creatingId }))}
       onDemandSaved={<ReportList reports={onDemand} />}
-      periodicSaved={<ReportList reports={periodic} />}
+      periodicSaved={
+        <div id={PERIODIC_LIST_ID} className="flex scroll-mt-4 flex-col gap-3">
+          <ReportList reports={periodic.items} />
+          <ReportPager page={periodic.page} lastPage={periodic.lastPage} />
+        </div>
+      }
     />
   );
 }
