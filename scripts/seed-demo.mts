@@ -1,10 +1,10 @@
-// デモ用の人物を 1 人、入れる。「今の自分が 1 年後に、こうなっていたい」という想定の、400 日分の記録(AI は呼ばない)。
+// デモ用の人物を 1 人、入れる。「今の自分が、こうなっていたい」という想定の、2024 年 12 月 1 日から今日までの記録(約 700 日。AI は呼ばない)。
 //   node scripts/seed-demo.mts             デモ用の人物を消して、入れ直す
 //   node scripts/seed-demo.mts --delete    デモ用の人物だけを消す
 //   node scripts/seed-demo.mts --dry-run   DB に入れずに、件数だけ出す
 // メールアドレスと表示名は、scripts/demo.local.json(.gitignore で追跡しない)から読む。無ければ demo.example.json(ダミー)を使う。
 // このリポジトリは公開なので、本物のメールアドレスは、コミットするファイルに書かない。demo.local.json には、profile を足して、プロフィールの値を上書きできる。
-// 物語: 最初は夜食・体重・疲れの悩みが多く、運動はほとんどしない(活動係数 1.2)。少しずつ、夜食が減り、睡眠が整い、筋トレが習慣になる(活動係数 1.2 → 1.375。運動の記録は、そこに足される)。体重は約 96kg → 85kg。
+// 物語: 最初は夜食・体重・疲れの悩みが多く、運動はほとんどしない(活動係数 1.2)。少しずつ、夜食が減り、睡眠が整い、筋トレが習慣になる(活動係数 1.2 → 1.375。運動の記録は、そこに足される)。体重は約 96kg → 82kg(目標は 80kg)。物語の長さは 700 日で固定する(今日が伸びても、前の日の値は変わらない)。
 // 入れるのは開発用 DB(localhost:5433 の habit_health)だけ。それ以外の接続先では、何もせずに止まる(本番のデモの入口は、まだ無い)。
 // 同じ日に実行すれば、同じデータができる(乱数の種を固定している)。ユーザーの id は "demo-user"。
 
@@ -36,7 +36,9 @@ import {
   totalsOf,
 } from "#seed-lib";
 
-const DAYS = 400;
+const START = "2024-12-01"; // 記録の最初の日
+const ARC_DAYS = 700; // 物語の長さ(最初の日からの日数)。固定にして、今日が伸びても、前の日の値が変わらないようにする
+const daysBetween = (from: string, to: string) => Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000) + 1;
 const DEMO_ID = "demo-user";
 const DRY_RUN = process.argv.includes("--dry-run");
 
@@ -68,6 +70,7 @@ if (!DRY_RUN && (process.env.NODE_ENV === "production" || !["localhost", "127.0.
 // ---------- 物語 ----------
 
 const today = todayString();
+const DAYS = daysBetween(START, today);
 const lastMonthEnd = lastDayOfPreviousMonth(today);
 
 const WORRIES = [
@@ -116,12 +119,12 @@ function demo({ t, dow, rng }: Context): DayPlan | null {
   day.stampActivityLevel = t < 0.3 ? "1.200" : "1.375";
   day.stampTargetCalories = t < 0.3 ? 2100 : 2200;
 
-  // 体重: 最初の 40 日ほどは少し増え(96 → 97)、そのあと、ゆっくり下がる(→ 85)。途中に停滞がある
-  const base = t < 0.1 ? 96 + 10 * t : 97 - (12 / 0.9) * (t - 0.1);
+  // 体重: 最初の 70 日ほどは少し増え(96 → 97)、そのあと、ゆっくり下がる(→ 82)。途中に停滞がある
+  const base = t < 0.1 ? 96 + 10 * t : 97 - (15 / 0.9) * (t - 0.1);
   const plateau = 0.8 * Math.exp(-(((t - 0.5) / 0.05) ** 2));
   if (chance(rng, 0.9)) {
     day.weightKg = round(base + plateau + (weekend ? 0.3 : 0) + noise(rng, 0.35), 2);
-    if (chance(rng, 0.9)) day.bodyFat = round(31 - 6.5 * smooth(t) + noise(rng, 0.35), 1);
+    if (chance(rng, 0.9)) day.bodyFat = round(31 - 8 * smooth(t) + noise(rng, 0.35), 1);
   }
 
   // 睡眠: 午前 1 時ごろから、23 時台へ。睡眠時間は 6 時間から 7 時間 20 分へ
@@ -182,13 +185,14 @@ const persona: Persona = {
   name: config.name,
   email: config.email,
   seed: 4004,
+  arcDays: ARC_DAYS,
   profile: {
     gender: "male",
     age: 40,
     heightCm: 175,
-    currentWeightKg: 85,
-    currentBodyFatPercent: 24.5,
-    currentWaistCm: 96,
+    currentWeightKg: 82,
+    currentBodyFatPercent: 23,
+    currentWaistCm: 93,
     waistMeasuredOn: lastMonthEnd,
     activityLevel: "1.375",
     targetWeightKg: 80,
@@ -206,13 +210,13 @@ if (DRY_RUN) {
   // DB に入れず、件数だけ数える(クエリを受け取って捨てる、見せかけの接続)
   const counting: Queryable = { query: async () => ({ rows: [{ id: 1 }] }) };
   // 100 日ずつの様子(体重・摂取・夜食の日・運動の日・活動係数)も出す。物語が意図どおりか、見て確かめるため
-  const buckets = Array.from({ length: 4 }, () => ({ days: 0, weight: [] as number[], kcal: [] as number[], night: 0, exercise: 0, level: "" }));
+  const buckets = Array.from({ length: Math.ceil(DAYS / 100) }, () => ({ days: 0, weight: [] as number[], kcal: [] as number[], night: 0, exercise: 0, level: "" }));
   const watched: Persona = {
     ...persona,
     plan: (context) => {
       const plan = persona.plan(context);
       if (plan === null) return null;
-      const b = buckets[Math.min(3, Math.floor(context.i / 100))];
+      const b = buckets[Math.floor(context.i / 100)];
       b.days += 1;
       if (plan.weightKg !== null) b.weight.push(plan.weightKg);
       if (plan.meals.length > 0) b.kcal.push(plan.meals.reduce((n, m) => n + totalsOf(m.dish.items).kcal, 0));
@@ -225,7 +229,7 @@ if (DRY_RUN) {
   const counts = await seedPersona(counting, watched, { days: DAYS, today });
   console.log(`(DB には入れていません)日 ${counts.days} / 食事 ${counts.meals} / 運動 ${counts.exercises} / 良かったこと ${counts.positives}`);
   const avg = (values: number[]) => (values.length === 0 ? "-" : (values.reduce((a, b) => a + b, 0) / values.length).toFixed(1));
-  buckets.forEach((b, n) => console.log(`${n * 100 + 1}〜${Math.min(400, n * 100 + 100)} 日目: 記録 ${b.days} 日 / 体重 平均 ${avg(b.weight)}kg / 1 日の摂取 平均 ${avg(b.kcal)}kcal / 24 時以降に食べた日 ${b.night} / 運動した日 ${b.exercise} / 活動係数 ${b.level}`));
+  buckets.forEach((b, n) => console.log(`${n * 100 + 1}〜${Math.min(DAYS, n * 100 + 100)} 日目: 記録 ${b.days} 日 / 体重 平均 ${avg(b.weight)}kg / 1 日の摂取 平均 ${avg(b.kcal)}kcal / 24 時以降に食べた日 ${b.night} / 運動した日 ${b.exercise} / 活動係数 ${b.level}`));
 } else {
   await client.connect();
   try {

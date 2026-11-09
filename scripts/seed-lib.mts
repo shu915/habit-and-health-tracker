@@ -189,6 +189,8 @@ export type Persona = {
     targetSleepMinutes: number;
     targetSleepMidpoint: string;
   };
+  // 物語の長さ(日数)。省略すると、入れる期間の長さ。t は、最初の日が 0、arcDays 日目以降が 1。**終わりの日が伸びても、前の日の値が変わらないよう、固定にできる**(デモを、あとで入れ直しても、前に作ったレポートと食い違わない)
+  arcDays?: number;
   plan: (context: Context) => DayPlan | null; // null = その日は何も記録しない(days の行も作らない)
 };
 
@@ -218,7 +220,7 @@ export async function seedPersona(client: Queryable, persona: Persona, options: 
 
     for (let i = 0; i < DAYS; i++) {
       const date = shift(start, i);
-      const plan = persona.plan({ i, t: i / (DAYS - 1), date, dow: weekday(date), rng });
+      const plan = persona.plan({ i, t: Math.min(1, i / (persona.arcDays ?? DAYS - 1)), date, dow: weekday(date), rng });
       if (plan === null) continue;
 
       const inserted = await client.query(

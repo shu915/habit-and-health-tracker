@@ -81,6 +81,9 @@ export type NewReport = { kind: ReportKind; periodStart: string; periodEnd: stri
 // そのため、同じ期間を最後に作り始めてから、この分数は、作り直せない(失敗した時刻の列が無いので、作り始めの時刻から数える。同意の撤回で止めた行も、数える。2026-11-09 のレビュー。全ユーザー合計の費用の上限は、公開前に決める。docs/release-checklist.md)
 export const LONG_TERM_RETRY_WAIT_MINUTES = 10;
 
+// 実際に待たせる分数。開発サーバー(NODE_ENV=development)では、待たせない(プロンプトを直しながら、何度も試すため)。テストと本番は、LONG_TERM_RETRY_WAIT_MINUTES
+export const longTermRetryWaitMinutes = (env: { NODE_ENV?: string } = process.env): number => (env.NODE_ENV === "development" ? 0 : LONG_TERM_RETRY_WAIT_MINUTES);
+
 export type StartResult = { ok: true; id: number } | { ok: false; reason: "in-progress" | "exists" | "daily-limit" | "retry-wait"; id?: number };
 
 // 作成を始める: creating の行を保存する(AI の返事は、まだ無い)。同時に届いた要求は、ユーザー単位のロックで直列にする。
@@ -105,11 +108,11 @@ export async function startReport(input: NewReport): Promise<StartResult> {
       if (existing) return { ok: false, reason: "exists", id: existing.id } as const;
     }
     if (isOnDemandKind(input.kind) && (await onDemandCountToday(tx, userId)) >= ON_DEMAND_DAILY_LIMIT) return { ok: false, reason: "daily-limit" } as const;
-    if (isLongTermReportKind(input.kind)) {
+    if (isLongTermReportKind(input.kind) && longTermRetryWaitMinutes() > 0) {
       const [recentFailure] = await tx
         .select({ id: reports.id })
         .from(reports)
-        .where(and(sameReport, eq(reports.status, "failed"), sql`${reports.createdAt} > now() - make_interval(mins => ${LONG_TERM_RETRY_WAIT_MINUTES})`))
+        .where(and(sameReport, eq(reports.status, "failed"), sql`${reports.createdAt} > now() - make_interval(mins => ${longTermRetryWaitMinutes()})`))
         .limit(1);
       if (recentFailure) return { ok: false, reason: "retry-wait", id: recentFailure.id } as const;
     }

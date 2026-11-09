@@ -3,9 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { getCurrentUserId } from "@/lib/current-user";
-import { createReport } from "@/lib/report-generate";
+import { createLongTermReport, createReport } from "@/lib/report-generate";
 import { revokeAiConsent } from "@/lib/report-consent";
-import { isReportKind } from "@/lib/report-period";
+import { isLongTermReportKind, isReportKind } from "@/lib/report-period";
 
 // レポートの作成(docs/ai-feedback.md)。種類と同意のチェックは、フォームの入力として受け取り、検証は lib/report-generate.ts で行う。
 // 「作成中」の行を保存して、すぐ返す(AI の呼び出しは、返事を返したあと、after で裏に続ける)。画面は動かさず、/reports に留まる(待たせない。一覧の「作成中」が、できたら切り替わる)。
@@ -16,6 +16,14 @@ export async function createReportAction(_previous: ReportFormState, formData: F
   await getCurrentUserId(); // 最初に認証を確かめる(未ログインなら /login へ)
   const kind = formData.get("kind");
   if (!isReportKind(kind)) return { message: "作るレポートの種類を選んでください。" };
+
+  // 長期(四半期・年)は、選んだ期間の id("2026-Q3" / "2026")を受け取る。形の検証は createLongTermReport が行う(不正な値は、断る)
+  if (isLongTermReportKind(kind)) {
+    const id = formData.get(kind === "quarterly" ? "quarter" : "year");
+    const longTerm = await createLongTermReport(kind, typeof id === "string" ? id : undefined, { consent: formData.get("consent") === "on" }, { schedule: (task) => after(task) });
+    revalidatePath("/reports");
+    return longTerm.ok ? null : { message: longTerm.message };
+  }
 
   const month = formData.get("month");
   const result = await createReport(kind, { consent: formData.get("consent") === "on", month: typeof month === "string" ? month : undefined }, { schedule: (task) => after(task) });

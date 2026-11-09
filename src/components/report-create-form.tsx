@@ -5,11 +5,12 @@ import Link from "next/link";
 import type { ReportFormState } from "@/app/(app)/reports/actions";
 import { buttonClass } from "@/components/button";
 import { AutoRefresh } from "@/components/auto-refresh";
+import type { LongTermKindOptions, LongTermOptions } from "@/lib/long-term-options";
 import { AI_CONSENT_CHECKBOX_LABEL, AI_CONSENT_POINTS, AI_CONSENT_REMINDER, AI_CONSENT_TITLE } from "@/lib/report-consent-text";
 import { monthLabel, periodLabel } from "@/lib/report-format";
 
 // レポートを作るフォーム(docs/ai-feedback.md)。同意は、最初の 1 回だけチェック(最初は外れている)。2 回目からは、1 行だけ(撤回できる)。
-// 随時レポート(直近 4 週間。1 日に 1 回まで)と、定期レポート(月次。過去の、どの月でも、記録が十分にあれば選んで作れる。初期値は先月。同じ月は 1 回だけ)は、枠を分ける。
+// 随時レポート(直近 4 週間。1 日に 1 回まで)・月次レポート(過去の、どの月でも、記録が十分にあれば選んで作れる。初期値は先月。同じ月は 1 回だけ)・四半期レポート(3 か月)・年次レポート(12 か月)は、枠を分ける。
 // 作れる条件(期間の 7 割以上に記録のある日)を、ボタンの横に出す。作れないものは押せない(サーバーでも確かめる)。AI の返事は、裏で作られる(作成中の画面へ進む)
 export type Eligibility = { recorded: number; required: number; missing: number; ok: boolean };
 
@@ -32,18 +33,23 @@ type Props = {
   // 作ったレポートの一覧(サーバーで作った要素)。随時は最新の 1 件、定期は月ごと。それぞれの枠の中に出す
   onDemandSaved: ReactNode;
   periodicSaved: ReactNode;
+  longTerm: LongTermOptions; // 四半期と年(選べる期間・作れる条件・次の解禁)
+  quarterlySaved: ReactNode;
+  yearlySaved: ReactNode;
   consented: boolean;
   action: (state: ReportFormState, formData: FormData) => Promise<ReportFormState>;
   revokeAction: () => Promise<void>;
 };
 
-export function ReportCreateForm({ onDemand, months, onDemandSaved, periodicSaved, consented, action, revokeAction }: Props) {
+export function ReportCreateForm({ onDemand, months, onDemandSaved, periodicSaved, longTerm, quarterlySaved, yearlySaved, consented, action, revokeAction }: Props) {
   const [state, formAction, isPending] = useActionState<ReportFormState, FormData>(action, null);
   const [checked, setChecked] = useState(false);
   const [month, setMonth] = useState(months[0]?.month ?? "");
+  const [quarter, setQuarter] = useState(longTerm.quarterly.choices.find((c) => c.released)?.id ?? longTerm.quarterly.choices[0]?.id ?? "");
+  const [year, setYear] = useState(longTerm.yearly.choices.find((c) => c.released)?.id ?? longTerm.yearly.choices[0]?.id ?? "");
   const canSubmit = (consented || checked) && !isPending;
   const selected = months.find((m) => m.month === month);
-  const anyCreating = onDemand.creatingId !== null || months.some((m) => m.creatingId !== null);
+  const anyCreating = onDemand.creatingId !== null || months.some((m) => m.creatingId !== null) || [...longTerm.quarterly.choices, ...longTerm.yearly.choices].some((c) => c.creatingId !== null);
   // 読み上げ用。作成の開始と終わりを知らせる(画面は動かさないので、変わったことが、目に見える所にしか出ない)。変わったときだけ文を入れ替える
   const [wasCreating, setWasCreating] = useState(anyCreating);
   const [announcement, setAnnouncement] = useState("");
@@ -108,7 +114,7 @@ export function ReportCreateForm({ onDemand, months, onDemandSaved, periodicSave
           </li>
         </Frame>
 
-        <Frame title="定期レポート" description="月ごとのレポートです。過去の月も、記録が十分にあれば、選んで作れます。同じ月は 1 回だけです(作ったあとは、いつでも開けます)。" savedTitle="作ったレポート" saved={periodicSaved}>
+        <Frame title="月次レポート" description="月ごとのレポートです。過去の月も、記録が十分にあれば、選んで作れます。同じ月は 1 回だけです(作ったあとは、いつでも開けます)。" savedTitle="作ったレポート" saved={periodicSaved}>
           {months.length === 0 || selected === undefined ? (
             <li className="text-sm text-ink-muted">作れる月が、まだありません。月が変わると、前の月のレポートが作れます。</li>
           ) : (
@@ -145,6 +151,24 @@ export function ReportCreateForm({ onDemand, months, onDemandSaved, periodicSave
           )}
         </Frame>
 
+        <Frame
+          title="四半期レポート"
+          description="3 か月ごとの、少し長い目での振り返りです。期間(1〜3 月、4〜6 月、7〜9 月、10〜12 月)が終わった翌日から作れます。同じ期間は 1 回だけです(作ったあとは、いつでも開けます)。"
+          savedTitle="作ったレポート"
+          saved={quarterlySaved}
+        >
+          <LongTermRow label="作る四半期" selectName="quarter" kind="quarterly" options={longTerm.quarterly} value={quarter} onChange={setQuarter} canSubmit={canSubmit} isPending={isPending} />
+        </Frame>
+
+        <Frame
+          title="年次レポート"
+          description="1 年(12 か月)の、長い目での振り返りです。1〜12 月が終わった翌日から作れます。同じ年は 1 回だけです(作ったあとは、いつでも開けます)。"
+          savedTitle="作ったレポート"
+          saved={yearlySaved}
+        >
+          <LongTermRow label="作る年" selectName="year" kind="yearly" options={longTerm.yearly} value={year} onChange={setYear} canSubmit={canSubmit} isPending={isPending} />
+        </Frame>
+
         {state?.message && (
           <p role="alert" className="text-sm text-red-600 dark:text-red-400">
             {state.message}
@@ -152,6 +176,56 @@ export function ReportCreateForm({ onDemand, months, onDemandSaved, periodicSave
         )}
       </form>
     </div>
+  );
+}
+
+// 四半期・年次レポート 1 種類ぶんの行: 期間を選んで「作る」。作れない理由(まだ解禁前・記録が足りない・作成済み・作成中)と、次の解禁までの日数を、案内する
+function LongTermRow({ label, selectName, kind, options, value, onChange, canSubmit, isPending }: { label: string; selectName: string; kind: "quarterly" | "yearly"; options: LongTermKindOptions; value: string; onChange: (value: string) => void; canSubmit: boolean; isPending: boolean }) {
+  const selected = options.choices.find((c) => c.id === value);
+  const nextText = `次は、${options.next.title}。${options.next.releaseDate} から作れます(あと ${options.next.daysLeft} 日)`;
+  return (
+    <li className="flex flex-col gap-2">
+      {options.choices.length === 0 || selected === undefined ? (
+        <>
+          <p className="text-[15px] font-semibold">{label}</p>
+          <p className="text-xs text-ink-muted">作れる期間が、まだありません。{nextText}。</p>
+        </>
+      ) : (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-col gap-1">
+            <label htmlFor={`report-${selectName}`} className="text-sm font-semibold">
+              {label}
+            </label>
+            <select id={`report-${selectName}`} name={selectName} value={value} onChange={(event) => onChange(event.target.value)} className="w-full rounded-md border sm:w-auto sm:min-w-64 border-line bg-surface-raised px-3 py-2 text-sm text-ink">
+              {options.choices.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.title}
+                  {c.existingId !== null ? "(作成済み)" : !c.released ? "(開発用: 終わった月だけ)" : !c.ok ? "(記録が足りません)" : ""}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-ink-muted">
+              {selected.existingId !== null ? (
+                <>
+                  {selected.creatingId !== null && <Spinner />}
+                  {selected.creatingId !== null ? "作成中(AI が分析しています。ページを離れても続きます。" : "作成済み("}<Link href={`/reports/${selected.existingId}`} className="underline">見る</Link>)
+                </>
+              ) : selected.ok ? (
+                <>記録が十分にある月 {selected.usableMonths} か月(作れます)</>
+              ) : (
+                <>記録が十分にある月 {selected.usableMonths} / {selected.requiredMonths} か月。あと {selected.missing} か月ぶんの記録で作れます</>
+              )}
+            </p>
+          </div>
+          {selected.existingId === null && (
+            <button type="submit" name="kind" value={kind} disabled={!canSubmit || !selected.ok} className={`${buttonClass()} w-full sm:w-auto sm:min-w-24`}>
+              {isPending ? "作成中..." : "作る"}
+            </button>
+          )}
+        </div>
+      )}
+      <p className="text-xs text-ink-muted">{nextText}。</p>
+    </li>
   );
 }
 

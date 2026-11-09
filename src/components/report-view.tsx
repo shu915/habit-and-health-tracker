@@ -2,12 +2,15 @@ import { BadgeConditions } from "@/components/badge-conditions";
 import { CalorieBalanceCard } from "@/components/calorie-balance-card";
 import { CalorieCard } from "@/components/calorie-card";
 import { SleepCard } from "@/components/sleep-card";
+import { ExerciseWeeklyCard, IntakeWeeklyCard, SleepWeeklyCard, WeeklyBandCard } from "@/components/weekly-cards";
 import { TrendCard } from "@/components/trend-card";
 import { BADGE_TIER_LABELS, BADGE_LABELS, type Badge, type BadgeTier } from "@/lib/report-badges";
 import { SECTION_KEYS, SECTION_LABELS, type Finding, type ReportContent, type SectionKey } from "@/lib/report-content";
 import { badgeDetail, reportTitle, shortDate } from "@/lib/report-format";
 import type { StoredReport } from "@/lib/reports";
+import { isLongTermReportKind } from "@/lib/report-period";
 import { buildTrendViews } from "@/lib/trend-views";
+import { longTermWeekly } from "@/lib/weekly-points";
 
 // レポートの表示(docs/ai-feedback.md)。保存した「作った時点の元の数字」から、グラフを描き直し(buildTrendViews)、AI の文章とマージして並べる。
 // 並びは、取れたバッジ → 総合評価(結論を先に) → 項目ごとに「グラフ → AI の気づき」。評価(成績・点数)は出さず、取れたバッジだけを先頭に出す。
@@ -61,6 +64,25 @@ function exerciseLead(report: StoredReport): string | undefined {
   // 1〜2 日のときは、見出しや気づきの文章が、同じことを言うので、出さない(3 回も同じことが並ぶ)
   if (days === 0) return "いつもより多く動いた記録は、この期間にありませんでした。";
   return days <= 2 ? undefined : `${report.snapshot.dates.length} 日のうち ${days} 日で、いつもより多く動いた記録があります。`;
+}
+
+// 長期レポート(四半期・年)のグラフ: 1 本 = 1 週間(月曜始まり)。保存した日ごとの数字から、週ごとにまとめて描き直す(lib/weekly-points.ts)。
+// 栄養素は、スナップショットに食事ごとの栄養素が入っていないので、グラフにしない(文章だけ)
+function LongTermCharts({ sectionKey, report }: { sectionKey: SectionKey; report: StoredReport }) {
+  if (!report.snapshot) return <p className="text-xs text-ink-muted">グラフの元の数字が読めないため、グラフは出せません。</p>;
+  const weekly = longTermWeekly(report.snapshot);
+  if (sectionKey === "sleep") return <SleepWeeklyCard points={weekly.sleepMinutes} />;
+  if (sectionKey === "body") {
+    return (
+      <div className="grid gap-4 md:grid-cols-2">
+        <WeeklyBandCard title="体重" unit="kg" points={weekly.weightKg} step={1} format={{ kind: "fixed", digits: 2 }} tick="int" />
+        <WeeklyBandCard title="体脂肪率" unit="%" points={weekly.bodyFatPercent} step={1} format={{ kind: "fixed", digits: 1 }} tick="int" />
+      </div>
+    );
+  }
+  if (sectionKey === "nutrition") return <IntakeWeeklyCard intake={weekly.intakeKcal} target={weekly.targetKcal} />;
+  if (sectionKey === "exercise") return <ExerciseWeeklyCard weeks={weekly.exerciseDays} />;
+  return null;
 }
 
 function Charts({ sectionKey, report, highlightDates }: { sectionKey: SectionKey; report: StoredReport; highlightDates: string[] }) {
@@ -194,8 +216,8 @@ export function ReportView({ report }: { report: StoredReport }) {
           <section key={section.key} id={`section-${section.key}`} aria-label={SECTION_LABELS[section.key]} className="flex scroll-mt-4 flex-col gap-3">
             <h2 className="text-xl font-bold">{SECTION_LABELS[section.key]}</h2>
             <p className="text-base leading-relaxed font-semibold">{section.headline}</p>
-            <Charts sectionKey={section.key} report={report} highlightDates={highlightDates} />
-            <Findings findings={section.findings} lead={section.key === "exercise" ? exerciseLead(report) : undefined} />
+            {isLongTermReportKind(report.kind) ? <LongTermCharts sectionKey={section.key} report={report} /> : <Charts sectionKey={section.key} report={report} highlightDates={highlightDates} />}
+            <Findings findings={section.findings} lead={section.key === "exercise" && !isLongTermReportKind(report.kind) ? exerciseLead(report) : undefined} />
           </section>
         );
       })}
