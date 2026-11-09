@@ -19,9 +19,8 @@ export function EnergyCard({ profile }: { profile: ProfileEnergyInput }) {
     return (
       <section className={card}>
         <h2 className="text-sm font-bold text-ink-muted">1日の消費カロリーの目安</h2>
-        <p className="text-sm text-ink-muted">
-          計算するには、{overview.missing.join("・")}の入力が必要です。{editLink}
-        </p>
+        <p className="text-sm text-ink-muted">計算するには、{overview.missing.join("・")}の入力が必要です。</p>
+        <p className="text-sm text-ink-muted">{editLink}</p>
       </section>
     );
   }
@@ -34,8 +33,8 @@ export function EnergyCard({ profile }: { profile: ProfileEnergyInput }) {
         <h2 className="text-sm font-bold text-ink-muted">1日の消費カロリーの目安</h2>
         <p className="text-sm text-ink-muted">
           基礎代謝は約 {number(overview.bmrKcal)} kcal です（{method}）。活動係数を選ぶと、1日の消費カロリーの目安が出ます。
-          {editLink}
         </p>
+        <p className="text-sm text-ink-muted">{editLink}</p>
         {disclaimer}
       </section>
     );

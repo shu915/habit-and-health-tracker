@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { balanceAxis, balanceSummary, buildCalorieTrend, KCAL_PER_KG, MIN_DAYS_FOR_KG, calorieAxis, latestBefore, type CalorieDayPoint, type CalorieInputs } from "./calorie-trend";
+import { balanceAxis, balanceSummary, buildCalorieTrend, intakeSummary, KCAL_PER_KG, MIN_DAYS_FOR_KG, calorieAxis, latestBefore, type CalorieDayPoint, type CalorieInputs } from "./calorie-trend";
 import { exerciseKcal } from "./exercise";
 
 const base: CalorieInputs = {
@@ -163,16 +163,29 @@ describe("消費の目安と差(energy を渡したとき)", () => {
 });
 
 describe("balanceSummary(差の棒のカードの見出し)", () => {
-  const day = (diffKcal: number | null, inProgress = false) => ({ date: "d", intake: 0, target: null, exerciseKcal: 0, baseKcal: null, burnKcal: null, diffKcal, inProgress });
+  const day = (diffKcal: number | null, inProgress = false, sparse = false) => ({ date: "d", intake: 0, target: null, exerciseKcal: 0, baseKcal: null, burnKcal: null, diffKcal, inProgress, sparse });
   it("過ぎた日で差を計算できた日だけの、合計と中央値と日数。書きかけの日と、差の無い日は数えない", () => {
     const summary = balanceSummary([day(-500), day(300), day(-900), day(null), day(1000, true)]);
-    expect(summary).toEqual({ days: 3, sumKcal: -1100, medianKcal: -500, kg: null }); // 3 日分では、体重への換算は出さない
+    expect(summary).toEqual({ days: 3, sumKcal: -1100, medianKcal: -500, kg: null, excluded: 0, enough: true, neededDays: 3 }); // 3 日分では、体重への換算は出さない
   });
   it(`差を計算できた日が ${MIN_DAYS_FOR_KG} 日以上なら、合計を ${KCAL_PER_KG} kcal = 1kg で割った kg を出す。${MIN_DAYS_FOR_KG - 1} 日では出さない`, () => {
     const days = (count: number) => Array.from({ length: count }, () => day(-720));
     expect(balanceSummary(days(MIN_DAYS_FOR_KG))?.kg).toBeCloseTo((-720 * MIN_DAYS_FOR_KG) / KCAL_PER_KG);
     expect(balanceSummary(days(MIN_DAYS_FOR_KG - 1))?.kg).toBeNull();
     expect(balanceSummary([...days(MIN_DAYS_FOR_KG - 1), day(-720, true)])?.kg).toBeNull(); // 書きかけの日は日数に数えない
+  });
+  it("データが不足している日(sparse)は、合計・中央値・日数・体重の換算から外し、その日数を excluded で返す(1 食しか入れていない日を、減量と誤解させない)", () => {
+    const summary = balanceSummary([day(-500), day(300), day(-1800, false, true), day(-900), day(-2000, false, true), day(1000, true, true)]);
+    expect(summary).toEqual({ days: 3, sumKcal: -1100, medianKcal: -500, kg: null, excluded: 2, enough: true, neededDays: 3 }); // 書きかけの日は、除いた数にも入れない
+    const many = Array.from({ length: MIN_DAYS_FOR_KG }, () => day(-720));
+    expect(balanceSummary([...many, ...Array.from({ length: 5 }, () => day(-2500, false, true))])?.sumKcal).toBe(-720 * MIN_DAYS_FOR_KG);
+    expect(balanceSummary([...many.slice(1), ...Array.from({ length: 5 }, () => day(-2500, false, true))])?.kg).toBeNull(); // 不足の日で、日数を水増ししない
+  });
+  it("データがそろった日が足りないとき(最低 3 日、かつ過ぎた日の 3 分の 1 以上)は、enough が false(画面は、合計・中央値・体重の換算を出さない)", () => {
+    expect(balanceSummary([day(-500), day(300)])).toMatchObject({ days: 2, enough: false, neededDays: 3 });
+    const month = [...Array.from({ length: 9 }, () => day(-100)), ...Array.from({ length: 19 }, () => day(null))]; // 28 日中、差が出せたのは 9 日
+    expect(balanceSummary(month)).toMatchObject({ days: 9, enough: false, neededDays: 10 });
+    expect(balanceSummary([...month.slice(0, 10), ...month.slice(10)].map((p, i) => (i < 10 ? day(-100) : p)))).toMatchObject({ days: 10, enough: true });
   });
   it("偶数の日数の中央値は、真ん中 2 つの平均", () => {
     expect(balanceSummary([day(-500), day(300)])?.medianKcal).toBe(-100);
@@ -237,5 +250,18 @@ describe("latestBefore(期間の直前の値)", () => {
   it("固定した目標のような数値にも使える", () => {
     const stamped = [{ date: "2026-11-01", target: 1800 }, { date: "2026-11-02", target: null }];
     expect(latestBefore(stamped, "2026-11-03", (r) => r.target, 2000)).toBe(1800);
+  });
+});
+
+describe("intakeSummary(摂取カロリーの中央値。データがそろった日だけで出す)", () => {
+  const p = (intake: number | null, inProgress = false, sparse = false) => ({ intake, inProgress, sparse });
+  it("過ぎた日で、記録があり、データ不足でない日だけの中央値。今日(途中)と、データ不足の日は、元に入れない。除いた日数も返す", () => {
+    const summary = intakeSummary([p(1800), p(2000), p(1600), p(300, false, true), p(900, true), p(null)]);
+    expect(summary).toEqual({ median: 1800, validDays: 3, neededDays: 3, enough: true, sparseDays: 1 });
+  });
+  it("データがそろった日が足りないときは、中央値を出さない(null)。必要な日数と、いまの日数を返す", () => {
+    expect(intakeSummary([p(1800), p(2000)])).toMatchObject({ median: null, validDays: 2, neededDays: 3, enough: false });
+    const month = [...Array.from({ length: 5 }, () => p(1000)), ...Array.from({ length: 23 }, () => p(null))]; // 28 日中 5 日
+    expect(intakeSummary(month)).toMatchObject({ median: null, validDays: 5, neededDays: 10, enough: false });
   });
 });

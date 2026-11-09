@@ -32,7 +32,7 @@ export function CalorieBalanceChart({ points, syncId, highlightDates = [] }: { p
           <ReferenceLine y={0} stroke="var(--viz-text)" strokeWidth={1} />
           <Bar dataKey="diffKcal" maxBarSize={14} radius={2} isAnimationActive={false}>
             {points.map((point) => (
-              <Cell key={point.date} fill={(point.diffKcal ?? 0) > 0 ? "var(--viz-over)" : "var(--viz-series)"} fillOpacity={point.inProgress ? 0.35 : 0.85} />
+              <Cell key={point.date} fill={(point.diffKcal ?? 0) > 0 ? "var(--viz-over)" : "var(--viz-series)"} fillOpacity={point.inProgress || point.sparse === true ? 0.35 : 0.85} />
             ))}
           </Bar>
         </ComposedChart>
@@ -50,6 +50,7 @@ function BalanceTooltip({ active, payload }: { active?: boolean; payload?: reado
       <p className="text-ink-muted">
         {point.date}
         {point.inProgress && "(途中)"}
+        {point.sparse === true && "(データ不足。合計から除く)"}
       </p>
       {point.diffKcal === null || point.intake === null || point.burnKcal === null ? (
         <p className="text-ink-muted">{point.intake === null ? "食事の記録なし" : "消費の目安を出せません"}</p>

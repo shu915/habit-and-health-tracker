@@ -1,10 +1,12 @@
 import { CalorieChart, type CalorieChartPoint } from "@/components/calorie-chart";
-import { median } from "@/lib/trend";
+import { intakeSummary } from "@/lib/calorie-trend";
+import { SPARSE_CONDITION } from "@/lib/sparse-day";
 
 // カロリーのカード: 見出しに摂取の中央値(過ぎた日だけ。書きかけの日は、まだ増えるので数えない)、凡例(棒と破線)、図、表の形の代替
 export function CalorieCard({ points, syncId, highlightDates }: { points: CalorieChartPoint[]; syncId: string; highlightDates?: readonly string[] }) {
   const recorded = points.filter((p) => p.intake !== null).length;
-  const medianIntake = median(points.flatMap((p) => (p.intake === null || p.inProgress ? [] : [p.intake])));
+  // データが不足している日(食事の記録が 1 回だけ、または摂取が目標の 6 割未満)は、中央値から外す。データがそろった日が足りないときは、中央値を出さない
+  const { median: medianIntake, validDays, neededDays, enough, sparseDays } = intakeSummary(points);
   const kcal = (value: number) => `${value.toLocaleString("ja-JP")} kcal`;
 
   return (
@@ -13,12 +15,23 @@ export function CalorieCard({ points, syncId, highlightDates }: { points: Calori
         <h3 className="text-[15px] font-bold">摂取カロリー</h3>
         {recorded > 0 ? (
           <>
-            <p>
-              <span className="text-2xl font-semibold">{medianIntake === null ? "-" : kcal(Math.round(medianIntake))}</span> <span className="text-sm text-ink-muted">1 日の摂取の中央値</span>
-            </p>
+            {enough ? (
+              <p>
+                <span className="text-2xl font-semibold">{medianIntake === null ? "-" : kcal(Math.round(medianIntake))}</span> <span className="text-sm text-ink-muted">1 日の摂取の中央値</span>
+              </p>
+            ) : (
+              <p className="text-sm text-ink-muted">
+                データがそろった日が少ないため、1 日の摂取の中央値は出しません(いま {validDays} 日、{neededDays} 日以上で出ます)。
+              </p>
+            )}
             <p className="mt-1 text-xs text-ink-muted">
               過ぎた日だけ ・ {points.length} 日中 {recorded} 日に食事の記録
             </p>
+            {sparseDays > 0 && (
+              <p className="text-xs text-ink-muted">
+                {sparseDays} 日は、データが不足している({SPARSE_CONDITION})ため、中央値から除いています(記録のもれかもしれません)。
+              </p>
+            )}
           </>
         ) : (
           <p className="text-sm text-ink-muted">この期間の食事の記録がありません。</p>
@@ -38,7 +51,7 @@ export function CalorieCard({ points, syncId, highlightDates }: { points: Calori
             </span>
           </p>
           <CalorieChart points={points} syncId={syncId} highlightDates={highlightDates} />
-          <p className="text-xs text-ink-muted">棒は食事の合計、破線は目標となるカロリー(目標カロリー + その日の運動)です。食事の記録が無い日は棒を出しません。薄い棒は、まだ増える今日の分です。</p>
+          <p className="text-xs text-ink-muted">棒は食事の合計、破線は目標となるカロリー(目標カロリー + その日の運動)です。食事の記録が無い日は棒を出しません。薄い棒は、まだ増える今日の分と、データが不足している日です。</p>
           <details className="text-xs">
             <summary className="cursor-pointer text-ink-muted">表で見る</summary>
             <div className="mt-2 max-h-60 overflow-auto">
@@ -57,6 +70,7 @@ export function CalorieCard({ points, syncId, highlightDates }: { points: Calori
                       <td className="py-1">
                         {p.date}
                         {p.inProgress && <span className="text-ink-muted">(途中)</span>}
+                        {p.sparse === true && <span className="text-ink-muted">(データ不足)</span>}
                       </td>
                       <td className="py-1 text-right">{p.intake === null ? "-" : kcal(p.intake)}</td>
                       <td className="py-1 text-right">{p.target === null ? "-" : kcal(p.target)}</td>

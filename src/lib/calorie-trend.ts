@@ -1,6 +1,7 @@
 import { exerciseKcal } from "@/lib/exercise";
 import { pickMeasure, pickWeight } from "@/lib/day-weight";
 import { energyOverview } from "@/lib/energy-overview";
+import { hasEnoughDays, neededValidDays } from "@/lib/sparse-day";
 import { median } from "@/lib/trend";
 
 // 日ごとの「摂取カロリー」と「目標となるカロリー」の推移(棒グラフと目標の線の元)。AI は使わない。
@@ -122,14 +123,28 @@ export const KCAL_PER_KG = 7200;
 // 体重への換算を出すのに要る、差を計算できた日(過ぎた日)の最低日数。これより少ないと、記録が数日抜けただけで合計が大きく変わり、換算した kg が「たくさん痩せた」ように見えるため出さない
 export const MIN_DAYS_FOR_KG = 7;
 
+// 摂取カロリーの中央値(見出し・読み上げ用)。過ぎた日で、食事の記録があり、データ不足(sparse)でない日だけで出す。
+// データがそろった日が足りないとき(最低 3 日、かつ、過ぎた日の 3 分の 1 以上)は、不正確な値を出さないよう、median を null にする
+export function intakeSummary(points: readonly { intake: number | null; inProgress: boolean; sparse?: boolean }[]): { median: number | null; validDays: number; neededDays: number; enough: boolean; sparseDays: number } {
+  const finishedDays = points.filter((p) => !p.inProgress).length;
+  const neededDays = neededValidDays(finishedDays);
+  const valid = points.flatMap((p) => (p.intake === null || p.inProgress || p.sparse === true ? [] : [p.intake]));
+  const enough = hasEnoughDays(valid.length, finishedDays);
+  return { median: enough ? median(valid) : null, validDays: valid.length, neededDays, enough, sparseDays: points.filter((p) => !p.inProgress && p.sparse === true && p.intake !== null).length };
+}
+
 // 差の棒のカードの見出し: 過ぎた日(inProgress でない日)で、差を計算できた日の「合計」と「中央値」。書きかけの日は、まだ増える値なので数えない。
 // 合計は、差を計算できた日だけを足す(食事の記録が無い日は入らない)ので、記録が抜けた日が多いと小さく出る。kg は合計を KCAL_PER_KG で割った目安で、日数が MIN_DAYS_FOR_KG 未満なら null。計算できた日が無ければ全体が null
-export function balanceSummary(points: readonly (CalorieDayPoint & { inProgress: boolean })[]): { days: number; sumKcal: number; medianKcal: number; kg: number | null } | null {
-  const diffs = points.flatMap((p) => (p.inProgress || p.diffKcal === null ? [] : [p.diffKcal]));
+// データが不足している日(sparse。食事の記録が 1 回だけ、または摂取が目標の 6 割未満)は、合計・中央値・体重の換算から外し、その日数を excluded で返す(1 食しか入れていない日を、ダイエットが進んだ日と誤解させない)
+export function balanceSummary(points: readonly (CalorieDayPoint & { inProgress: boolean; sparse?: boolean })[]): { days: number; sumKcal: number; medianKcal: number; kg: number | null; excluded: number; enough: boolean; neededDays: number } | null {
+  const excluded = points.filter((p) => !p.inProgress && p.sparse === true && p.diffKcal !== null).length;
+  const diffs = points.flatMap((p) => (p.inProgress || p.sparse === true || p.diffKcal === null ? [] : [p.diffKcal]));
   const middle = median(diffs);
   if (middle === null) return null;
   const sumKcal = diffs.reduce((total, d) => total + d, 0);
-  return { days: diffs.length, sumKcal, medianKcal: Math.round(middle), kg: diffs.length >= MIN_DAYS_FOR_KG ? sumKcal / KCAL_PER_KG : null };
+  // データがそろった日が足りないとき(enough が false)は、合計・中央値・体重の換算を、画面に出さない(数字は、テストと読み上げのために残す)
+  const neededDays = neededValidDays(points.filter((p) => !p.inProgress).length);
+  return { days: diffs.length, sumKcal, medianKcal: Math.round(middle), kg: diffs.length >= MIN_DAYS_FOR_KG ? sumKcal / KCAL_PER_KG : null, excluded, enough: diffs.length >= neededDays, neededDays };
 }
 
 // 差の棒の縦軸: 0 を中心に上下対称(500 単位に広げる。目盛りは 500 か 1000 おき)。棒は 0 から伸びるので、0 は必ず入る

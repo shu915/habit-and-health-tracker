@@ -1,3 +1,4 @@
+import { hasEnoughDays } from "@/lib/sparse-day";
 import { BADGE_LABELS, BADGE_TIER_LABELS, type Badge } from "@/lib/report-badges";
 import type { ReportPeriod } from "@/lib/report-period";
 import { shiftDate } from "@/lib/date";
@@ -33,6 +34,8 @@ export type DayRecord = {
   体脂肪率: number | null;
   食事: { 時刻: string; 名前: string; kcal: number; たんぱく質g: number; 脂質g: number; 糖質g: number; 食物繊維g: number | null; 塩分g: number | null }[];
   摂取kcal: number | null;
+  // データが不足している日(食事の記録が 1 回だけ、または摂取が目標となるカロリーの 6 割未満。lib/sparse-day.ts)。記録のもれかもしれないので、摂取と差を、傾向の根拠にしない(中央値・分析材料からも外してある)
+  データ不足: boolean;
   目標kcal: number | null;
   消費の目安kcal: number | null;
   摂取マイナス消費: number | null;
@@ -67,6 +70,7 @@ export function buildDayRecords(dates: readonly string[], views: TrendViews, sou
         体脂肪率: views.bodyFat[i].value,
         食事: (meals.get(date) ?? []).map((m) => ({ 時刻: m.time, 名前: m.name, kcal: m.kcal, たんぱく質g: m.proteinG, 脂質g: m.fatG, 糖質g: m.carbG, 食物繊維g: m.fiberG, 塩分g: m.saltG })),
         摂取kcal: calories.intake,
+        データ不足: calories.sparse,
         目標kcal: calories.target,
         消費の目安kcal: calories.burnKcal,
         摂取マイナス消費: calories.diffKcal,
@@ -104,8 +108,8 @@ export function buildFeatures(records: readonly DayRecord[]): Feature[] {
     return {
       date: row.日付,
       dow: (new Date(`${row.日付}T00:00:00Z`).getUTCDay() + 6) % 7,
-      intake: row.摂取kcal,
-      diff: row.摂取マイナス消費,
+      intake: row.データ不足 ? null : row.摂取kcal, // データ不足の日は、摂取も差も、分析の比べに入れない
+      diff: row.データ不足 ? null : row.摂取マイナス消費,
       bed: row.睡眠.就寝 === null ? null : nightOffset(row.睡眠.就寝),
       first: times.length === 0 ? null : times[0],
       afterMidnightKcal: row.食事.filter((m) => hm(m.時刻) >= 24 * 60).reduce((n, m) => n + m.kcal, 0),
@@ -193,8 +197,12 @@ export function buildReportInput(args: { period: ReportPeriod; dates: readonly s
   const features = buildFeatures(records);
   const sleeps = records.flatMap((r) => (r.睡眠.時間分 === null ? [] : [r.睡眠.時間分]));
   const weights = records.flatMap((r) => (r.体重kg === null ? [] : [{ 日付: r.日付, kg: r.体重kg }]));
-  const intakes = records.flatMap((r) => (r.摂取kcal === null ? [] : [r.摂取kcal]));
-  const diffs = records.flatMap((r) => (r.摂取マイナス消費 === null ? [] : [r.摂取マイナス消費]));
+  // 摂取の中央値と差の合計は、データ不足の日を除く(1 食しか入れていない日を、食べなかった日・減量が進んだ日と読ませない)
+  const intakes = records.flatMap((r) => (r.摂取kcal === null || r.データ不足 ? [] : [r.摂取kcal]));
+  // データがそろった日が足りないときは、中央値を出さない(数日の偶然を、その人の普段と読ませない。画面の摂取のカードと同じ規則)
+  const finishedDays = views.calories.filter((p) => !p.inProgress).length;
+  const enoughIntake = hasEnoughDays(intakes.length, finishedDays);
+  const diffs = records.flatMap((r) => (r.摂取マイナス消費 === null || r.データ不足 ? [] : [r.摂取マイナス消費]));
   return {
     期間: { 開始: period.start, 終了: period.end, 日数: period.days },
     バッジ: badges.map((b) => ({ 項目: BADGE_LABELS[b.key], 段階: BADGE_TIER_LABELS[b.tier], 収まった数: b.passed, 判定した数: b.judged })),
@@ -203,9 +211,10 @@ export function buildReportInput(args: { period: ReportPeriod; dates: readonly s
       睡眠時間の中央値分: median(sleeps),
       睡眠を記録した日数: sleeps.length,
       体重: weights.length === 0 ? null : { 最初: weights[0], 最後: weights[weights.length - 1], 記録日数: weights.length },
-      摂取kcalの中央値: median(intakes),
+      摂取kcalの中央値: enoughIntake ? median(intakes) : null,
       食事を記録した日数: intakes.length,
       食事が1回だけの日数: records.filter((r) => r.食事.length === 1).length,
+      データ不足の日数: records.filter((r) => r.データ不足).length,
       摂取マイナス消費の合計: diffs.length === 0 ? null : diffs.reduce((a, b) => a + b, 0),
       差を計算できた日数: diffs.length,
       運動の回数: records.reduce((n, r) => n + r.運動.length, 0),

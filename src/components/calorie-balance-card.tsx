@@ -1,12 +1,14 @@
 import { CalorieBalanceChart } from "@/components/calorie-balance-chart";
 import type { CalorieChartPoint } from "@/components/calorie-chart";
 import { balanceSummary, MIN_DAYS_FOR_KG } from "@/lib/calorie-trend";
+import { SPARSE_CONDITION } from "@/lib/sparse-day";
 
 // 摂取 − 消費の目安のカード: 見出しに差の中央値(過ぎた日だけ。書きかけの日は、まだ増えるので数えない)、凡例、図、表の形の代替。
 // 消費の目安は、日の詳細の「この日の結果」と同じ計算(基礎代謝 × その日の活動係数 + その日の運動)。推定どうしの差なので、目安であり、医療上の指示ではない
 export function CalorieBalanceCard({ points, syncId, highlightDates }: { points: CalorieChartPoint[]; syncId: string; highlightDates?: readonly string[] }) {
   const withDiff = points.filter((p) => p.diffKcal !== null);
   const summary = balanceSummary(points);
+  const sparseWithDiff = points.filter((p) => !p.inProgress && p.sparse === true && p.diffKcal !== null).length; // 差を計算できた過ぎた日のうち、データ不足の日
   const kcal = (value: number) => `${value.toLocaleString("ja-JP")} kcal`;
   const signed = (value: number) => `${value > 0 ? "+" : ""}${kcal(value)}`;
   // 体重換算は 0.1kg 単位。±0.05kg 未満は「ほぼ 0kg」(−0.0 と出さない)
@@ -19,7 +21,13 @@ export function CalorieBalanceCard({ points, syncId, highlightDates }: { points:
         {withDiff.length > 0 ? (
           <>
             {summary === null ? (
-              <p className="text-sm text-ink-muted">過ぎた日の差がまだありません(今日の分は、終わってから数えます)。</p>
+              <p className="text-sm text-ink-muted">
+                {sparseWithDiff > 0 ? `差を計算できた日は、すべて、データが不足している(${SPARSE_CONDITION})ため、合計は出せません(記録のもれかもしれません)。` : "過ぎた日の差がまだありません(今日の分は、終わってから数えます)。"}
+              </p>
+            ) : !summary.enough ? (
+              <p className="text-sm text-ink-muted">
+                データがそろった日が少ないため、差の合計・中央値・体重の換算は出しません(いま {summary.days} 日、{summary.neededDays} 日以上で出ます)。
+              </p>
             ) : (
               <>
                 <p>
@@ -28,7 +36,12 @@ export function CalorieBalanceCard({ points, syncId, highlightDates }: { points:
                 <p className="mt-1 text-xs text-ink-muted">
                   過ぎた日だけ ・ {points.length} 日中 {summary.days} 日に差を計算 ・ 1 日の中央値 {signed(summary.medianKcal)}
                 </p>
-                <p className="text-xs text-ink-muted">差を計算できた日だけの合計です(食事の記録が無い日は入りません。記録が不完全な日も入ります)。脂肪 1kg = 約 7,200 kcal で換算した目安で、実際の体重は水分などでも動きます。</p>
+                {summary.excluded > 0 && (
+                  <p className="text-xs text-ink-muted">
+                    {summary.excluded} 日は、データが不足している({SPARSE_CONDITION})ため、合計・中央値・体重の換算から除いています(薄い棒。記録のもれかもしれません)。
+                  </p>
+                )}
+                <p className="text-xs text-ink-muted">差を計算できた日だけの合計です(食事の記録が無い日と、データが不足している日は入りません)。脂肪 1kg = 約 7,200 kcal で換算した目安で、実際の体重は水分などでも動きます。</p>
               </>
             )}
           </>
@@ -50,7 +63,7 @@ export function CalorieBalanceCard({ points, syncId, highlightDates }: { points:
             </span>
           </p>
           <CalorieBalanceChart points={points} syncId={syncId} highlightDates={highlightDates} />
-          <p className="text-xs text-ink-muted">消費より少なく食べた日が下(青)、多く食べた日が上(オレンジ)で、推定どうしの差なので目安です。薄い棒は、まだ増える今日の分です。食事を一部しか記録しなかった日も、そのまま計算します(差が大きなマイナスに見え、合計も実際より減って見えます)。中央値は、そうした日に引きずられにくい数字です。</p>
+          <p className="text-xs text-ink-muted">消費より少なく食べた日が下(青)、多く食べた日が上(オレンジ)で、推定どうしの差なので目安です。薄い棒は、まだ増える今日の分と、データが不足している日です(データ不足の日は、合計・中央値・体重の換算から除きます。もれた記録を、減量と誤解しないため)。</p>
           <details className="text-xs">
             <summary className="cursor-pointer text-ink-muted">表で見る</summary>
             <div className="mt-2 max-h-60 overflow-auto">
@@ -69,6 +82,7 @@ export function CalorieBalanceCard({ points, syncId, highlightDates }: { points:
                       <td className="py-1">
                         {p.date}
                         {p.inProgress && <span className="text-ink-muted">(途中)</span>}
+                        {p.sparse === true && <span className="text-ink-muted">(データ不足)</span>}
                       </td>
                       <td className="py-1 text-right">{p.intake === null ? "-" : kcal(p.intake)}</td>
                       <td className="py-1 text-right">{p.burnKcal === null ? "-" : kcal(p.burnKcal)}</td>

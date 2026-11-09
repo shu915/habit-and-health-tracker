@@ -31,7 +31,7 @@ async function EditExerciseContent({ params }: Pick<PageProps<"/days/[date]/exer
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-5">
       <div>
         <BackLink href={`/days/${date}`}>{date} の詳細に戻る</BackLink>
-        <h1 className="text-[26px] leading-9 font-bold sm:text-[32px] sm:leading-10">{date} の運動を直す</h1>
+        <h1 className="text-[26px] leading-9 font-bold sm:text-[32px] sm:leading-10">{date} の運動の編集</h1>
       </div>
       <ExerciseForm
         date={date}

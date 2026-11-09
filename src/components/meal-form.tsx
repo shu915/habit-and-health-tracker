@@ -1,13 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState, useSyncExternalStore, useTransition } from "react";
+import { useCallback, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import { deleteMealAction, estimateMealAction, saveMealAction, updateMealAction, type SaveMealResult } from "@/app/(app)/days/[date]/meals/actions";
 import { buttonClass } from "@/components/button";
 import { FormActions } from "@/components/form-actions";
 import { MealBadge } from "@/components/meal-badge";
 import { PairInput, timeParts } from "@/components/pair-input";
-import { ProcessingIndicator } from "@/components/processing-indicator";
+import { ProcessingPanel } from "@/components/processing-indicator";
 import { joinTimeOfDay } from "@/lib/duration";
 import { resizeImageToDataUrl } from "@/lib/image-resize";
 import type { MealEstimate } from "@/lib/meal-estimate";
@@ -71,6 +71,23 @@ export function MealForm({ date, mode, mealId, initial }: Props) {
   const [saving, startSave] = useTransition();
 
   const busy = estimating || saving || resizing;
+  // 推定の結果(や失敗のメッセージ)は、ボタンの下に出るので、画面の外に隠れて気づかれない。出たときに、その先頭へ画面を動かす。
+  // 結果は、推定が終わったときだけ(編集の画面を開いたときに、もともとある結果へは動かさない)。関数の形を変えない(useCallback)ので、出た 1 回だけ動く。
+  // 動きを減らす設定のときは、滑らせない
+  const scrollResultNext = useRef(false);
+  const showWhenAppears = useCallback((node: HTMLElement | null) => {
+    if (!node) return;
+    const reduce = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    node.scrollIntoView?.({ block: "start", behavior: reduce ? "auto" : "smooth" });
+  }, []);
+  const showResultWhenAppears = useCallback(
+    (node: HTMLElement | null) => {
+      if (!node || !scrollResultNext.current) return;
+      scrollResultNext.current = false;
+      showWhenAppears(node);
+    },
+    [showWhenAppears],
+  );
   const descriptionChanged = estimate !== null && text.trim() !== estimatedText.trim();
   const timeIsValid = mealLabel(time) !== null;
   const canEstimate = !busy && (text.trim() !== "" || photos.length > 0);
@@ -114,6 +131,7 @@ export function MealForm({ date, mode, mealId, initial }: Props) {
         setEstimateError(result.message);
         return;
       }
+      scrollResultNext.current = true; // 次に結果が出たとき、そこへ画面を動かす
       setEstimate(result.estimate);
       setText(result.estimate.description); // 整えられた説明に置き換える(直して推定し直せる)
       setEstimatedText(result.estimate.description);
@@ -197,14 +215,23 @@ export function MealForm({ date, mode, mealId, initial }: Props) {
               onChange={(event) => setText(event.target.value)}
               rows={estimate ? 5 : 4}
               maxLength={TEXT_MAX_LENGTH}
-              placeholder="例: 焼鮭1切れ、白ご飯茶碗1杯、わかめのみそ汁(量が分かれば書く)"
+              placeholder="例: 焼鮭1切れ(グリル)、白ご飯茶碗1杯、わかめのみそ汁(大きさ・量や、調理法・油・砂糖の使い方が分かれば書く)"
               className="w-full rounded-md border border-line bg-surface-raised px-3 py-2 text-[15px] text-ink leading-[1.8]"
             />
-            <p className="text-xs text-ink-muted">
-              {estimate
-                ? "AI が読み取った内容です。違うところ(量、品目、食べなかったもの)を直して「推定し直す」を押すと、数字が計算し直されます。"
-                : "文章か写真のどちらか(両方でもよい)を入れます。写真と文章が食い違うときは、文章を優先します。"}
-            </p>
+            {estimate ? (
+              <p className="text-xs text-ink-muted">AI が読み取った内容です。違うところ(量、品目、食べなかったもの)を直して「推定し直す」を押すと、数字が計算し直されます。</p>
+            ) : (
+              <>
+                <p className="text-xs text-ink-muted">文章か写真のどちらか(両方でもよい)を入れます。</p>
+                {/* 長い説明は折りたたむ(開けば読める。入力の邪魔にしない) */}
+                <details className="text-xs text-ink-muted">
+                  <summary className="cursor-pointer">書き方のヒント</summary>
+                  <p className="mt-1.5 leading-relaxed">
+                    重さ(g)が分かるときは、「鮭の切り身 1 切れで 80g」のように書くと、いちばん確実です(書いた重さをもとに計算します)。重さが分からないときは、「大きめ」より、長さ(cm)や個数のほうが伝わります(例: 「長さ 15cm の魚 4 匹」)。量は、器の種類(小鉢・茶碗・丼など)を書くと近づきます。写真に、箸や手を一緒に写すと、大きさが伝わります。写真では、油や砂糖の量が分かりません。大きさ(大きめ・小ぶり)や個数、調理法(フライパン・ノンフライヤー・揚げた、など)、油・砂糖を多く使ったかを書くと、その分を数字に入れます。書かないときは、標準的な(中央値の)大きさと、一般的な調理を仮定して、量の目安の欄と、品目の下に書きます。写真と文章が食い違うときは、文章を優先します。
+                  </p>
+                </details>
+              </>
+            )}
           </div>
         </div>
 
@@ -265,14 +292,23 @@ export function MealForm({ date, mode, mealId, initial }: Props) {
                 {photoError}
               </p>
             )}
-            <p className="text-xs text-ink-muted">最大 4 枚まで(同じ食事の別の角度や、別の皿)。スマホでは、撮影か、写真ライブラリから選べます。写真は保存しません(推定にだけ使います)。大きい写真は、このあと縮小して送ります。位置情報などは、縮小のときに取り除かれます。食べ物の写真だけを選んでください(他の人の顔や、個人が分かるものは、写さないでください)。</p>
-            <p className="text-xs text-ink-muted">パッケージの栄養成分表示(栄養の表)の写真だけでも推定できます。表があれば、その数値をもとにするので、いちばん正確です。このときは、食べ物そのものの写真は要りません。</p>
+            {/* 残す一行: 保存しないこと(安心)と、写すものの注意(他の人の顔など)。残りは折りたたむ */}
+            <p className="text-xs text-ink-muted">写真は保存しません(推定にだけ使います)。食べ物の写真だけを選んでください(他の人の顔や、個人が分かるものは、写さないでください)。</p>
+            <details className="text-xs text-ink-muted">
+              <summary className="cursor-pointer">写真について</summary>
+              <div className="mt-1.5 flex flex-col gap-1.5 leading-relaxed">
+                <p>最大 4 枚まで(同じ食事の別の角度や、別の皿)。スマホでは、撮影か、写真ライブラリから選べます。大きい写真は、このあと縮小して送ります。位置情報などは、縮小のときに取り除かれます。</p>
+                <p>パッケージの栄養成分表示(栄養の表)の写真だけでも推定できます。表があれば、その数値をもとにするので、いちばん正確です。このときは、食べ物そのものの写真は要りません。</p>
+              </div>
+            </details>
           </div>
         </div>
       </fieldset>
 
       <div className="flex flex-col gap-2">
         {descriptionChanged && !estimating && <span className="text-xs text-badge-morning-ink">説明を変えました。「推定し直す」を押してから、保存してください。</span>}
+        {/* 進み具合の枠は、ボタンの行のすぐ上に、最初から置く(同じ大きさのまま、中身だけが変わる)。下に出すと、画面の外に隠れて気づかれず、出たときに画面もずれる */}
+        <ProcessingPanel active={estimating} hasPhoto={photos.length > 0} />
         <FormActions>
           {/* 下の保存の行が出ていないとき(推定する前と、推定し直している間)は、ここにキャンセルを置く */}
           {!(estimate && !estimating) && (
@@ -287,15 +323,14 @@ export function MealForm({ date, mode, mealId, initial }: Props) {
         </FormActions>
       </div>
 
-      {estimating && <ProcessingIndicator hasPhoto={photos.length > 0} />}
       {estimateError && (
-        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+        <p ref={showWhenAppears} role="alert" className="scroll-mt-4 text-sm text-red-600 dark:text-red-400">
           {estimateError}
         </p>
       )}
 
       {estimate && !estimating && (
-        <section aria-label="AI の推定" className="flex flex-col gap-4">
+        <section ref={showResultWhenAppears} aria-label="AI の推定" className="flex scroll-mt-4 flex-col gap-4">
           <EstimateResult estimate={estimate} stale={descriptionChanged} />
 
           {saveErrors.form && (
@@ -346,6 +381,21 @@ function CameraIcon() {
   );
 }
 
+// 品目の表の、数字の列。右にそろえ、折り返さない。幅は、見出しの字数に合わせて、列ごとに決める(全部を広い幅にそろえると、
+// 食事の画面の幅(3xl)に収まらず、右の列が切れる。「たんぱく質」は 5 字で、約 65px + 左の余白が要る)。数字の列の合計は約 380px で、残りを品目と量が使う
+const NUMBER_CELL = "whitespace-nowrap pl-3 text-right tabular-nums";
+type ItemRow = MealEstimate["items"][number];
+const NUMBER_COLUMNS: { label: string; width: string; value: (item: ItemRow) => string | number }[] = [
+  { label: "kcal", width: "w-[3.75rem]", value: (item) => item.kcal },
+  { label: "たんぱく質", width: "w-[5rem]", value: (item) => round1(item.proteinG) },
+  { label: "脂質", width: "w-[3.5rem]", value: (item) => round1(item.fatG) },
+  { label: "糖質", width: "w-[3.5rem]", value: (item) => round1(netCarbOf(item)) },
+  { label: "食物繊維", width: "w-[4.5rem]", value: (item) => (item.fiberG === null ? "-" : round1(item.fiberG)) },
+  { label: "食塩", width: "w-[3.5rem]", value: (item) => (item.saltG === null ? "-" : round1(item.saltG)) },
+];
+const round1 = (value: number) => Math.round(value * 10) / 10;
+// 品目ごとの糖質 = 炭水化物 − 食物繊維(負にしない)。合計の計算(meal-estimate.ts の totalsOf)と同じ式。zod をブラウザに入れないので、ここに書く
+const netCarbOf = (item: MealEstimate["items"][number]) => Math.max(item.carbohydrateG - (item.fiberG ?? 0), 0);
 const nutrient = (value: number | null, unit: string) => (value === null ? "-" : `${value} ${unit}`);
 
 // 推定の表示(読み取り専用)。stale のとき(説明を変えて、まだ推定し直していない)は、薄くして、古い数字だと分かるようにする
@@ -366,27 +416,42 @@ function EstimateResult({ estimate, stale }: { estimate: MealEstimate; stale: bo
         <Total label="食物繊維" value={nutrient(totals.fiberG, "g")} />
         <Total label="食塩相当量" value={nutrient(totals.saltG, "g")} />
       </dl>
+      {/* 品目ごとの内訳。多い品目を探せるよう、栄養素の列も出す(押して開く形にはしない)。
+          数字の列は、同じ幅で、右にそろえる(品目と量の列だけが、残りの幅を使う)。狭い画面は、表の枠の中で横にスクロールする(品目の列は左に固定) */}
       <div className="overflow-x-auto">
-        <table className="w-full text-left text-sm">
+        <table className="w-full min-w-[42rem] text-left text-sm">
           <thead className="text-xs text-ink-muted">
             <tr>
-              <th className="py-2 pr-4 font-medium">品目</th>
+              <th className="sticky left-0 bg-surface-raised py-2 pr-4 font-medium">品目</th>
               <th className="py-2 pr-4 font-medium">量の目安</th>
-              <th className="py-2 text-right font-medium">kcal</th>
+              {NUMBER_COLUMNS.map((column) => (
+                <th key={column.label} className={`${NUMBER_CELL} ${column.width} py-2 font-medium`}>
+                  {column.label}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
             {estimate.items.map((item, index) => (
-              <tr key={`${item.name}-${index}`} className="border-t border-line-soft">
-                <td className="py-2 pr-4">{item.name}</td>
-                <td className="py-2 pr-4 text-ink-muted">{item.amount}</td>
-                <td className="py-2 text-right tabular-nums">{item.kcal}</td>
+              <tr key={`${item.name}-${index}`} className="border-t border-line-soft align-top">
+                <td className="sticky left-0 bg-surface-raised py-3 pr-4">
+                  {item.name}
+                  {item.assumption && <span className="mt-0.5 block text-xs text-ink-muted">{item.assumption}</span>}
+                </td>
+                <td className="py-3 pr-4 text-ink-muted">{item.amount}</td>
+                {NUMBER_COLUMNS.map((column) => (
+                  <td key={column.label} className={`${NUMBER_CELL} py-3`}>
+                    {column.value(item)}
+                  </td>
+                ))}
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      <p className="text-xs text-ink-muted">AI の推定です。誤差があります(量が見えにくい写真や、書かれていない量は、特にずれます)。違うときは、上の説明を直して「推定し直す」を押してください。</p>
+      <p className="text-xs leading-relaxed text-ink-muted">
+        AI の推定です。約 1 割ずれることがあります(量が見えにくい写真や、書かれていない量・調理法は、もう少しずれます)。栄養素は g(食塩は食塩相当量)です。品目の下の小さな文字は、その数字の前提(調理法・油・砂糖の仮定)で、調理法が書かれていないときは、一般的な調理を仮定しています。違うときは、上の説明を直して「推定し直す」を押してください。
+      </p>
     </div>
   );
 }

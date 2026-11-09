@@ -28,7 +28,7 @@ Shu の生活習慣管理アプリ(友人にも使ってもらう)。食事・�
 ## 食事と AI の要点(詳細は `docs/meals-and-ai.md`)
 - **すべての食事は AI の推定**(手入力の経路は作らない)。合計と糖質は**コードで計算**する(AI に足し算させない)。保存のとき、サーバーは推定を zod で検証し直し、合計を内訳から計算し直す
 - **API キーを読むのは `openrouter.ts` だけ**。食事の内容と写真は健康情報なので `data_collection: "deny"`。**Google のモデルは、JSON スキーマの `minLength`・`maxLength`・`minimum`・`maximum`・`minItems`・`maxItems`・`additionalProperties` を 400 で拒否する**(スキーマからは外し、zod で検証)
-- 食事の推定の回数制限は、1 日 10 回(03:00 区切り。失敗は数えず、「食べ物でない」判定は数える)。ユーザー単位の `pg_advisory_xact_lock` で「数える → 足す」を直列にする。AI レポートは別の決まり(`docs/ai-feedback.md`)
+- 食事の推定の回数制限は、1 日 10 回(03:00 区切り。失敗は数えず、「食べ物でない」判定は数える。環境変数 `MEAL_ESTIMATE_DAILY_LIMIT` で変えられ、開発サーバーは指定が無ければ上限なし)。ユーザー単位の `pg_advisory_xact_lock` で「数える → 足す」を直列にする。AI レポートは別の決まり(`docs/ai-feedback.md`)
 - 日記(良かったこと・今日の気づき・運動のメモ)は、**AI レポートを作るときだけ、利用者が同意したうえで**、全文を AI に送る(`docs/ai-feedback.md`)。ほかの場面では送らない。レポートの保存(スナップショット)には、文章を複製しない
 - 実際に AI を呼ぶ `*.live.test.ts` は `RUN_LIVE_AI=1` のときだけ動く(お金がかかる)
 

@@ -2,18 +2,20 @@ import "server-only";
 import { and, count, eq, lt, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { aiRequests } from "@/db/schema";
+import { resolveDailyLimit } from "@/lib/ai-limit-config";
 import { getCurrentUserId } from "@/lib/current-user";
 import { startOfMealDay } from "@/lib/meal-day-sql";
 
 // 食事の AI 推定の回数制限(悪用を防ぐための保険。ふつうの人は、そこまで使わない)。AI を呼ぶ前に consumeAiRequest() を呼び、通ったときだけ呼ぶ。
-// 1 日 AI_LIMITS.perDay 回まで(「1 日」は、食事の日と同じ 03:00 区切り。「明日の 3:00 以降に、また使えます」と言える)。文章だけでも、写真つきでも、同じ 1 回。
+// 1 日 AI_LIMITS.perDay 回まで(既定は 10 回。環境変数 MEAL_ESTIMATE_DAILY_LIMIT で変える。開発サーバーは、指定が無ければ上限なし。ai-limit-config.ts)(「1 日」は、食事の日と同じ 03:00 区切り。「明日の 3:00 以降に、また使えます」と言える)。文章だけでも、写真つきでも、同じ 1 回。
 // 失敗は数えない: 接続・AI のエラー・読めない返事のときは、返された release() で、数えた分を戻す(呼び出し側が呼ぶ)。
 // 「食べ物でない」という AI の判定は、費用が出ていて、悪用の入口になるので、数える(戻さない)。
 // 残りの回数は、画面に出さない。上限に来たときだけ、メッセージを(赤字で)出す。
 // AI レポートは、別の決まり(随時は 1 日 1 回、月次は同じ月 1 回。lib/report-period.ts)で、この回数には数えない。
 // 数えるのは DB(ai_requests)なので、サーバーが複数に分かれても効く。時刻の比較は DB の now() で行う。
 // 数えて足す処理は、同時に呼ばれても上限を超えないよう、ユーザー単位のロックで直列にする(consumeAiRequest)
-export const AI_LIMITS = { perDay: 10 } as const;
+// 値は、起動したときに決まる(環境変数は、動いている間は変わらない)。上限なしのときは Infinity で、数えるだけで、断らない
+export const AI_LIMITS = { perDay: resolveDailyLimit(process.env) } as const;
 
 export const AI_LIMIT_MESSAGE = `今日の AI の推定は、${AI_LIMITS.perDay} 回までです。明日の 3:00 以降に、また使えます。`;
 

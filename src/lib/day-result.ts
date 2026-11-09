@@ -1,6 +1,7 @@
 import { defaultMealDayAndTime } from "@/lib/meal-time";
 import type { EnergyOverview } from "@/lib/energy-overview";
 import { exerciseKcal } from "@/lib/exercise";
+import { sparseReason, type SparseReason } from "@/lib/sparse-day";
 
 // 過ぎた日の「結果」(摂取と消費の目安、その差)の計算。AI は使わず、保存もしない(表示のたびに、記録から計算する)。
 // 数字は推定どうしの比べ(目安)で、医療上の指示ではない
@@ -17,6 +18,7 @@ export type DayResultInput = {
   exercises: { type: string; intensity: string; minutes: number }[];
   weightKg: number | null; // 運動の消費の計算に使う体重(その日の朝の体重、無ければプロフィールの体重)
   energy: EnergyOverview;
+  targetKcal?: number | null; // その日の目標となるカロリー(目標カロリー + 運動の消費)。データ不足の判定(摂取が目標の 6 割未満)に使う。無ければ、回数だけで判定する
 };
 
 export type DayResult = {
@@ -27,6 +29,8 @@ export type DayResult = {
   burn: { tdeeKcal: number; exerciseKcal: number; totalKcal: number; exerciseUncalculated: boolean } | null;
   // 摂取 − 消費。食事の記録が無い日と、消費が出せない日は null(記録が無い日を、大きな赤字に見せない)
   diffKcal: number | null;
+  // データが不足している日の理由(食事の記録が 1 回だけ、または摂取が目標の 6 割未満)。画面は、差を出さず、「もれていませんか」と尋ねる。記録が無い日は null
+  sparse: SparseReason | null;
 };
 
 const round1 = (value: number) => Math.round(value * 10) / 10;
@@ -53,6 +57,7 @@ export function dayResult(input: DayResultInput): DayResult {
     proteinG,
     burn,
     diffKcal: input.meals.length === 0 || burn === null ? null : intakeKcal - burn.totalKcal,
+    sparse: sparseReason({ mealCount: input.meals.length, intakeKcal: input.meals.length === 0 ? null : intakeKcal, targetKcal: input.targetKcal ?? null }),
   };
 }
 

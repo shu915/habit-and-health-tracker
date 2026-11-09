@@ -53,12 +53,29 @@ describe("CalorieBalanceChart", () => {
 });
 
 describe("CalorieBalanceCard", () => {
+  // 差を出せた過ぎた日が 3 日(合計・中央値を出すのに要る最低日数): -500、(差なし)、-500、+300。今日(途中)の +100 は数えない
+  const enoughPoints: CalorieChartPoint[] = [point("2026-11-06", 1700, 2200), point("2026-11-07", null, 2200), point("2026-11-08", 1700, 2200), point("2026-11-09", 2500, 2200), point("2026-11-10", 2300, 2200, true)];
+
   it("見出しに、過ぎた日の差の合計(符号つき)、日数、1 日の中央値を出す。日数が足りないうちは、体重への換算を出さずに理由を示す", () => {
-    render(<CalorieBalanceCard points={points} syncId="t" />);
-    expect(screen.getByText("-200 kcal")).toBeTruthy(); // -500 + 300(今日の +100 は数えない)
+    render(<CalorieBalanceCard points={enoughPoints} syncId="t" />);
+    expect(screen.getByText("-700 kcal")).toBeTruthy(); // -500 - 500 + 300(今日の +100 は数えない)
     expect(screen.getByText(/体重への換算は、差を計算できた日が 7 日以上になってから/)).toBeTruthy();
-    expect(screen.getByText(/4 日中 2 日に差を計算/)).toBeTruthy();
-    expect(screen.getByText(/1 日の中央値 -100 kcal/)).toBeTruthy();
+    expect(screen.getByText(/5 日中 3 日に差を計算/)).toBeTruthy();
+    expect(screen.getByText(/1 日の中央値 -500 kcal/)).toBeTruthy();
+  });
+
+  it("データがそろった日が足りないとき(過ぎた日の 3 日未満)は、合計・中央値・体重の換算を出さず、理由と日数を示す(不正確な値で集計しない)", () => {
+    render(<CalorieBalanceCard points={points} syncId="t" />); // 差を出せた過ぎた日は 2 日
+    expect(screen.queryByText("-200 kcal")).toBeNull();
+    expect(screen.queryByText(/1 日の中央値/)).toBeNull();
+    expect(screen.getByText(/データがそろった日が少ないため、差の合計・中央値・体重の換算は出しません/)).toBeTruthy();
+    expect(screen.getByText(/いま 2 日、3 日以上で出ます/)).toBeTruthy();
+  });
+
+  it("差を計算できた日が、すべて、データ不足(sparse)なら、そう伝える(「差がまだありません」とは言わない)", () => {
+    render(<CalorieBalanceCard points={points.map((p) => (p.inProgress ? p : { ...p, sparse: true }))} syncId="t" />);
+    expect(screen.getByText(/差を計算できた日は、すべて、データが不足している/)).toBeTruthy();
+    expect(screen.queryByText(/過ぎた日の差がまだありません/)).toBeNull();
   });
 
   it("差を計算できた日が 7 日以上あれば、体重に換算した目安を出す", () => {

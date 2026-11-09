@@ -31,7 +31,7 @@ export async function MealNutrition({ date, meals }: { date: string; meals: read
         {!finished && <span className="text-xs text-ink-muted">途中(食事が増えると変わります)</span>}
       </div>
 
-      <div className="grid items-center gap-4 sm:grid-cols-[18rem_1fr]">
+      <div className="grid items-center gap-4 sm:grid-cols-[19rem_1fr]">
         <MealRadarChart axes={radar.axes} inProgress={!finished} />
 
         <div className="overflow-x-auto">
@@ -58,24 +58,43 @@ export async function MealNutrition({ date, meals }: { date: string; meals: read
         </div>
       </div>
 
-      <div className="flex flex-col gap-1 text-xs text-ink-muted">
+      <div className="flex flex-col gap-1.5 text-xs text-ink-muted">
+        {/* 出したままにする: データの欠けの断りと、次にやること。目標の説明は、折りたたむ(「医療上の指示ではない」は、その中に残す) */}
         {(radar.incompleteSalt || radar.incompleteFiber) && <p>* 分からない食事があるため、分かる分だけの合計です。</p>}
-        {radar.allowanceKcal !== null && (
-          <p>
-            目標となるカロリー {number(radar.allowanceKcal)} kcal = 目標カロリー {number(radar.baseKcal ?? 0)}
-            {radar.exerciseKcal > 0 ? ` + この日の追加の運動 ${number(radar.exerciseKcal)}` : "(この日の追加の運動の記録はありません)"}。
-            動いた分は、多く食べてよいものとして足しています。
-          </p>
-        )}
-        {weight.kg === null && exercises.length > 0 && <p>体重が分からない運動は、カロリーの目標に足していません。</p>}
-        <p>目標カロリーは、その日に記録したときのプロフィールの値です(今日の分は、プロフィールを直すと変わります。過ぎた日は、あとで直しても変わりません)。</p>
         {profile.targetCalories === null && <p>プロフィールで目標カロリーを決めると、カロリー・脂質・糖質の目標が出ます。</p>}
-        <p>
-          カロリー以外の目標は、一般的な参考値です(たんぱく質は目標となるカロリーの 20%、脂質は 25%、糖質は 50%、食物繊維は 20g 以上、塩分は 7.5g 未満)。栄養は AI の推定で、医療上の指示ではありません。
-        </p>
+        <details>
+          <summary className="cursor-pointer">目標の見方</summary>
+          <div className="mt-1.5 flex flex-col gap-1.5 leading-relaxed">
+            {radar.allowanceKcal !== null && (
+              <p>
+                目標となるカロリー {number(radar.allowanceKcal)} kcal = 目標カロリー {number(radar.baseKcal ?? 0)}
+                {radar.exerciseKcal > 0 ? ` + この日の追加の運動 ${number(radar.exerciseKcal)}` : "(この日の追加の運動の記録はありません)"}
+                (動いた分は、多く食べてよいものとして足しています)。
+              </p>
+            )}
+            {weight.kg === null && exercises.length > 0 && <p>体重が分からない運動は、カロリーの目標に足していません。</p>}
+            <p>目標カロリーは、その日に記録したときの値です(過ぎた日は、あとでプロフィールを直しても変わりません)。</p>
+            <p>
+              薄い帯は、人による差を見込んだ目標の幅で、真ん中が 100% です。国が定める目標(塩分は男性 7.5g・女性 6.5g 未満。食物繊維にも目標量があります)は、実際の食事より厳しめなので、この画面では、現実的な値(日本人の実際の量に近い、塩分 10g・食物繊維 20g)を 100% にしています。一般的な参考値と AI の推定で、医療上の指示ではありません。
+            </p>
+          </div>
+        </details>
       </div>
     </div>
   );
+}
+
+// 表の「目標」: ゾーンの幅(g や kcal)。下限だけの軸は「以上」、上限だけの軸は「まで」
+function targetText(axis: RadarAxis): string {
+  if (axis.reference === null) return "-";
+  // 表は、細かい小数を出さない: kcal は 10 単位、g は整数に丸める(6.97〜10.03 g ではなく 7〜10 g)
+  const at = (percent: number) => {
+    const value = ((axis.reference ?? 0) * percent) / 100;
+    return number(axis.unit === "kcal" ? Math.round(value / 10) * 10 : Math.round(value));
+  };
+  if (axis.zoneHigh === null) return `${at(axis.zoneLow)} ${axis.unit} 以上`;
+  if (axis.zoneLow === 0) return `${at(axis.zoneHigh)} ${axis.unit} まで`;
+  return `${at(axis.zoneLow)}〜${at(axis.zoneHigh)} ${axis.unit}`;
 }
 
 function Row({ axis, note, incomplete }: { axis: RadarAxis; note: string | null; incomplete: boolean }) {
@@ -86,7 +105,7 @@ function Row({ axis, note, incomplete }: { axis: RadarAxis; note: string | null;
         {number(axis.actual)} {axis.unit}
         {incomplete && <span className="text-ink-muted">*</span>}
       </td>
-      <td className="py-1.5 text-right text-ink-muted">{axis.reference === null ? "-" : `${number(axis.reference)} ${axis.unit}`}</td>
+      <td className="py-1.5 text-right text-ink-muted">{targetText(axis)}</td>
       <td className="py-1.5 text-right">
         {axis.percent === null ? "-" : `${axis.percent}%`}
         {note && <span className="block text-xs text-ink-muted">{note}</span>}
