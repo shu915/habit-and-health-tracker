@@ -1,4 +1,5 @@
 import { judgement, mealRadar, type RadarAxis, type RadarKey, type RadarMeal } from "@/lib/meal-radar";
+import type { CalorieViewPoint } from "@/lib/trend-views";
 import { median } from "@/lib/trend";
 
 // レポートの「食事と栄養」に渡す、栄養素ごとの評価(DB を読まない純粋な関数)。数字の計算と判定は、コードでする(AI に足し算・判定をさせない)。
@@ -11,6 +12,25 @@ export type NutritionDay = {
   exerciseKcal: number;
   usable: boolean; // 過ぎた日で、データ不足でない
 };
+
+// 1 日の食事(栄養素の数字は、AI に渡す形の数値)と、その日のカロリーの点から、判定の入力にする
+export type NutritionMeals = readonly { kcal: number; たんぱく質g: number; 脂質g: number; 糖質g: number; 食物繊維g: number | null; 塩分g: number | null }[];
+
+export function nutritionDayOf(meals: NutritionMeals, point: CalorieViewPoint): NutritionDay {
+  return {
+    meals: meals.map((m) => ({
+      kcal: m.kcal,
+      proteinG: String(m.たんぱく質g),
+      fatG: String(m.脂質g),
+      netCarbG: String(m.糖質g),
+      fiberG: m.食物繊維g === null ? null : String(m.食物繊維g),
+      saltG: m.塩分g === null ? null : String(m.塩分g),
+    })),
+    baseKcal: point.target === null ? null : point.target - point.exerciseKcal,
+    exerciseKcal: point.exerciseKcal,
+    usable: !point.inProgress && !point.sparse,
+  };
+}
 
 const AXES: { key: Exclude<RadarKey, "kcal">; name: string; reading: string }[] = [
   { key: "protein", name: "たんぱく質", reading: "少ない日が課題(多い日は問題なし)" },

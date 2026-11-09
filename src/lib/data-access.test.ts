@@ -78,6 +78,7 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", { timeout: 15_000 }, 
   let reportSourceModule: typeof import("@/lib/report-source");
   let reportGenerateModule: typeof import("@/lib/report-generate");
   let reportOptionsModule: typeof import("@/lib/report-options");
+  let monthThemesModule: typeof import("@/lib/month-themes");
   let positiveActionsModule: typeof import("@/app/(app)/days/[date]/positive/actions");
   let aiLimitModule: typeof import("@/lib/ai-limit");
   // 全期間の記録(期間の絞り込みが要らないテスト用)
@@ -109,6 +110,7 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", { timeout: 15_000 }, 
     positiveModule = await import("@/lib/positive-entries");
     recordKindsModule = await import("@/lib/record-kinds");
     reportsModule = await import("@/lib/reports");
+    monthThemesModule = await import("@/lib/month-themes");
     reportConsentModule = await import("@/lib/report-consent");
     reportSourceModule = await import("@/lib/report-source");
     reportGenerateModule = await import("@/lib/report-generate");
@@ -2858,6 +2860,147 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", { timeout: 15_000 }, 
       expect((await daysModule.getDay(DATE))?.reflection).toBe("Aの文章");
       currentUser.id = USER_B;
       expect((await daysModule.getDay(DATE))?.reflection).toBe("Bの文章");
+    });
+  });
+  describe("月ごとの日記のテーマ(lib/month-themes.ts)", () => {
+    const themes = { worries: ["夜食をやめられない"], wins: ["筋トレの重さが増えた"], topics: [] as string[] };
+    const diary = (month: string) => ({ month, positives: [{ date: `${month}-05`, body: "ジムに行けた" }], reflections: [{ date: `${month}-06`, text: "また夜食を食べた" }] });
+    const okReply = JSON.stringify({ worries: ["夜食"], wins: ["筋トレ"], topics: [] });
+    // 同意の行(今の文面に同意した人)。テーマの保存は、同意の行がある間だけ入る
+    const consentNow = async (userId = USER_A) => {
+      const { AI_CONSENT_VERSION } = await import("@/lib/report-consent-text");
+      await dbModule.db.insert(schema.aiConsents).values({ userId, version: AI_CONSENT_VERSION });
+    };
+
+    it("保存して、読み戻せる。同じ月は上書きする。月は 1 日で入る", async () => {
+      await consentNow();
+      expect(await monthThemesModule.saveMonthThemes(USER_A, "2026-09", themes, 1)).toBe(true);
+      await monthThemesModule.saveMonthThemes(USER_A, "2026-09", { worries: [], wins: ["散歩"], topics: [] }, 1);
+      currentUser.id = USER_A;
+      const loaded = await monthThemesModule.loadMonthThemes(["2026-09", "2026-10"]);
+      expect([...loaded.keys()]).toEqual(["2026-09"]); // 保存していない月は入らない
+      expect(loaded.get("2026-09")).toEqual({ worries: [], wins: ["散歩"], topics: [] });
+      const rows = await dbModule.db.select().from(schema.monthThemes);
+      expect(rows).toHaveLength(1);
+      expect(rows[0].monthStart).toBe("2026-09-01");
+    });
+
+    it("ほかのユーザーの分は、読めない", async () => {
+      await consentNow();
+      await monthThemesModule.saveMonthThemes(USER_A, "2026-09", themes, 1);
+      currentUser.id = USER_B;
+      expect((await monthThemesModule.loadMonthThemes(["2026-09"])).size).toBe(0);
+    });
+
+    it("未ログインなら /login へ送られる。月の形が違えば、DB に触れずに失敗する", async () => {
+      currentUser.id = "";
+      await expect(monthThemesModule.loadMonthThemes(["2026-09"])).rejects.toThrow("NEXT_REDIRECT:/login");
+      await expect(monthThemesModule.saveMonthThemes(USER_A, "2026-9", themes, 1)).rejects.toThrow("invalid month");
+      expect(await dbModule.db.select().from(schema.monthThemes)).toEqual([]);
+    });
+
+    it("月の 1 日でない日付は、DB の制約が断る", async () => {
+      await expect(dbModule.db.insert(schema.monthThemes).values({ userId: USER_A, monthStart: "2026-09-15", themes, consentVersion: 1 })).rejects.toThrow();
+    });
+
+    it("ユーザーを消すと、テーマも消える", async () => {
+      await consentNow();
+      await monthThemesModule.saveMonthThemes(USER_A, "2026-09", themes, 1);
+      const { eq } = await import("drizzle-orm");
+      await dbModule.db.delete(schema.user).where(eq(schema.user.id, USER_A));
+      expect(await dbModule.db.select().from(schema.monthThemes)).toEqual([]);
+    });
+
+    it("ensureMonthThemes: 保存済みの月と、日記の無い月は、AI を呼ばない。足りない月だけ作って保存する", async () => {
+      await consentNow();
+      await monthThemesModule.saveMonthThemes(USER_A, "2026-08", themes, 1);
+      const complete = vi.fn(async () => okReply);
+      const result = await monthThemesModule.ensureMonthThemes({
+        userId: USER_A,
+        diaries: [diary("2026-08"), diary("2026-09"), { month: "2026-10", positives: [], reflections: [] }],
+        existing: new Map([["2026-08", themes]]),
+        complete,
+      });
+      expect(complete).toHaveBeenCalledTimes(1); // 2026-09 だけ
+      expect(result.failed).toEqual([]);
+      expect(result.consented).toBe(true);
+      expect([...result.themes.keys()].sort()).toEqual(["2026-08", "2026-09"]);
+      const rows = await dbModule.db.select().from(schema.monthThemes);
+      expect(rows.map((r) => r.monthStart).sort()).toEqual(["2026-08-01", "2026-09-01"]); // 日記の無い月は、行も作らない
+    });
+
+    it("ensureMonthThemes: 同意していない人(行が無い・古い文面)には、AI を呼ばず、何も保存しない(日記を送らない)", async () => {
+      const complete = vi.fn(async () => okReply);
+      const none = await monthThemesModule.ensureMonthThemes({ userId: USER_A, diaries: [diary("2026-09")], existing: new Map(), complete });
+      expect(none).toMatchObject({ consented: false, failed: [] });
+      expect(none.themes.size).toBe(0);
+      await dbModule.db.insert(schema.aiConsents).values({ userId: USER_A, version: 0 }); // 古い文面への同意
+      const old = await monthThemesModule.ensureMonthThemes({ userId: USER_A, diaries: [diary("2026-09")], existing: new Map(), complete });
+      expect(old.consented).toBe(false);
+      expect(complete).not.toHaveBeenCalled();
+      expect(await dbModule.db.select().from(schema.monthThemes)).toEqual([]);
+    });
+
+    it("ensureMonthThemes: 同意は、そのユーザー自身の行で確かめる(ほかのユーザーの同意では、通らない)", async () => {
+      await consentNow(USER_B);
+      const complete = vi.fn(async () => okReply);
+      const result = await monthThemesModule.ensureMonthThemes({ userId: USER_A, diaries: [diary("2026-09")], existing: new Map(), complete });
+      expect(result.consented).toBe(false);
+      expect(complete).not.toHaveBeenCalled();
+    });
+
+    it("同意を撤回すると、導出したテーマも消える(ほかのユーザーの分は残る)", async () => {
+      await consentNow();
+      await consentNow(USER_B);
+      await monthThemesModule.saveMonthThemes(USER_A, "2026-09", themes, 1);
+      await monthThemesModule.saveMonthThemes(USER_B, "2026-09", themes, 1);
+      currentUser.id = USER_A;
+      await reportConsentModule.revokeAiConsent();
+      const rows = await dbModule.db.select().from(schema.monthThemes);
+      expect(rows.map((r) => r.userId)).toEqual([USER_B]);
+      expect((await dbModule.db.select().from(schema.aiConsents)).map((r) => r.userId)).toEqual([USER_B]);
+    });
+
+    it("同意の行が無い間は、保存しない(撤回のあとに、作っている途中のテーマが残らない)", async () => {
+      expect(await monthThemesModule.saveMonthThemes(USER_A, "2026-09", themes, 1)).toBe(false);
+      expect(await dbModule.db.select().from(schema.monthThemes)).toEqual([]);
+    });
+
+    it("ensureMonthThemes: 作っている途中で撤回されたら、残りの月は作らず、保存もしない", async () => {
+      await consentNow();
+      const { eq } = await import("drizzle-orm");
+      let calls = 0;
+      const complete = vi.fn(async () => {
+        calls += 1;
+        if (calls === 1) await dbModule.db.delete(schema.aiConsents).where(eq(schema.aiConsents.userId, USER_A)); // 1 か月目の AI が返る前に、撤回された
+        return okReply;
+      });
+      const result = await monthThemesModule.ensureMonthThemes({ userId: USER_A, diaries: [diary("2026-06"), diary("2026-07"), diary("2026-08"), diary("2026-09")], existing: new Map(), complete });
+      expect(result.consented).toBe(false);
+      expect(await dbModule.db.select().from(schema.monthThemes)).toEqual([]); // 撤回のあとに、1 行も残らない
+    });
+
+    it("saveMonthThemes は、渡された userId の行にだけ書く(ほかのユーザーが同意していても、その人の行は増えない)", async () => {
+      await consentNow();
+      await consentNow(USER_B);
+      await monthThemesModule.saveMonthThemes(USER_A, "2026-09", themes, 1);
+      const rows = await dbModule.db.select().from(schema.monthThemes);
+      expect(rows.map((r) => r.userId)).toEqual([USER_A]);
+    });
+
+    it("ensureMonthThemes: 失敗した月は飛ばして進める(保存しない)", async () => {
+      await consentNow();
+      const { OpenRouterError } = await import("@/lib/openrouter");
+      let calls = 0;
+      const complete = vi.fn(async () => {
+        calls += 1;
+        if (calls === 1) throw new OpenRouterError("network", "接続できない");
+        return okReply;
+      });
+      const result = await monthThemesModule.ensureMonthThemes({ userId: USER_A, diaries: [diary("2026-08"), diary("2026-09")], existing: new Map(), complete });
+      expect(result.failed).toHaveLength(1);
+      expect(result.themes.size).toBe(1);
+      expect(await dbModule.db.select().from(schema.monthThemes)).toHaveLength(1);
     });
   });
 });

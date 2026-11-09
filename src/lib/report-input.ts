@@ -3,7 +3,7 @@ import { BADGE_LABELS, BADGE_TIER_LABELS, type Badge } from "@/lib/report-badges
 import type { ReportPeriod } from "@/lib/report-period";
 import { shiftDate } from "@/lib/date";
 import { buildExerciseSummary } from "@/lib/report-exercise";
-import { buildNutritionSummary } from "@/lib/report-nutrition";
+import { buildNutritionSummary, nutritionDayOf } from "@/lib/report-nutrition";
 import { median, nightOffset } from "@/lib/trend";
 import type { TrendViews } from "@/lib/trend-views";
 
@@ -232,24 +232,7 @@ export function buildReportInput(args: {
       運動の回数: records.reduce((n, r) => n + r.運動.length, 0),
       運動した日数: records.filter((r) => r.運動.length > 0).length,
       // 栄養素ごとの評価(たんぱく質・脂質・糖質・食物繊維・塩分。日の詳細のレーダーと同じ判定。データがそろった日だけ)。食事と栄養の項目は、これを読んで、多すぎ・少なすぎを書く
-      栄養: buildNutritionSummary(
-        records.map((r) => {
-          const point = views.calories[dates.indexOf(r.日付)];
-          return {
-            meals: r.食事.map((m) => ({
-              kcal: m.kcal,
-              proteinG: String(m.たんぱく質g),
-              fatG: String(m.脂質g),
-              netCarbG: String(m.糖質g),
-              fiberG: m.食物繊維g === null ? null : String(m.食物繊維g),
-              saltG: m.塩分g === null ? null : String(m.塩分g),
-            })),
-            baseKcal: point.target === null ? null : point.target - point.exerciseKcal,
-            exerciseKcal: point.exerciseKcal,
-            usable: !point.inProgress && !point.sparse,
-          };
-        }),
-      ),
+      栄養: buildNutritionSummary(records.map((r) => nutritionDayOf(r.食事, views.calories[dates.indexOf(r.日付)]))),
       // 運動の要約(種類別・強さ別・週ごと・連続・消費・活動係数)。運動の項目は、これを読んで書く
       運動: buildExerciseSummary({
         dates,
