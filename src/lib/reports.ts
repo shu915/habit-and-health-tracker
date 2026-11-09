@@ -1,5 +1,5 @@
 import "server-only";
-import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, ne, notInArray, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { reports } from "@/db/schema";
@@ -8,7 +8,7 @@ import { isValidDateString } from "@/lib/date";
 import { startOfMealDay } from "@/lib/meal-day-sql";
 import { readStoredContent, type ReportContent } from "@/lib/report-content";
 import { BADGE_KEYS, BADGE_TIERS, type Badge } from "@/lib/report-badges";
-import { isLongTermReportKind, isOnDemandKind, isPerPeriodKind, isReportKind, ON_DEMAND_DAILY_LIMIT, ON_DEMAND_KINDS, type ReportKind } from "@/lib/report-period";
+import { isLongTermReportKind, isOnDemandKind, isPerPeriodKind, isReportKind, LONG_TERM_REPORT_KINDS, ON_DEMAND_DAILY_LIMIT, ON_DEMAND_KINDS, type ReportKind } from "@/lib/report-period";
 import type { TrendInputs } from "@/lib/trend-views";
 
 // レポートの保存と読み出し(docs/ai-feedback.md)。ログイン中のユーザーの分だけ(全部 user_id で絞る)。
@@ -20,6 +20,9 @@ export type ReportStatus = "creating" | "done" | "failed";
 
 // 作成中のまま、この分数たった行は、裏の処理が止まったとみなして、失敗にする(AI の呼び出しの最悪は、時間切れ 120 秒 × 2 回 = 約 4 分)
 export const STALE_AFTER_MINUTES = 6;
+// 長期(四半期・年次)は、月ごとのテーマ(最大 12 か月を、並行 3 で作る。1 回の時間切れが 60 秒なので、最大約 4 分)と、レポート本体(最大約 4 分)を、順に呼ぶので、最悪の所要時間は約 8 分。
+// 6 分で止まったとみなすと、まだ裏で動いている行を失敗にしてしまう(作り直されて、AI の費用が二重になる)。そのため、長期は 12 分(2026-11-09 のレビュー)
+export const STALE_AFTER_MINUTES_LONG_TERM = 12;
 export const STALE_MESSAGE = "作成が途中で止まりました。もう一度作ってください。";
 
 const badgeSchema = z.object({ key: z.enum(BADGE_KEYS), tier: z.enum(BADGE_TIERS), passed: z.number(), judged: z.number(), unit: z.enum(["day", "week"]) });
@@ -58,7 +61,16 @@ async function failStale(executor: Pick<Tx, "update">, userId: string): Promise<
   await executor
     .update(reports)
     .set({ status: "failed", errorMessage: STALE_MESSAGE })
-    .where(and(eq(reports.userId, userId), eq(reports.status, "creating"), sql`${reports.createdAt} < now() - make_interval(mins => ${STALE_AFTER_MINUTES})`));
+    .where(
+      and(
+        eq(reports.userId, userId),
+        eq(reports.status, "creating"),
+        or(
+          and(notInArray(reports.kind, [...LONG_TERM_REPORT_KINDS]), sql`${reports.createdAt} < now() - make_interval(mins => ${STALE_AFTER_MINUTES})`),
+          and(inArray(reports.kind, [...LONG_TERM_REPORT_KINDS]), sql`${reports.createdAt} < now() - make_interval(mins => ${STALE_AFTER_MINUTES_LONG_TERM})`),
+        ),
+      ),
+    );
 }
 
 // 今の食事の日(03:00 区切り。lib/meal-day-sql.ts)の始まり以降に作った、随時レポート(作成中・できた。失敗は数えない)の数

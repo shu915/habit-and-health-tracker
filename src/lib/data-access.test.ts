@@ -604,7 +604,7 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", { timeout: 15_000 }, 
       await started.runTasks();
       return started.result;
     };
-    const insertReport = async (userId: string, kind: "four-weeks" | "monthly", overrides: Partial<typeof schema.reports.$inferInsert> = {}) => {
+    const insertReport = async (userId: string, kind: "four-weeks" | "monthly" | "quarterly" | "yearly", overrides: Partial<typeof schema.reports.$inferInsert> = {}) => {
       const [row] = await dbModule.db
         .insert(schema.reports)
         .values({ userId, kind, periodStart: "2026-01-01", periodEnd: "2026-01-07", status: "done", content: JSON.parse(reportJson(["2026-01-01"])), badges: [], snapshot: {}, consentVersion: AI_CONSENT_VERSION, ...overrides })
@@ -755,6 +755,17 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", { timeout: 15_000 }, 
       expect((await reportsModule.getReport(freshId))?.status).toBe("creating"); // 新しい作成中は、そのまま
       ai.complete.mockResolvedValue(reportJson(dates));
       expect(await create("four-weeks")).toMatchObject({ ok: true }); // 止まった行があっても、作れる
+    });
+
+    it("止まったとみなす時間は、随時・月次は 6 分、長期(四半期・年次)は 12 分(長期は、最悪の所要時間が約 8 分なので、まだ動いている行を失敗にしない)", async () => {
+      currentUser.id = USER_A;
+      const minutesAgo = (n: number) => new Date(Date.now() - n * 60 * 1000);
+      const monthly7 = await insertReport(USER_A, "monthly", { status: "creating", content: null, periodStart: "2026-01-01", periodEnd: "2026-01-31", createdAt: minutesAgo(7) });
+      const quarterly8 = await insertReport(USER_A, "quarterly", { status: "creating", content: null, periodStart: "2026-01-01", periodEnd: "2026-03-31", createdAt: minutesAgo(8) });
+      const yearly13 = await insertReport(USER_A, "yearly", { status: "creating", content: null, periodStart: "2025-01-01", periodEnd: "2025-12-31", createdAt: minutesAgo(13) });
+      expect((await reportsModule.getReport(monthly7))?.status).toBe("failed"); // 月次は 7 分で、止まったとみなす
+      expect((await reportsModule.getReport(quarterly8))?.status).toBe("creating"); // 長期は 8 分では、まだ動いているとみなす
+      expect((await reportsModule.getReport(yearly13))?.status).toBe("failed"); // 長期も 13 分で、止まったとみなす
     });
 
     it("AI の返事が形違い・想定外の例外でも、裏の処理は例外を外に出さず、失敗にして理由を残す(「作成中」のまま残さない)", async () => {
