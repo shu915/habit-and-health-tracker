@@ -28,6 +28,9 @@ const zenKaku = localFont({
 export const metadata: Metadata = {
   title: "Habit and Health Tracker",
   description: "食事・体重・睡眠・日記を記録して、集計とAIフィードバックを得る生活習慣管理アプリ",
+  // 検索エンジンに載せない(身内で使うアプリ。ページの中身は、ログインしないと見えないが、ログイン画面なども載せない)。
+  // ヘッダー(next.config.ts の X-Robots-Tag)と二重にしてある: ヘッダーは HTML 以外(画像・API)にも効き、これは HTML を保存して使い回されても残る
+  robots: { index: false, follow: false },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

@@ -11,6 +11,12 @@ const nextConfig: NextConfig = {
     // 入力の文字数と形を zod で絞っているので、本文が大きくても、検証で失敗するだけ。本番ビルドで、約 3.9MB は通り、約 4.5MB は弾かれることを確かめた
     serverActions: { bodySizeLimit: "4mb" },
   },
+  // 検索エンジンに載せない(全部のパス)。robots.txt で「来ないで」と断る(Disallow)方法は使わない:
+  // 断ると、ロボットがこのヘッダーを読めず、どこかにリンクが貼られた(公開リポジトリの README など)ときに、中身なしの URL だけが載ることがある。
+  // 来てもらって、ヘッダーで「載せないで」と伝えるほうが確実
+  async headers() {
+    return [{ source: "/:path*", headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] }];
+  },
   turbopack: {
     rules: {
       "*.css": {
