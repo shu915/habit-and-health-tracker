@@ -20,6 +20,13 @@ export async function getAiConsent(): Promise<AiConsent> {
   return { consented: isConsentCurrent(row?.version ?? null), version: row?.version ?? null, at: row?.consentedAt ?? null };
 }
 
+// 裏の処理用: そのユーザーが、今の文面に同意しているか(cookie が読めないので、userId を引数で受け取る。認証して確かめた値だけを渡す)。
+// 日記から作ったデータを AI に送る直前に、もう一度確かめるために使う(作成の途中で撤回されたとき、撤回のあとに送らない)
+export async function hasCurrentConsent(userId: string): Promise<boolean> {
+  const [row] = await db.select({ version: aiConsents.version }).from(aiConsents).where(eq(aiConsents.userId, userId)).limit(1);
+  return row !== undefined && isConsentCurrent(row.version);
+}
+
 export async function grantAiConsent(): Promise<void> {
   const userId = await getCurrentUserId();
   await db

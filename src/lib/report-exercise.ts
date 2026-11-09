@@ -41,7 +41,7 @@ export function buildExerciseSummary(args: {
   exercises: readonly ExerciseEntry[];
   weightByDate: ReadonlyMap<string, number>; // 朝の体重(分かる日だけ)
   activityLevel: string | null; // 期間の活動係数(日に固定した値のうち、いちばん多いもの)
-}): Record<string, unknown> {
+}) {
   const { dates, exercises, weightByDate, activityLevel } = args;
   const exerciseDates = new Set(exercises.map((e) => e.date));
   const hardDates = new Set(exercises.filter((e) => e.intensity === "hard").map((e) => e.date));
@@ -122,3 +122,5 @@ export function periodActivityLevel(rows: readonly { date: string; profileActivi
   }
   return best ?? profileLevel;
 }
+
+export type ExerciseSummary = ReturnType<typeof buildExerciseSummary>;

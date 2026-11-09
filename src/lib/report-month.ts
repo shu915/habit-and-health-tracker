@@ -1,5 +1,5 @@
-import { buildExerciseSummary } from "@/lib/report-exercise";
-import { buildNutritionSummary, nutritionDayOf } from "@/lib/report-nutrition";
+import { buildExerciseSummary, type ExerciseSummary } from "@/lib/report-exercise";
+import { buildNutritionSummary, nutritionDayOf, type NutritionSummary } from "@/lib/report-nutrition";
 import type { DayRecord } from "@/lib/report-input";
 import { hasEnoughDays } from "@/lib/sparse-day";
 import { median, sleepMedians, type SleepPoint, type TrendPoint } from "@/lib/trend";
@@ -22,10 +22,34 @@ export type MonthInput = {
   activityLevel: string | null; // その月の活動係数(日に固定した値のうち、いちばん多いもの)
 };
 
+type Measure = { 記録した日数: number; 最初の記録: { 日付: string; 値: number } | null; 最後の記録: { 日付: string; 値: number } | null; 変化: number | null; 中央値: number | null };
+
+// 1 か月のまとめ(長期レポートに渡す形。日本語のキーは、AI が読む名前)
+export type MonthSummary = {
+  月: string;
+  日数: number;
+  記録のある日数: number;
+  睡眠: { 記録した日数: number; 睡眠時間の中央値分: number | null; 就寝の中央値: string | null; 起床の中央値: string | null; 中間時刻の中央値: string | null };
+  体重: Measure;
+  体脂肪率: Measure;
+  食事: {
+    食事の記録がある日数: number;
+    "食事の記録がそろった日数(データ不足の日を除く)": number;
+    データ不足の日数: number;
+    摂取kcalの中央値: number | null;
+    差の中央値: number | null;
+    差の合計: number | null;
+    "24時以降に食べた日数": number;
+  };
+  栄養: NutritionSummary | null;
+  運動: ExerciseSummary;
+  日記: { 良かったことの件数: number; 良かったことを書いた日数: number; 今日の気づきを書いた日数: number; テーマ: { 悩み: string[]; 達成: string[]; 話題: string[] } | null };
+};
+
 const round = (value: number, digits: number) => Math.round(value * 10 ** digits) / 10 ** digits;
 
 // 朝の値(体重・体脂肪率)のまとめ: 最初と最後の記録、その変化、中央値
-function measure(points: readonly TrendPoint[], digits: number) {
+function measure(points: readonly TrendPoint[], digits: number): Measure {
   const recorded = points.flatMap((p) => (p.value === null ? [] : [{ 日付: p.date, 値: p.value }]));
   if (recorded.length === 0) return { 記録した日数: 0, 最初の記録: null, 最後の記録: null, 変化: null, 中央値: null };
   const first = recorded[0];
@@ -41,7 +65,7 @@ function measure(points: readonly TrendPoint[], digits: number) {
 
 const hourOf = (time: string) => Number(time.slice(0, 2));
 
-export function buildMonthSummary(input: MonthInput): Record<string, unknown> {
+export function buildMonthSummary(input: MonthInput): MonthSummary {
   const { month, dates, sleep, weight, bodyFat, calories, records, activityLevel } = input;
   // 日ごとの点は、dates と同じ長さ・同じ並び(型では守れないので、ここで確かめる。ずれると、別の日の値を読む)
   for (const points of [sleep, weight, bodyFat, calories]) {

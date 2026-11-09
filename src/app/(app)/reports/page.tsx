@@ -41,7 +41,7 @@ async function ReportsContent({ searchParams }: { searchParams: Promise<{ page?:
   await connection();
   const [consent, options, reports] = await Promise.all([getAiConsent(), getReportOptions(), listReports()]);
 
-  const onDemand = reports.filter((report) => report.kind !== "monthly");
+  const onDemand = reports.filter((report) => report.kind === "four-weeks");
   // 定期(月次)は、新しい月から 12 件ずつ。随時は、ページの外に、最新の 1 件だけ出す
   const periodic = pageOfReports(
     reports.filter((report) => report.kind === "monthly"),

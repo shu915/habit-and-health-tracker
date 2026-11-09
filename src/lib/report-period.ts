@@ -3,13 +3,21 @@ import { shiftDate } from "@/lib/date";
 // AI フィードバック(レポート)の期間と、作れる条件(docs/ai-feedback.md)。DB は読まない純粋な関数。
 // 種類: 随時(今すぐ。直近 4 週間 = 28 日)・定期(月次。過去の、どの暦の月でも、記録が十分にあれば選んで作れる。2026-11-05 に「先月だけ」から広げた)。直近 1 週間(7 日)は、2026-11-05 にやめた: 7 日では、分析材料の比較(各群 3 日以上など)が、ほぼ出ず、バッジも粗いため。4 週間は、その内容をすべて含む。期間は、今の食事の日(03:00 で切り替わる)の前日まで
 // (今日は書きかけで、食事が増えるので、含めない)。「今の食事の日」は呼び出し側が決めて渡す(lib/meal-time.ts の defaultMealDayAndTime)
-export const REPORT_KINDS = ["four-weeks", "monthly"] as const;
+export const REPORT_KINDS = ["four-weeks", "monthly", "quarterly", "yearly"] as const;
 export type ReportKind = (typeof REPORT_KINDS)[number];
 
 export const REPORT_KIND_LABELS: Record<ReportKind, string> = {
   "four-weeks": "直近 4 週間",
   monthly: "月次",
+  quarterly: "四半期",
+  yearly: "年",
 };
+
+// 長期レポート(四半期・年。lib/long-term-period.ts)。期間は暦に固定で、同じ期間は 1 回だけ(月次と同じ)。期間の決め方は、reportPeriod ではなく long-term-period.ts
+export const LONG_TERM_REPORT_KINDS: readonly ReportKind[] = ["quarterly", "yearly"];
+export const isLongTermReportKind = (kind: ReportKind): boolean => LONG_TERM_REPORT_KINDS.includes(kind);
+// 期間ごとに別のレポートになる種類(月次と長期。同じ期間は 1 回だけ。別の期間は、同時に作れる)
+export const isPerPeriodKind = (kind: ReportKind): boolean => kind === "monthly" || isLongTermReportKind(kind);
 
 export function isReportKind(value: unknown): value is ReportKind {
   return typeof value === "string" && (REPORT_KINDS as readonly string[]).includes(value);
@@ -46,6 +54,7 @@ export function monthPeriod(month: string): ReportPeriod {
 
 // 期間。monthly は、過去の月(month = "YYYY-MM")を必ず渡す(今の月・未来・形が違う値は、呼び出し側の誤りとして例外)
 export function reportPeriod(kind: ReportKind, currentMealDay: string, month?: string): ReportPeriod {
+  if (isLongTermReportKind(kind)) throw new Error(`long-term kind has no reportPeriod: ${kind}`); // 長期の期間は lib/long-term-period.ts
   if (kind === "monthly") {
     if (month === undefined || !isYearMonth(month) || !isPastMonth(month, currentMealDay)) throw new Error(`invalid month: ${String(month)}`);
     return monthPeriod(month);
