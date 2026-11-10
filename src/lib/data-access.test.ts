@@ -1900,9 +1900,9 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", { timeout: 15_000 }, 
       const { eq } = await import("drizzle-orm");
       return (await dbModule.db.select().from(schema.aiRequests).where(eq(schema.aiRequests.userId, userId))).length;
     };
-    it("上限は 1 日 10 回(悪用を防ぐための保険)", async () => {
-      expect(aiLimitModule.AI_LIMITS.perDay).toBe(10);
-      expect(aiLimitModule.AI_LIMIT_MESSAGE).toContain("10 回まで");
+    it("上限は 1 日 20 回(悪用を防ぐための保険)", async () => {
+      expect(aiLimitModule.AI_LIMITS.perDay).toBe(20);
+      expect(aiLimitModule.AI_LIMIT_MESSAGE).toContain("20 回まで");
       expect(aiLimitModule.AI_LIMIT_MESSAGE).toContain("明日の 3:00 以降");
     });
 
