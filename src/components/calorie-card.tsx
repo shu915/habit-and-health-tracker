@@ -10,7 +10,7 @@ export function CalorieCard({ points, syncId, highlightDates }: { points: Calori
   const kcal = (value: number) => `${value.toLocaleString("ja-JP")} kcal`;
 
   return (
-    <div className="flex flex-col gap-2.5 rounded-lg bg-surface-raised p-4 sm:p-5">
+    <div className="flex flex-col gap-2.5 rounded-lg bg-surface-raised p-4 sm:p-5 print:gap-1.5 print:p-3 print:break-inside-avoid">
       <div>
         <h3 className="text-[15px] font-bold">摂取カロリー</h3>
         {recorded > 0 ? (
@@ -51,8 +51,8 @@ export function CalorieCard({ points, syncId, highlightDates }: { points: Calori
             </span>
           </p>
           <CalorieChart points={points} syncId={syncId} highlightDates={highlightDates} />
-          <p className="text-xs text-ink-muted">棒は食事の合計、破線は目標となるカロリー(目標カロリー + その日の運動)です。食事の記録が無い日は棒を出しません。薄い棒は、まだ増える今日の分と、データが不足している日です。</p>
-          <details className="text-xs">
+          <p className="text-xs text-ink-muted print:hidden">棒は食事の合計、破線は目標となるカロリー(目標カロリー + その日の運動)です。食事の記録が無い日は棒を出しません。薄い棒は、まだ増える今日の分と、データが不足している日です。</p>
+          <details className="text-xs print:hidden">
             <summary className="cursor-pointer text-ink-muted">表で見る</summary>
             <div className="mt-2 max-h-60 overflow-auto">
               <table className="w-full text-left tabular-nums">

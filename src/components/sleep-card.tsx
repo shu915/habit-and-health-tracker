@@ -8,7 +8,7 @@ export function SleepCard({ points, syncId, highlightDates }: { points: SleepPoi
   const medians = sleepMedians(points);
 
   return (
-    <div className="flex flex-col gap-2.5 rounded-lg bg-surface-raised p-4 sm:p-5">
+    <div className="flex flex-col gap-2.5 rounded-lg bg-surface-raised p-4 sm:p-5 print:break-inside-avoid">
       <div>
         <h3 className="text-[15px] font-bold">睡眠</h3>
         {recorded > 0 ? (
@@ -45,7 +45,7 @@ export function SleepCard({ points, syncId, highlightDates }: { points: SleepPoi
             </span>
           </p>
           <SleepChart points={points} syncId={syncId} highlightDates={highlightDates} />
-          <p className="text-xs text-ink-muted">帯は就寝(上)から起床(下)まで、細い線は中間時刻です。</p>
+          <p className="text-xs text-ink-muted">帯は就寝(下)から起床(上)まで、細い線は中間時刻です。</p>
           <details className="text-xs">
             <summary className="cursor-pointer text-ink-muted">表で見る</summary>
             <div className="mt-2 max-h-60 overflow-auto">

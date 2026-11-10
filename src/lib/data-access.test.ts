@@ -1022,7 +1022,10 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", { timeout: 15_000 }, 
       const report = await reportsModule.getReport(started.result.ok ? started.result.id : -1);
       expect(report).toMatchObject({ kind: "quarterly", status: "done", periodStart: `${quarter.months[0]}-01` });
       expect(report?.periodEnd.slice(0, 7)).toBe(quarter.months[2]);
-      expect(report?.badges).toEqual([]); // 長期には、まだバッジを付けない
+      // 長期にも、短い期間と同じバッジが付く。ここでは、記録が 3 か月中 2 か月なので、継続は、記録のある日の割合(約 66%)でブロンズ
+      const record = report?.badges.find((badge) => badge.key === "record");
+      const [first, second, third] = quarter.months.map((month) => daysOfMonth(month).length);
+      expect(record).toEqual({ key: "record", tier: "bronze", passed: first + second, judged: first + second + third, unit: "day" });
 
       // 日記のある月(2 か月)の、テーマを保存した
       const rows = await dbModule.db.select().from(schema.monthThemes);

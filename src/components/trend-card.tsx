@@ -9,7 +9,7 @@ export function TrendCard({ title, unit, digits, points, syncId, highlightDates 
   const recorded = points.filter((p) => p.value !== null).length;
 
   return (
-    <div className="flex flex-col gap-2.5 rounded-lg bg-surface-raised p-4 sm:p-5">
+    <div className="flex flex-col gap-2.5 rounded-lg bg-surface-raised p-4 sm:p-5 print:break-inside-avoid">
       <div>
         <h3 className="text-[15px] font-bold">{title}</h3>
         {latest ? (

@@ -22,6 +22,20 @@ const point = (date: string, intake: number | null, burnKcal: number | null, inP
 // 差: -500(少ない)、+300(多い)、今日(途中)は +100
 const points: CalorieChartPoint[] = [point("2026-11-07", null, 2200), point("2026-11-08", 1700, 2200), point("2026-11-09", 2500, 2200), point("2026-11-10", 2300, 2200, true)];
 
+describe("印刷(PDF)用の縮小(月次の食事と栄養を 1 ページに収める)", () => {
+  it("表の形の代替と、図の読み方の文は、印刷では隠す(画面には出る)。グラフの高さは、変えない", () => {
+    const { container } = render(<CalorieBalanceCard points={Array.from({ length: 7 }, (_, i) => point(`2026-11-0${i + 1}`, 1700, 2200))} syncId="t" />);
+    // グラフの高さは、印刷でも変えない(CSS だけで枠を縮めると、グラフが描き直されず、元の高さのまま枠からはみ出して、下のカードに食い込んだ)
+    expect(screen.getByRole("img").className).not.toContain("print:h");
+    expect((screen.getByRole("img") as HTMLElement).style.height).toBe("220px");
+    expect(container.querySelector("details")?.className).toContain("print:hidden");
+    expect(screen.getByText(/消費より少なく食べた日が下/).className).toContain("print:hidden");
+    // 体重計を信じる旨の説明(誤解を防ぐ注意書き)は、印刷でも残す
+    expect(screen.getByText(/脂肪 1kg = 約 7,200 kcal で換算した目安です/).className).not.toContain("print:hidden");
+    expect(container.firstElementChild?.className).toContain("print:p-3"); // 印刷では、カードの余白を詰める
+  });
+});
+
 describe("CalorieBalanceChart", () => {
   it("読み上げ用に、差を出せた日数と中央値(過ぎた日だけ)、多く食べた日数を文で持つ", () => {
     render(<CalorieBalanceChart points={points} />);
@@ -82,7 +96,7 @@ describe("CalorieBalanceCard", () => {
     const week = Array.from({ length: 7 }, (_, i) => point(`2026-11-0${i + 1}`, 1480, 2200)); // 毎日 -720 → 合計 -5,040 kcal = -0.7kg
     render(<CalorieBalanceCard points={week} syncId="t" />);
     expect(screen.getByText(/体重に換算して約 -0\.7kg/)).toBeTruthy();
-    expect(screen.getByText(/計算どおりには動きません/)).toBeTruthy(); // 換算を出すときは、体重計を信じるよう添える
+    expect(screen.getByText(/脂肪 1kg = 約 7,200 kcal で換算した目安です/)).toBeTruthy(); // 換算を出すときは、根拠と、体重計を信じる旨を、1 つの文にまとめて添える
     expect(screen.getByText("迷ったら、体重計の値を信じてください。")).toBeTruthy();
   });
 

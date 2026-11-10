@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 72" width="64" height="72" role="img" aria-labelledby="t">
+  <title id="t">カロリー ブロンズ</title>
+  <polygon points="22,40 31,46 25,70 21,65 15,68" fill="#8f5a33"/>
+  <polygon points="42,40 33,46 39,70 43,65 49,68" fill="#8f5a33"/>
+  <polygon points="32.00,3.00 36.39,5.93 41.57,4.90 44.50,9.29 49.68,10.32 50.71,15.50 55.10,18.43 54.07,23.61 57.00,28.00 54.07,32.39 55.10,37.57 50.71,40.50 49.68,45.68 44.50,46.71 41.57,51.10 36.39,50.07 32.00,53.00 27.61,50.07 22.43,51.10 19.50,46.71 14.32,45.68 13.29,40.50 8.90,37.57 9.93,32.39 7.00,28.00 9.93,23.61 8.90,18.43 13.29,15.50 14.32,10.32 19.50,9.29 22.43,4.90 27.61,5.93" fill="#b5794a" stroke="#b5794a" stroke-width="1.5" stroke-linejoin="round"/>
+  <circle cx="32" cy="28" r="18" fill="#f3e2d2"/>
+  <circle cx="32" cy="28" r="15.5" fill="none" stroke="#b5794a" stroke-width="0.8" stroke-dasharray="1.6 1.6"/>
+  <g transform="translate(32 28) scale(0.594) translate(-32 -28)">
+    <path d="M17 27 H47 A15 15 0 0 1 17 27 Z M27 42 H37 M30 13 L44 23 M34 11 L46 21" fill="#6b3f1d" stroke="#6b3f1d" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

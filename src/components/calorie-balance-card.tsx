@@ -15,7 +15,7 @@ export function CalorieBalanceCard({ points, syncId, highlightDates }: { points:
   const kgText = (kg: number) => (Math.abs(kg) < 0.05 ? "ほぼ 0kg" : `${kg > 0 ? "+" : "-"}${Math.abs(kg).toFixed(1)}kg`);
 
   return (
-    <div className="flex flex-col gap-2.5 rounded-lg bg-surface-raised p-4 sm:p-5">
+    <div className="flex flex-col gap-2.5 rounded-lg bg-surface-raised p-4 sm:p-5 print:gap-1.5 print:p-3 print:break-inside-avoid">
       <div>
         <h3 className="text-[15px] font-bold">摂取 − 消費の目安</h3>
         {withDiff.length > 0 ? (
@@ -38,12 +38,12 @@ export function CalorieBalanceCard({ points, syncId, highlightDates }: { points:
                 </p>
                 {summary.excluded > 0 && (
                   <p className="text-xs text-ink-muted">
-                    {summary.excluded} 日は、データが不足している({SPARSE_CONDITION})ため、合計・中央値・体重の換算から除いています(薄い棒。記録のもれかもしれません)。
+                    {summary.excluded} 日は、データが不足している({SPARSE_CONDITION})ため、除いています(薄い棒)。
                   </p>
                 )}
-                <p className="text-xs text-ink-muted">差を計算できた日だけの合計です(食事の記録が無い日と、データが不足している日は入りません)。脂肪 1kg = 約 7,200 kcal で換算した目安で、実際の体重は水分などでも動きます。</p>
+                {/* 換算の根拠と、「体重計を信じる」注意を、1 つにまとめた(以前は 3 つの段落で、同じことを重ねていた) */}
                 <p className="text-xs text-ink-muted">
-                  実際の体重は、この計算どおりには動きません。食事の推定(約 1 割)と消費の式(1 割ほど)のずれが積み重なり、水分・塩分・体質・停滞期でも動くためです。<strong className="font-medium text-ink">迷ったら、体重計の値を信じてください。</strong>この差は、体重の動きを読むための目安です。
+                  脂肪 1kg = 約 7,200 kcal で換算した目安です。実際の体重は、水分や体質でも動くので、<strong className="font-medium text-ink">迷ったら、体重計の値を信じてください。</strong>
                 </p>
               </>
             )}
@@ -66,8 +66,8 @@ export function CalorieBalanceCard({ points, syncId, highlightDates }: { points:
             </span>
           </p>
           <CalorieBalanceChart points={points} syncId={syncId} highlightDates={highlightDates} />
-          <p className="text-xs text-ink-muted">消費より少なく食べた日が下(青)、多く食べた日が上(オレンジ)で、推定どうしの差なので目安です。薄い棒は、まだ増える今日の分と、データが不足している日です(データ不足の日は、合計・中央値・体重の換算から除きます。もれた記録を、減量と誤解しないため)。</p>
-          <details className="text-xs">
+          <p className="text-xs text-ink-muted print:hidden">消費より少なく食べた日が下(青)、多く食べた日が上(オレンジ)で、推定どうしの差なので目安です。薄い棒は、まだ増える今日の分と、データが不足している日です(データ不足の日は、合計・中央値・体重の換算から除きます。もれた記録を、減量と誤解しないため)。</p>
+          <details className="text-xs print:hidden">
             <summary className="cursor-pointer text-ink-muted">表で見る</summary>
             <div className="mt-2 max-h-60 overflow-auto">
               <table className="w-full text-left tabular-nums">

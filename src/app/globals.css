@@ -43,7 +43,8 @@
   --viz-over: #d9731a;
 }
 
-@media (prefers-color-scheme: dark) {
+/* ダークモードは、画面だけ(印刷は、下の @media print で、白い紙に黒い字にする) */
+@media screen and (prefers-color-scheme: dark) {
   :root {
     --surface: #181715;
     --surface-raised: #22201d;
@@ -158,4 +159,29 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
+}
+
+/* 印刷(PDF で保存)用。画面とは別に決める(docs/screens.md)。
+   - 色は、ダークモードの人が印刷しても、明るい色(白い紙に黒い字)になる(上のダークモードは screen だけ)
+   - 背景色(バッジ、グラフの色)は、そのまま印刷する(print-color-adjust)。ブラウザの既定では、背景は印刷されない
+   - 白いカードは、白い紙の上では見えなくなるので、細い枠を付ける
+   - 用紙は A4。ヘッダー・戻るボタンなどは、各部品の print:hidden で隠し、カードの途中で切れないのは print:break-inside-avoid */
+@page {
+  size: A4;
+  margin: 14mm;
+}
+
+@media print {
+  :root {
+    --surface: #ffffff;
+  }
+
+  body {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .bg-surface-raised {
+    border: 1px solid var(--line);
+  }
 }

@@ -11,7 +11,7 @@ const recordedWeeks = (points: readonly WeekPoint[]) => points.filter((p) => p.m
 
 function Card({ title, headline, children }: { title: string; headline: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className="flex flex-col gap-2.5 rounded-lg bg-surface-raised p-4 sm:p-5">
+    <div className="flex flex-col gap-2.5 rounded-lg bg-surface-raised p-4 sm:p-5 print:break-inside-avoid">
       <div>
         <h3 className="text-[15px] font-bold">{title}</h3>
         {headline}
