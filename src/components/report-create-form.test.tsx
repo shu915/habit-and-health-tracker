@@ -258,5 +258,8 @@ describe("ReportCreateForm", () => {
     expect(region("年次レポート").getByText(/作れる期間が、まだありません/)).toBeTruthy();
     expect(region("四半期レポート").queryByRole("button", { name: "作る" })).toBeNull();
     expect(region("年次レポート").queryByRole("button", { name: "作る" })).toBeNull();
+    // 次の解禁日の案内は、1 回だけ(以前は、同じ文が 2 回並んだ)
+    expect(region("四半期レポート").getAllByText(/から作れます\(あと/)).toHaveLength(1);
+    expect(region("年次レポート").getAllByText(/から作れます\(あと 53 日\)/)).toHaveLength(1);
   });
 });

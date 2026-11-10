@@ -188,7 +188,7 @@ function LongTermRow({ label, selectName, kind, options, value, onChange, canSub
       {options.choices.length === 0 || selected === undefined ? (
         <>
           <p className="text-[15px] font-semibold">{label}</p>
-          <p className="text-xs text-ink-muted">作れる期間が、まだありません。{nextText}。</p>
+          <p className="text-xs text-ink-muted">作れる期間が、まだありません。</p>
         </>
       ) : (
         <div className="flex flex-wrap items-center justify-between gap-3">
