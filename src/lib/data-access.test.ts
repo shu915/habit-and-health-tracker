@@ -1892,6 +1892,128 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", { timeout: 15_000 }, 
     });
   });
 
+  describe("ログインのメールの、メールアドレス単位の回数制限(lib/login-rate-limit.ts)", () => {
+    const load = () => import("./login-rate-limit");
+    beforeEach(async () => {
+      await dbModule.db.delete(schema.loginLinkRequests);
+    });
+    const rows = () => dbModule.db.select().from(schema.loginLinkRequests);
+    const agoMinutes = async (emailHash: string, minutes: number, count = 1) => {
+      const { sql } = await import("drizzle-orm");
+      await dbModule.db.insert(schema.loginLinkRequests).values(Array.from({ length: count }, () => ({ emailHash, createdAt: sql`now() - make_interval(mins => ${minutes})` })));
+    };
+
+    it("10 分に 3 回まで。4 回目は断る", async () => {
+      const { consumeLoginLinkRequest } = await load();
+      const results = [];
+      for (let i = 0; i < 5; i++) results.push((await consumeLoginLinkRequest("friend@example.com")).ok);
+      expect(results).toEqual([true, true, true, false, false]);
+    });
+
+    it("断った要求は記録しない(断られ続けても、解除が延びない)", async () => {
+      const { consumeLoginLinkRequest } = await load();
+      for (let i = 0; i < 6; i++) await consumeLoginLinkRequest("friend@example.com");
+      expect(await rows()).toHaveLength(3);
+    });
+
+    it("大文字小文字と前後の空白は、同じアドレスとして数える。別のアドレスは、別々に数える", async () => {
+      const { consumeLoginLinkRequest } = await load();
+      await consumeLoginLinkRequest("Friend@Example.com");
+      await consumeLoginLinkRequest(" friend@example.com ");
+      await consumeLoginLinkRequest("FRIEND@EXAMPLE.COM");
+      expect((await consumeLoginLinkRequest("friend@example.com")).ok).toBe(false);
+      expect((await consumeLoginLinkRequest("other@example.com")).ok).toBe(true); // 別のアドレスは、影響されない
+    });
+
+    it("アドレスそのものは DB に残さない(ハッシュだけ)", async () => {
+      const { consumeLoginLinkRequest, emailKey } = await load();
+      await consumeLoginLinkRequest("stranger@example.com");
+      const [row] = await rows();
+      expect(row.emailHash).toBe(emailKey("stranger@example.com"));
+      expect(row.emailHash).toMatch(/^[0-9a-f]{64}$/);
+      expect(JSON.stringify(await rows())).not.toContain("stranger");
+    });
+
+    it("同時に来ても、上限を超えない(10 件を同時に送って、通るのは 3 件)", async () => {
+      const { consumeLoginLinkRequest } = await load();
+      const results = await Promise.all(Array.from({ length: 10 }, () => consumeLoginLinkRequest("friend@example.com")));
+      expect(results.filter((r) => r.ok)).toHaveLength(3);
+      expect(await rows()).toHaveLength(3);
+    });
+
+    it("10 分たてば、また送れる。1 日の上限(10 回)は、別に効く", async () => {
+      const { consumeLoginLinkRequest, emailKey } = await load();
+      const key = emailKey("friend@example.com");
+      await agoMinutes(key, 11, 3); // 11 分前に 3 回: 10 分の窓の外
+      expect((await consumeLoginLinkRequest("friend@example.com")).ok).toBe(true);
+
+      await dbModule.db.delete(schema.loginLinkRequests);
+      await agoMinutes(key, 120, 10); // 2 時間前に 10 回: 窓の外だが、1 日の上限に届いている
+      expect((await consumeLoginLinkRequest("friend@example.com")).ok).toBe(false);
+      await dbModule.db.delete(schema.loginLinkRequests);
+      await agoMinutes(key, 25 * 60, 10); // 25 時間前に 10 回: 1 日の外
+      expect((await consumeLoginLinkRequest("friend@example.com")).ok).toBe(true);
+    });
+
+    it("上限の値は、引数で変えられる(テストと、将来の調整のため)", async () => {
+      const { consumeLoginLinkRequest } = await load();
+      const limits = { perWindow: 1, windowMinutes: 10, perDay: 100 };
+      expect((await consumeLoginLinkRequest("a@example.com", limits)).ok).toBe(true);
+      expect((await consumeLoginLinkRequest("a@example.com", limits)).ok).toBe(false);
+    });
+
+    it("2 日より古い行は、足すときに消す(表が育たない)", async () => {
+      const { consumeLoginLinkRequest, emailKey } = await load();
+      await agoMinutes(emailKey("old@example.com"), 3 * 24 * 60, 5);
+      await consumeLoginLinkRequest("new@example.com");
+      expect(await rows()).toHaveLength(1);
+    });
+
+    it("許可リストの内でも外でも、同じように数える(4 回目で、どちらも断る。許可の有無が、応答で分からない)", async () => {
+      const { isLoginLinkRequestLimited } = await load();
+      const ask = (email: string) => isLoginLinkRequestLimited("/sign-in/magic-link", { email });
+      for (const email of ["friend@example.com", "stranger@elsewhere.example"]) {
+        expect([await ask(email), await ask(email), await ask(email), await ask(email)]).toEqual([false, false, false, true]);
+      }
+    });
+
+    it("長すぎるアドレス(320 文字超)は、数えず、断らない(本来の検証に任せ、長い文字列を DB の処理に回さない)", async () => {
+      const { isLoginLinkRequestLimited } = await load();
+      const long = `${"a".repeat(400)}@example.com`;
+      for (let i = 0; i < 5; i++) expect(await isLoginLinkRequestLimited("/sign-in/magic-link", { email: long })).toBe(false);
+      expect(await rows()).toHaveLength(0);
+    });
+
+    it("HTTP を通して(Better Auth のフック経由): 同じアドレスの 4 回目は 429 で、理由の符号がつく。許可リストの外のアドレスでも、同じ", async () => {
+      vi.stubEnv("BETTER_AUTH_SECRET", "test-secret-test-secret-test-secret-test");
+      vi.stubEnv("ALLOWED_EMAILS", "someone-else@example.com"); // 送るアドレスは許可の外: メールは送らず、after() も呼ばれない(数えるのは、許可の内外を問わない)
+      // Better Auth 自身の IP 単位の制限(rate_limit 表)は、前の実行の回数が残ると、この試験の依頼まで断ってしまう。毎回、空から始める
+      await dbModule.db.delete(schema.rateLimit);
+      try {
+        const { auth } = await import("./auth");
+        const post = (email: string) =>
+          auth.handler(new Request("http://localhost:3000/api/auth/sign-in/magic-link", { method: "POST", headers: { "content-type": "application/json", origin: "http://localhost:3000", "x-forwarded-for": "203.0.113.7" }, body: JSON.stringify({ email, callbackURL: "/" }) }));
+        const statuses: number[] = [];
+        for (let i = 0; i < 3; i++) statuses.push((await post("stranger@example.com")).status);
+        const fourth = await post("stranger@example.com");
+        statuses.push(fourth.status);
+        expect(statuses).toEqual([200, 200, 200, 429]);
+        expect(await fourth.json()).toMatchObject({ code: "LOGIN_LINK_RATE_LIMITED" });
+        expect((await post("another@example.com")).status).toBe(200); // 別のアドレスは、影響されない
+      } finally {
+        vi.unstubAllEnvs();
+        await dbModule.db.delete(schema.rateLimit);
+      }
+    });
+
+    it("ログインのメールの依頼以外の要求は、数えない。アドレスの形が違う要求は、本来の検証に任せる(数えず、断らない)", async () => {
+      const { isLoginLinkRequestLimited } = await load();
+      for (let i = 0; i < 5; i++) expect(await isLoginLinkRequestLimited("/sign-in/email", { email: "friend@example.com" })).toBe(false);
+      for (const body of [undefined, null, {}, { email: 123 }, { email: "   " }, "friend@example.com"]) expect(await isLoginLinkRequestLimited("/sign-in/magic-link", body)).toBe(false);
+      expect(await rows()).toHaveLength(0);
+    });
+  });
+
   describe("AI の呼び出しの回数制限(lib/ai-limit.ts。食事の推定。1 日 20 回、03:00 区切り)", () => {
     // n 件の記録を、今の食事の日の始まりから offset ずらした時刻に作る(DB の now() 基準。例: "-1 minute" は、前の食事の日の最後)
     const seed = async (userId: string, n: number, offset: string) => {
