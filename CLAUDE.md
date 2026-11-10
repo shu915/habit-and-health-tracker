@@ -16,7 +16,7 @@ Shu の生活習慣管理アプリ(友人にも使ってもらう)。食事・�
 - `user_id` は `getCurrentUserId()` に集約する。未ログインなら `/login` へ `redirect()`(例外を投げる)ので、`try/catch` で囲まない。Route Handler 用には 401 を返す版を別に作る
 - 守りは 3 段: `proxy.ts` → `(app)/layout.tsx` の `AuthGate` → **データを扱う関数が `getCurrentUserId()` を最初に呼ぶ(本当の認可はここ)**。レイアウトだけに頼らない。日付は関数の中でも検証する。実 DB のテストで守る
 - 新規登録は `ALLOWED_EMAILS` のホワイトリスト(空のとき、開発は全員許可・本番は誰も許可しない)。許可外でも応答は同じにする。外した人の `session` の行も消す
-- 開発中のメールは `lib/email.ts` がコンソールに出す。本番は Resend の予定だが未実装
+- メールは `lib/email.ts`。開発・テストはコンソールに出し、本番は Resend の REST API で送る(`RESEND_API_KEY`・`MAIL_FROM` が必須。無ければエラー)。本番では、宛先・本文(ログインリンク)をログに出さない。文面は `lib/login-email.ts`
 
 ## データの要点(詳細は `docs/data-rules.md`)
 - 値の範囲は `lib/*-limits.ts` に集約(`app` = zod の現実的な範囲、`db` = CHECK の広い範囲。**app は db の内側**)

@@ -7,7 +7,8 @@ import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { isEmailAllowed } from "@/lib/allowlist";
 import { devLanAddresses } from "@/lib/dev-lan";
-import { sendEmail } from "@/lib/email";
+import { describeEmailError, sendEmail } from "@/lib/email";
+import { loginEmail, MAGIC_LINK_EXPIRES_IN_SECONDS } from "@/lib/login-email";
 
 // 本番は BETTER_AUTH_URL の 1 つに固定する。開発は、リクエストのホストから決める(Mac の localhost と、スマホから開く LAN のアドレスの両方で、ログインできるように)。
 // 許可するのは、localhost と、このマシン自身の LAN のアドレスだけ(dev-lan.ts)。開発では BETTER_AUTH_URL は使わない
@@ -49,6 +50,8 @@ export const auth = betterAuth({
     magicLink({
       // トークンは DB にハッシュで保存する(DB が漏れても、有効期限内のリンクを作れない)
       storeToken: "hashed",
+      // 有効期限は、メールの本文に書く時間と同じ値(login-email.ts)
+      expiresIn: MAGIC_LINK_EXPIRES_IN_SECONDS,
       sendMagicLink: async ({ email, url }) => {
         // ホワイトリストの外には送らない。応答は送った場合と同じにして、登録の有無を教えない。
         // アドレスはログに出さない
@@ -59,9 +62,9 @@ export const auth = betterAuth({
         // 待たない: 送信の成否や遅延で、登録済みか未登録かが分からないようにする
         after(async () => {
           try {
-            await sendEmail({ to: email, subject: "ログインリンク", text: `ログイン: ${url}` });
+            await sendEmail({ to: email, ...loginEmail(url) });
           } catch (err) {
-            console.error("[email] failed to send magic link", err);
+            console.error("[email] failed to send magic link:", describeEmailError(err)); // err そのものは出さない(外から来るエラーに、キーなどが入りうるため)
           }
         });
       },
