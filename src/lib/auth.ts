@@ -8,9 +8,12 @@ import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { isEmailAllowed } from "@/lib/allowlist";
 import { devLanAddresses } from "@/lib/dev-lan";
+import { googleAuthOptions, googleCredentialsFromEnv, guardAccountEndpoints } from "@/lib/google-auth-options";
+import { linkedAccountEmail } from "@/lib/linked-account-email";
 import { describeEmailError, sendEmail } from "@/lib/email";
 import { loginEmail, MAGIC_LINK_EXPIRES_IN_SECONDS } from "@/lib/login-email";
 import { isLoginLinkRequestLimited } from "@/lib/login-rate-limit";
+import { sessionAllowlistHooks } from "@/lib/session-allowlist";
 
 // 本番は BETTER_AUTH_URL の 1 つに固定する。開発は、リクエストのホストから決める(Mac の localhost と、スマホから開く LAN のアドレスの両方で、ログインできるように)。
 // 許可するのは、localhost と、このマシン自身の LAN のアドレスだけ(dev-lan.ts)。開発では BETTER_AUTH_URL は使わない
@@ -24,9 +27,25 @@ if (!baseURL) throw new Error("BETTER_AUTH_URL is required in production");
 const secret = process.env.BETTER_AUTH_SECRET;
 if (!secret) throw new Error("BETTER_AUTH_SECRET is required (see .env.example)");
 
+// Google でのログインと、アカウントの連結の設定(方針は google-auth-options.ts)。GOOGLE_CLIENT_ID と GOOGLE_CLIENT_SECRET が両方そろっているときだけ、Google が使える
+const googleOptions = googleAuthOptions(googleCredentialsFromEnv({ GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET }), {
+  // 連結したら、本人のメール(アカウントのアドレス。連結した Google のアドレスではない)へ知らせる
+  // Google から戻る応答を、メールの送信で遅らせないよう、待たずに送る(マジックリンクと同じ)。失敗しても、連結は成功のまま
+  notifyLinked: async ({ to, provider }) => {
+    after(async () => {
+      try {
+        await sendEmail({ to, ...linkedAccountEmail(provider, new Date()) });
+      } catch (err) {
+        console.error("[email] failed to send the linked-account notice:", describeEmailError(err));
+      }
+    });
+  },
+});
+
 export const auth = betterAuth({
   baseURL,
   secret,
+  ...googleOptions,
   database: drizzleAdapter(db, { provider: "pg", schema }),
   // 回数の記録はメモリではなく DB に置く(サーバーレスではリクエストごとにプロセスが違い、メモリでは数えられない)。
   // 既定は本番だけ有効なので、開発でも効かせる。rateLimit テーブルが auth-schema.ts にある
@@ -38,9 +57,14 @@ export const auth = betterAuth({
       if (await isLoginLinkRequestLimited(ctx.path, ctx.body)) {
         throw APIError.from("TOO_MANY_REQUESTS", { message: "Too many requests. Please try again later.", code: "LOGIN_LINK_RATE_LIMITED" });
       }
+      // 連結まわりの守り(Google のトークンを返すエンドポイントを閉じる、連結は最近ログインした人だけ)
+      await guardAccountEndpoints(ctx);
     }),
   },
   databaseHooks: {
+    ...googleOptions.databaseHooks, // 連結が作られたあとの、本人への知らせ
+    // セッションを作るとき、許可リストの外の人には作らない(どの経路でも。許可リストから外した人が、連結済みの Google から入り直せないように)
+    session: sessionAllowlistHooks,
     user: {
       create: {
         // ホワイトリストの外のアドレスでは、どの経路でもユーザーを作らない(false で作成を中止する)

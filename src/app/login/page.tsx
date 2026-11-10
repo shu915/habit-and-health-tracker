@@ -3,9 +3,11 @@ import { redirect } from "next/navigation";
 import { AppMark } from "@/components/app-mark";
 import { LoginForm } from "@/components/login-form";
 import { getSession } from "@/lib/current-user";
+import { googleCredentialsFromEnv } from "@/lib/google-auth-options";
+import { googleSignInErrorMessage } from "@/lib/linked-accounts";
 
 // セッションはリクエスト時に読むので、Suspense の内側に置く(読み込み中の表示を先に出すため)
-export default function LoginPage() {
+export default function LoginPage({ searchParams }: PageProps<"/login">) {
   return (
     // ロゴ(マークを大きく、その下にアプリ名)を中央に置き、その下にログインの枠。アプリ名が主題なので、この画面だけアプリ名を h1 にする
     <main className="mx-auto flex w-full max-w-sm flex-1 flex-col items-center gap-6 px-4 pt-12 pb-12 sm:gap-8 sm:pt-24 sm:pb-16">
@@ -14,13 +16,16 @@ export default function LoginPage() {
         <h1 className="text-center text-[22px] leading-7 font-bold text-balance sm:text-[26px] sm:leading-8">Habit and Health Tracker</h1>
       </div>
       <Suspense fallback={<p className="text-ink-muted">読み込み中...</p>}>
-        <LoginContent />
+        <LoginContent searchParams={searchParams} />
       </Suspense>
     </main>
   );
 }
 
-async function LoginContent() {
+async function LoginContent({ searchParams }: Pick<PageProps<"/login">, "searchParams">) {
   if (await getSession()) redirect("/");
-  return <LoginForm />;
+  const { error } = await searchParams;
+  // Google は、環境変数がそろっているときだけ出す。連結していない Google で戻されたときは、その理由(Better Auth が ?error= で付ける)を伝える
+  const googleEnabled = googleCredentialsFromEnv({ GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET }) !== null;
+  return <LoginForm googleEnabled={googleEnabled} notice={googleSignInErrorMessage(typeof error === "string" ? error : undefined)} />;
 }

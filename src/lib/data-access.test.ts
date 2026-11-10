@@ -2006,6 +2006,21 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", { timeout: 15_000 }, 
       }
     });
 
+    it("auth.ts の配線: セッションを作るときの許可リスト確認が、本番の設定(auth.ts)に入っている(Google の方針のテストは、別の組み立てで動くので、この行を消しても気づけない)", async () => {
+      vi.stubEnv("BETTER_AUTH_SECRET", "test-secret-test-secret-test-secret-test");
+      try {
+        const { auth } = await import("./auth");
+        const { sessionAllowlistHooks } = await import("./session-allowlist");
+        expect(auth.options.databaseHooks?.session?.create?.before).toBe(sessionAllowlistHooks.create.before);
+        expect(auth.options.databaseHooks?.user?.create?.before).toBeTypeOf("function"); // ユーザーを作るときの確認も、残っている
+        expect(auth.options.account?.encryptOAuthTokens).toBe(true);
+        expect(auth.options.account?.accountLinking?.disableImplicitLinking).toBe(true);
+        expect(auth.options.session?.freshAge).toBe(300);
+      } finally {
+        vi.unstubAllEnvs();
+      }
+    });
+
     it("ログインのメールの依頼以外の要求は、数えない。アドレスの形が違う要求は、本来の検証に任せる(数えず、断らない)", async () => {
       const { isLoginLinkRequestLimited } = await load();
       for (let i = 0; i < 5; i++) expect(await isLoginLinkRequestLimited("/sign-in/email", { email: "friend@example.com" })).toBe(false);
