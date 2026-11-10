@@ -41,6 +41,7 @@ const report: StoredReport = {
   periodEnd: "2026-11-04",
   createdAt: new Date("2026-11-05T01:00:00Z"),
   badges: [
+    { key: "record", tier: "silver", passed: 6, judged: 7, unit: "day" },
     { key: "sleep", tier: "gold", passed: 7, judged: 7, unit: "day" },
     { key: "exercise", tier: "bronze", passed: 1, judged: 1, unit: "week" },
   ],
@@ -59,9 +60,19 @@ describe("ReportView", () => {
     expect(screen.getAllByText(/医療上の指示ではありません/).length).toBeGreaterThan(0); // 題名の下と、バッジの条件の 2 か所
     const badges = within(screen.getByRole("region", { name: "今期のバッジ" }));
     expect(badges.getByText("睡眠 ゴールド")).toBeTruthy();
+    // バッジの絵(飾り。名前は隣の文字)。種類と段階に合う SVG を指す
+    const pictures = within(screen.getByRole("region", { name: "今期のバッジ" })).getAllByRole("presentation") as HTMLImageElement[];
+    expect(pictures.some((img) => img.getAttribute("src")?.endsWith("/badges/sleep-gold.svg"))).toBe(true);
+    expect(pictures.some((img) => img.getAttribute("src")?.endsWith("/badges/record-silver.svg"))).toBe(true);
     expect(badges.getByText("運動 ブロンズ")).toBeTruthy();
-    expect(badges.getByText(/7 日のうち 7 日が範囲に収まりました/)).toBeTruthy();
-    expect(badges.getByText(/1 週のうち 1 週が範囲に収まりました/)).toBeTruthy();
+    // 文は、折り返しのために、文節ごとの塊に分けてある(見える文字は、つながった 1 文)
+    const regionText = screen.getByRole("region", { name: "今期のバッジ" }).textContent ?? "";
+    expect(regionText).toContain("7 日のうち 7 日が範囲に収まりました");
+    // 継続は、範囲ではなく、記録があった日の数(「記録がありました」)。先頭に出る
+    expect(badges.getByText("継続 シルバー")).toBeTruthy();
+    expect(regionText).toContain("7 日のうち 6 日に記録がありました");
+    expect(regionText.indexOf("継続 シルバー")).toBeLessThan(regionText.indexOf("睡眠 ゴールド"));
+    expect(regionText).toContain("1 週のうち 1 週が範囲に収まりました");
     expect(document.body.textContent).not.toMatch(/成績|点数|rating/);
   });
 
@@ -80,6 +91,26 @@ describe("ReportView", () => {
     expect(screen.getByText("平日のほうが少し多めでした。")).toBeTruthy();
     expect(screen.getByText("注目の日: 10/30、11/2")).toBeTruthy();
     expect(screen.queryByText("注目の日: ")).toBeNull(); // 日付が無い気づきには、出さない
+  });
+
+  it("印刷(PDF)では、グラフのある項目(睡眠・体・食事)と、運動(文章だけの項目の先頭)が、新しいページから始まる。そのほかの文章だけの項目は、続けて出る", () => {
+    const withText: ReportContent = {
+      ...content,
+      sections: [...content.sections, { key: "mind", headline: "気持ちは安定", findings: [] }, { key: "habit", headline: "記録は続いている", findings: [] }],
+    };
+    render(<ReportView report={{ ...report, content: withText }} />);
+    const startsPage = (name: string) => screen.getByRole("region", { name }).className.includes("print:break-before-page");
+    expect(startsPage("睡眠")).toBe(true);
+    expect(startsPage("食事と栄養")).toBe(true);
+    expect(startsPage("運動")).toBe(true);
+    expect(startsPage("気持ち・日記")).toBe(false);
+    expect(startsPage("記録の習慣")).toBe(false);
+  });
+
+  it("印刷(PDF)では、体重と体脂肪率のグラフを左右に並べる(紙の幅は、画面の横並びの幅に足りないため、印刷でも指定する)", () => {
+    render(<ReportView report={{ ...report, content: { ...content, sections: [{ key: "body", headline: "体重は横ばい", findings: [] }] } }} />);
+    const grid = screen.getByRole("region", { name: "体" }).querySelector("div.grid");
+    expect(grid?.className).toContain("print:grid-cols-2");
   });
 
   it("グラフは、保存した数字から描き直す(睡眠・カロリー・差のカードが出る)。運動の項目は、動いた日数を文で出す(日付の一覧は出さない)", () => {

@@ -16,7 +16,8 @@ import { deleteMeal, getMeal, saveMeal, updateMeal, type MealInput } from "@/lib
 // 食事の Server Action。どれも、最初に getCurrentUserId() で認証を確かめる(未ログインなら /login へ送られ、何も実行されない)。
 // 届く値は誰でも送れるので、unknown として受け、zod で検証する
 
-const estimateInputSchema = z.object({ text: z.string(), imageDataUrls: z.array(z.string()).optional() });
+// 写真は { dataUrl } の配列で受ける。文字列の配列だと、Next.js の受け取り側が「配列の中の文字数の合計」を 100 万字までに制限していて、写真を 2 枚以上送ると 500 になる(間にオブジェクトを挟むと数えられない。制限の所在: Next 同梱の react-server-dom-turbopack の decodeReply、既定 1e6。Next 16.4.2 で確認、2026-11-09。Next を上げたら、写真 2 枚の推定を、実機で一度試す)
+const estimateInputSchema = z.object({ text: z.string(), images: z.array(z.object({ dataUrl: z.string() })).optional() });
 
 // AI で推定する(何も保存しない)。順序: 認証 → 入力の検証 → 回数の制限 → AI。
 // 失敗(接続・AI のエラー・読めない返事)は、回数に数えない(数えた分を戻す)。「食べ物でない」の判定は、費用が出ているので数える
@@ -25,7 +26,7 @@ export async function estimateMealAction(raw: unknown): Promise<ParseResult> {
 
   const parsed = estimateInputSchema.safeParse(raw);
   if (!parsed.success) return { ok: false, message: "入力を確認してください。" };
-  const checked = checkEstimateInput(parsed.data);
+  const checked = checkEstimateInput({ text: parsed.data.text, imageDataUrls: parsed.data.images?.map((image) => image.dataUrl) });
   if (!checked.ok) return checked; // 不正な入力は、回数を数える前に弾く
 
   const limit = await consumeAiRequest();

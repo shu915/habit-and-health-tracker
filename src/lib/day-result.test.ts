@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { dayResult, isFinishedDay, type DayResultInput } from "./day-result";
 import type { EnergyOverview } from "./energy-overview";
+import { jst } from "@/test-utils/jst";
 
 const ready: EnergyOverview = {
   kind: "ready",
@@ -24,7 +25,7 @@ const base: DayResultInput = {
 };
 
 // 2026-11-03 の昼(ローカル時間)
-const at = (hours: number, day = 3) => new Date(2026, 10, day, hours, 0);
+const at = (hours: number, day = 3) => jst(2026, 11, day, hours);
 
 describe("isFinishedDay(結果を出す日)", () => {
   it("今日と未来は出さず、前の日からは出す", () => {

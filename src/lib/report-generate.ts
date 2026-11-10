@@ -3,7 +3,7 @@ import { getCurrentUserId } from "@/lib/current-user";
 import { shiftDate } from "@/lib/date";
 import { defaultMealDayAndTime } from "@/lib/meal-time";
 import { completeJson, OpenRouterError } from "@/lib/openrouter";
-import { calorieBadge, computeBadges, exerciseBadge, sleepBadge } from "@/lib/report-badges";
+import { calorieBadge, computeBadges, exerciseBadge, recordBadge, sleepBadge, type Badge } from "@/lib/report-badges";
 import { parseReportContent } from "@/lib/report-content";
 import { AI_CONSENT_VERSION } from "@/lib/report-consent-text";
 import { getAiConsent, grantAiConsent, hasCurrentConsent } from "@/lib/report-consent";
@@ -45,6 +45,22 @@ const FAILURE_MESSAGES = {
   consent: "同意が取り消されたため、作成を止めました。もう一度作るときは、同意のチェックを入れてください。",
 } as const;
 
+// 期間のバッジ(継続・睡眠・カロリー・運動)。短い期間(随時・月次)も、長期(四半期・年)も、同じ判定を、期間全体で行う。
+// raw.intake・raw.exercises は、期間の分(スナップショットと同じ)。recordedDates は、その日に何か 1 種類でも記録がある日
+function badgesOf(args: { dates: readonly string[]; views: ReturnType<typeof buildTrendViews>; raw: Awaited<ReturnType<typeof loadTrendRaw>>; recordedDates: Iterable<string>; periodDays: number }): Badge[] {
+  const { dates, views, raw, recordedDates, periodDays } = args;
+  const mealCounts = new Map(raw.intake.map((d) => [d.date, d.mealCount]));
+  return computeBadges({
+    record: recordBadge(dates, recordedDates, periodDays),
+    sleep: sleepBadge(views.sleep, raw.profile.targetSleepMidpoint, periodDays),
+    calorie: calorieBadge(
+      views.calories.map((p) => ({ date: p.date, intake: p.intake, target: p.target, mealCount: mealCounts.get(p.date) ?? 0, inProgress: p.inProgress })),
+      periodDays,
+    ),
+    exercise: exerciseBadge(dates, raw.exercises.map((e) => e.date), periodDays),
+  });
+}
+
 // options.month: 月次のときの、作る月("2026-10")。過去の月だけ(今の月・未来・形が違う値は、断る。画面の入力なので、例外にはしない)
 export async function createReport(kind: unknown, options: { consent: boolean; month?: string }, deps: { schedule: Schedule }): Promise<CreateReportResult> {
   const userId = await getCurrentUserId(); // 未ログインなら /login へ(例外)
@@ -75,15 +91,7 @@ export async function createReport(kind: unknown, options: { consent: boolean; m
   const raw = await loadTrendRaw({ from: shiftDate(period.start, -(MOVING_AVERAGE_DAYS - 1)), intakeFrom: period.start, to: period.end });
   const snapshot: TrendInputs = { ...raw, dates, finishedBefore: mealDay };
   const views = buildTrendViews(snapshot);
-  const mealCounts = new Map(raw.intake.map((d) => [d.date, d.mealCount]));
-  const badges = computeBadges({
-    sleep: sleepBadge(views.sleep, raw.profile.targetSleepMidpoint, period.days),
-    calorie: calorieBadge(
-      views.calories.map((p) => ({ date: p.date, intake: p.intake, target: p.target, mealCount: mealCounts.get(p.date) ?? 0, inProgress: p.inProgress })),
-      period.days,
-    ),
-    exercise: exerciseBadge(dates, raw.exercises.map((e) => e.date), period.days),
-  });
+  const badges = badgesOf({ dates, views, raw, recordedDates: kinds.keys(), periodDays: period.days });
 
   // 「作成中」の行を保存する(同時の連打・同じ種類の作成中・今日の随時・先月の作成済みは、ここで断る)
   const started = await startReport({ kind: reportKind, periodStart: period.start, periodEnd: period.end, badges, snapshot, consentVersion: AI_CONSENT_VERSION });
@@ -205,14 +213,15 @@ export async function createLongTermReport(kind: unknown, id: unknown, options: 
     return { ok: false, reason: "not-enough", message: `記録が十分にある月が足りません(${eligibility.usableMonths.length} / ${eligibility.requiredMonths} か月)。あと ${eligibility.missing} か月ぶんの記録が要ります。` };
   }
 
-  // 数字(スナップショットになる)。バッジは、長期レポートには、まだ付けない
+  // 数字(スナップショットになる)とバッジ(短い期間と同じ 4 種類。期間全体の割合で判定する)
   const dates: string[] = [];
   for (let date = period.start; date <= end; date = shiftDate(date, 1)) dates.push(date);
   const raw = await loadTrendRaw({ from: shiftDate(period.start, -(MOVING_AVERAGE_DAYS - 1)), intakeFrom: period.start, to: end });
   const snapshot: TrendInputs = { ...raw, dates, finishedBefore: mealDay };
   const views = buildTrendViews(snapshot);
+  const badges = badgesOf({ dates, views, raw, recordedDates: kinds.keys(), periodDays: dates.length });
 
-  const started = await startReport({ kind, periodStart: period.start, periodEnd: end, badges: [], snapshot, consentVersion: AI_CONSENT_VERSION });
+  const started = await startReport({ kind, periodStart: period.start, periodEnd: end, badges, snapshot, consentVersion: AI_CONSENT_VERSION });
   if (!started.ok) {
     if (started.reason === "in-progress") return { ok: false, reason: "in-progress", message: "このレポートは、いま作成中です。", existingId: started.id };
     if (started.reason === "exists") return { ok: false, reason: "exists", message: `この${LONG_TERM_LABELS[kind]}のレポートは、もう作ってあります。`, existingId: started.id };

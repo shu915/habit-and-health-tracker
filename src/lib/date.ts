@@ -1,3 +1,5 @@
+import { zonedParts } from "@/lib/time-zone";
+
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 // 受け付ける年の範囲。PostgreSQL の date は 0000 年を受け付けず、極端な年は入力ミスでしかないので絞る
@@ -13,20 +15,19 @@ export function isValidDateString(value: string): boolean {
   return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
 }
 
-// この端末(ローカル時間)の今日を "YYYY-MM-DD" で返す。new Date().toISOString() は UTC なので日本の朝に前日になる
+// 日本時間(lib/time-zone.ts)の今日を "YYYY-MM-DD" で返す。サーバーのタイムゾーンにも、端末のタイムゾーンにも左右されない
+// (new Date().toISOString() は UTC なので、日本の朝に前日になる)
 export function todayString(now: Date = new Date()): string {
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  return `${now.getFullYear()}-${month}-${day}`;
+  const { year, month, day } = zonedParts(now);
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
 // 記録できる日付か: 実在する日付で、未来すぎない(今日の翌日まで)。
-// サーバーは使う人のタイムゾーンを知らない(サーバーが UTC で、利用者が日本のとき、利用者の「今日」はサーバーの「明日」)ので、
-// 翌日までは許す。画面(ダッシュボードの日付欄)は、端末の今日までしか選べない
+// 時計は日本時間に固定したので、「翌日まで」は、タイムゾーンのずれのためではなく、夜中の記録や時計の少しのずれに余裕を持たせるためのもの。
+// 画面(ダッシュボードの日付欄)は、今日までしか選べない
 export function isRecordableDate(value: string, now: Date = new Date()): boolean {
   if (!isValidDateString(value)) return false;
-  const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-  return value <= todayString(tomorrow);
+  return value <= shiftDate(todayString(now), 1);
 }
 
 // "2026-10-30" の前日・翌日(days 日ずらした日付)を返す。カレンダー上の計算なので、タイムゾーンの影響を受けない(UTC で計算する)

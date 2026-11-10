@@ -148,6 +148,9 @@ describe("buildReportInput", () => {
     const input = buildReportInput({ period, dates, views, source, recordedDates: recorded, badges: [{ key: "sleep", tier: "gold", passed: 5, judged: 5, unit: "day" }] });
     expect(input.期間).toEqual({ 開始: "2026-10-29", 終了: "2026-11-04", 日数: 7 });
     expect(input.バッジ).toEqual([{ 項目: "睡眠", 段階: "ゴールド", 収まった数: 5, 判定した数: 5 }]);
+    // 継続は、範囲に収まった数ではなく、記録のあった日の数(AI が「範囲に収まった」と言い換えないよう、キー名を分ける)
+    const withRecord = buildReportInput({ period, dates, views, source, recordedDates: recorded, badges: [{ key: "record", tier: "silver", passed: 6, judged: 7, unit: "day" }] });
+    expect(withRecord.バッジ).toEqual([{ 項目: "継続", 段階: "シルバー", 記録のあった数: 6, 判定した数: 7 }]);
     expect(input.集計).toMatchObject({ 記録のある日数: 4, 食事の記録がある日数: 2, "食事の記録がそろった日数(データ不足の日を除く)": 2, 運動の回数: 1, 運動した日数: 1 });
     expect(input.記録のない日).toEqual(["2026-11-01", "2026-11-02", "2026-11-03"]);
     expect(JSON.parse(JSON.stringify(input))).toEqual(input);

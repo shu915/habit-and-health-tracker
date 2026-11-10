@@ -10,6 +10,7 @@ import { DAYS_PER_PAGE } from "@/lib/day-pages";
 import { insertDayIfMissing } from "@/lib/day-row";
 import { pickMeasure, pickWeight, type DayWeight } from "@/lib/day-weight";
 import { getProfile } from "@/lib/profiles";
+import { RECENT_COUNT, recentMedian, type RecentMeasure } from "@/lib/recent-measures";
 
 // 1 日の記録の読み書き。どの関数も、最初に getCurrentUserId() でログイン中のユーザーを確かめ、
 // 必ずその user_id で絞る(他のユーザーの記録が見えないことが最重要)。
@@ -120,6 +121,23 @@ async function latestMorningOnOrBefore(column: typeof days.morningWeightKg | typ
     .orderBy(desc(days.date))
     .limit(1);
   return row?.value == null ? null : { weight: row.value, date: row.date };
+}
+
+// 朝の体重・体脂肪率が入っている、いちばん新しい 5 日分の中央値(プロフィールの「直近の記録から入れる」ボタン用)。
+// 日付の上限は付けない(記録できるのは今日の翌日までで、サーバーと利用者のタイムゾーンのずれによる。その日の朝の値も、最新の記録として使ってよい)。本人の分だけを読む(最新から 5 件)
+export async function getRecentMorningMeasures(): Promise<{ weight: RecentMeasure | null; bodyFat: RecentMeasure | null }> {
+  const userId = await getCurrentUserId();
+  const latest = async (column: typeof days.morningWeightKg | typeof days.morningBodyFatPercent) => {
+    const rows = await db
+      .select({ value: column, date: days.date })
+      .from(days)
+      .where(and(eq(days.userId, userId), isNotNull(column)))
+      .orderBy(desc(days.date))
+      .limit(RECENT_COUNT);
+    return rows.flatMap((row) => (row.value === null ? [] : [{ date: row.date, value: row.value }]));
+  };
+  const [weightRows, bodyFatRows] = await Promise.all([latest(days.morningWeightKg), latest(days.morningBodyFatPercent)]);
+  return { weight: recentMedian(weightRows, 2), bodyFat: recentMedian(bodyFatRows, 1) };
 }
 
 // その日の計算に使う体重(決め方は day-weight.ts)

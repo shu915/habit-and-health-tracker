@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ExerciseFormState } from "@/app/(app)/days/[date]/exercises/actions";
 import { isBefore, isFirstChild, isLastChild } from "./dom-order";
 import { EMPTY_EXERCISE, ExerciseForm } from "./exercise-form";
+import { jst } from "@/test-utils/jst";
 
 afterEach(() => {
   cleanup();
@@ -144,10 +145,10 @@ describe("ExerciseForm", () => {
     const hours = () => screen.getByLabelText("開始時刻（時）") as HTMLInputElement;
     const minutes = () => screen.getByLabelText("開始時刻（分）") as HTMLInputElement;
     const sentStartTime = (action: ReturnType<typeof makeAction>) => action.mock.calls[0][1].get("startTime");
-    // 端末の今の時刻を固定する(Date だけ)。月は 0 始まりなので、5 月は 4
+    // 今の時刻を固定する(日本時間。Date だけ)。月は 0 始まりなので、5 月は 4
     const at = (...args: [number, number, number, number, number]) => {
       vi.useFakeTimers({ toFake: ["Date"] });
-      vi.setSystemTime(new Date(...args));
+      vi.setSystemTime(jst(args[0], args[1] + 1, args[2], args[3], args[4]));
     };
 
     it("時と分の2つの欄で入れる。任意で、初めは空。保存済みの時刻は2つの欄に出る", () => {

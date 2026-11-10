@@ -2,11 +2,13 @@ import { isSparseDay, SPARSE_MIN_MEALS } from "@/lib/sparse-day";
 import { nightOffset, type SleepPoint } from "@/lib/trend";
 
 // レポートのバッジ(docs/ai-feedback.md)。**生活習慣(睡眠・食事・運動)が整っているか**を、数字の範囲で測り、整っていれば贈る。
+// 「継続(record)」だけは、成果ではなく、記録を続けたこと(その日に何か 1 種類でも記録した日の割合)に贈る(2026-11-10、利用者の決定。出席のバッジ。記録を続ければ、誰でも取れる)。
 // 評価(成績・点数)はつけない。悪い結果は出さず、取れたバッジだけを返す。コードが条件で決める(AI の印象ではない)。DB は読まない。
 // 体重のバッジは作らない(体重を減らしたことには贈らない方針で、範囲にすると、範囲の外の人がずっと取れないため)。条件の数字は一般的な目安で、医療上の指示ではない
-export const BADGE_KEYS = ["sleep", "calorie", "exercise"] as const;
+// 並びは、画面の並び(継続が先頭。ほぼ全員が取れる土台のバッジ)
+export const BADGE_KEYS = ["record", "sleep", "calorie", "exercise"] as const;
 export type BadgeKey = (typeof BADGE_KEYS)[number];
-export const BADGE_LABELS: Record<BadgeKey, string> = { sleep: "睡眠", calorie: "カロリー", exercise: "運動" };
+export const BADGE_LABELS: Record<BadgeKey, string> = { record: "継続", sleep: "睡眠", calorie: "カロリー", exercise: "運動" };
 
 export const BADGE_TIERS = ["bronze", "silver", "gold"] as const;
 export type BadgeTier = (typeof BADGE_TIERS)[number];
@@ -73,6 +75,12 @@ export function exerciseBadge(dates: readonly string[], exerciseDates: Iterable<
   return toBadge("exercise", "week", passed, weeks, periodDays);
 }
 
-export function computeBadges(input: { sleep: Badge | null; calorie: Badge | null; exercise: Badge | null }): Badge[] {
+// 継続のバッジ。dates: 期間の日付、recordedDates: その日に何か 1 種類でも記録がある日(朝の記録・食事・運動・良かったこと・今日の気づきのどれか)
+export function recordBadge(dates: readonly string[], recordedDates: Iterable<string>, periodDays: number): Badge | null {
+  const recorded = new Set(recordedDates);
+  return toBadge("record", "day", dates.filter((date) => recorded.has(date)).length, dates.length, periodDays);
+}
+
+export function computeBadges(input: Record<BadgeKey, Badge | null>): Badge[] {
   return BADGE_KEYS.flatMap((key) => (input[key] ? [input[key]] : []));
 }

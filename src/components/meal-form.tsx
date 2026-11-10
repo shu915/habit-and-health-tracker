@@ -14,6 +14,7 @@ import type { MealEstimate } from "@/lib/meal-estimate";
 import { MAX_PHOTOS, TEXT_MAX_LENGTH } from "@/lib/meal-limits";
 import { defaultMealDayAndTime, mealLabel, MEAL_DAY_START_HOUR } from "@/lib/meal-time";
 import { shiftDate, todayString } from "@/lib/date";
+import { zonedParts } from "@/lib/time-zone";
 
 // 食事を入力して、AI に推定させ、確認して、保存する画面。
 //   1. 食べた時刻・食べたもの(文章)・写真(任意)を入れて「AI で推定する」
@@ -35,9 +36,16 @@ type Photo = { id: number; dataUrl: string };
 export function MealForm({ date, mode, mealId, initial }: Props) {
   // 追加のときの時刻の初期値は、端末の今の時刻(サーバーには分からないので、ブラウザ側で決める)。
   // 03:00 より前は前の日の食事なので、この画面の日付が、その「前の日」のときだけ初期値を入れる
+  // 初めに決めた値を使い続ける(毎回「今の時刻」を読むと、推定が終わって描き直されるたびに時刻が進み、入力欄が作り直される)。
+  // useState の初期化子で入れ物を作るのは、描き直しをまたいで同じ物を持つため。日付(date)が変わると、ページ(動的セグメント)ごと作り直されるので、日付を変えた使い回しは起きない前提
+  const [firstDefault] = useState(() => ({ value: null as string | null }));
   const defaultTime = useSyncExternalStore(
     subscribeNothing,
-    () => (initial ? initial.eatenTime : defaultMealDayAndTime().date === date ? defaultMealDayAndTime().time : ""),
+    () => {
+      if (initial) return initial.eatenTime;
+      firstDefault.value ??= defaultMealDayAndTime().date === date ? defaultMealDayAndTime().time : "";
+      return firstDefault.value;
+    },
     () => (initial ? initial.eatenTime : ""),
   );
   // 午前 3 時より前に、今日(カレンダーの日付)の画面で追加しようとしているとき、前の日の日付。それ以外は空。
@@ -46,7 +54,7 @@ export function MealForm({ date, mode, mealId, initial }: Props) {
     subscribeNothing,
     () => {
       const now = new Date();
-      return mode === "new" && now.getHours() < MEAL_DAY_START_HOUR && todayString(now) === date ? shiftDate(date, -1) : "";
+      return mode === "new" && zonedParts(now).hour < MEAL_DAY_START_HOUR && todayString(now) === date ? shiftDate(date, -1) : "";
     },
     () => "",
   );
@@ -126,7 +134,7 @@ export function MealForm({ date, mode, mealId, initial }: Props) {
   function handleEstimate() {
     setEstimateError(null);
     startEstimate(async () => {
-      const result = await estimateMealAction({ text, imageDataUrls: photos.map((photo) => photo.dataUrl) });
+      const result = await estimateMealAction({ text, images: photos.map((photo) => ({ dataUrl: photo.dataUrl })) });
       if (!result.ok) {
         setEstimateError(result.message);
         return;

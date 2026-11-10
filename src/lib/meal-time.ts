@@ -1,5 +1,6 @@
 import { shiftDate, todayString } from "@/lib/date";
 import { MEAL_TIME_MAX_HOUR } from "@/lib/meal-limits";
+import { zonedParts } from "@/lib/time-zone";
 
 // 食べた時刻("HH:MM")の扱い。「その日」は 03:00 から翌 02:59 までで、深夜の食事は前の日に入れる。
 // そのため時刻は 00:00〜26:59 まで書ける(24:00 以降は翌日の深夜。25:30 = 翌日の 1 時 30 分)
@@ -35,12 +36,12 @@ export function mealLabel(time: string): MealLabel | null {
   return LABEL_RANGES.find((range) => minutes >= range.from && minutes < range.to)?.label ?? "間食";
 }
 
-// 食事を追加するときの、日付と食べた時刻の初期値(端末のローカル時間)。
+// 食事を追加するときの、日付と食べた時刻の初期値(日本時間。lib/time-zone.ts)。
 // 03:00 より前は前の日の食事として、日付を前日にし、時刻は 24 を足す(01:30 → 前日の 25:30)
 export function defaultMealDayAndTime(now: Date = new Date()): { date: string; time: string } {
   const pad = (value: number) => String(value).padStart(2, "0");
-  const hours = now.getHours();
-  const minutes = pad(now.getMinutes());
+  const { hour: hours, minute } = zonedParts(now);
+  const minutes = pad(minute);
   if (hours < MEAL_DAY_START_HOUR) {
     return { date: shiftDate(todayString(now), -1), time: `${pad(hours + 24)}:${minutes}` };
   }

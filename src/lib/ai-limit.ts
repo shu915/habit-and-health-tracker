@@ -7,7 +7,7 @@ import { getCurrentUserId } from "@/lib/current-user";
 import { startOfMealDay } from "@/lib/meal-day-sql";
 
 // 食事の AI 推定の回数制限(悪用を防ぐための保険。ふつうの人は、そこまで使わない)。AI を呼ぶ前に consumeAiRequest() を呼び、通ったときだけ呼ぶ。
-// 1 日 AI_LIMITS.perDay 回まで(既定は 10 回。環境変数 MEAL_ESTIMATE_DAILY_LIMIT で変える。開発サーバーは、指定が無ければ上限なし。ai-limit-config.ts)(「1 日」は、食事の日と同じ 03:00 区切り。「明日の 3:00 以降に、また使えます」と言える)。文章だけでも、写真つきでも、同じ 1 回。
+// 1 日 AI_LIMITS.perDay 回まで(既定は 20 回。環境変数 MEAL_ESTIMATE_DAILY_LIMIT で変える。開発サーバーは、指定が無ければ上限なし。ai-limit-config.ts)(「1 日」は、食事の日と同じ 03:00 区切り。「明日の 3:00 以降に、また使えます」と言える)。文章だけでも、写真つきでも、同じ 1 回。
 // 失敗は数えない: 接続・AI のエラー・読めない返事のときは、返された release() で、数えた分を戻す(呼び出し側が呼ぶ)。
 // 「食べ物でない」という AI の判定は、費用が出ていて、悪用の入口になるので、数える(戻さない)。
 // 残りの回数は、画面に出さない。上限に来たときだけ、メッセージを(赤字で)出す。

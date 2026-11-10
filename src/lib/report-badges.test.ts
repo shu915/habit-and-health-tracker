@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calorieBadge, exerciseBadge, sleepBadge, tierOf, type CalorieDay } from "./report-badges";
+import { BADGE_KEYS, calorieBadge, computeBadges, exerciseBadge, recordBadge, sleepBadge, tierOf, type CalorieDay } from "./report-badges";
 import { buildSleepTrend } from "./trend";
 
 const dates = (start: number, count: number) => Array.from({ length: count }, (_, i) => `2026-10-${String(start + i).padStart(2, "0")}`);
@@ -91,5 +91,36 @@ describe("運動のバッジ(その週に、いつもより多く動いた日が
   it("期間が 1 週間なら、その週に運動があるかどうか", () => {
     expect(exerciseBadge(dates(1, 7), ["2026-10-04"], 7)).toMatchObject({ judged: 1, passed: 1, tier: "gold" });
     expect(exerciseBadge(dates(1, 7), [], 7)).toBeNull();
+  });
+});
+
+describe("継続のバッジ(その日に何か 1 種類でも記録がある日の割合。出席のバッジ)", () => {
+  const ds = dates(1, 28);
+  const recordedFirst = (count: number) => ds.slice(0, count);
+
+  it("記録のある日の割合で、5 割でブロンズ、7 割でシルバー、9 割でゴールド", () => {
+    expect(recordBadge(ds, recordedFirst(14), 28)).toMatchObject({ key: "record", tier: "bronze", passed: 14, judged: 28, unit: "day" });
+    expect(recordBadge(ds, recordedFirst(20), 28)).toMatchObject({ tier: "silver", passed: 20 });
+    expect(recordBadge(ds, recordedFirst(26), 28)).toMatchObject({ tier: "gold", passed: 26 });
+    expect(recordBadge(ds, ds, 28)).toMatchObject({ tier: "gold", passed: 28 });
+  });
+
+  it("記録が 5 割に届かなければ出さない(何も出さない。途切れたことも書かない)", () => {
+    expect(recordBadge(ds, recordedFirst(13), 28)).toBeNull();
+    expect(recordBadge(ds, [], 28)).toBeNull();
+  });
+
+  it("期間の外の日の記録は数えない", () => {
+    expect(recordBadge(ds, ["2026-09-30", "2026-11-01"], 28)).toBeNull();
+  });
+});
+
+describe("computeBadges", () => {
+  it("継続が先頭。取れなかった種類は出さない", () => {
+    expect(BADGE_KEYS).toEqual(["record", "sleep", "calorie", "exercise"]);
+    const record = recordBadge(dates(1, 7), dates(1, 7), 7);
+    const exercise = exerciseBadge(dates(1, 7), ["2026-10-04"], 7);
+    expect(computeBadges({ record, sleep: null, calorie: null, exercise }).map((b) => b.key)).toEqual(["record", "exercise"]);
+    expect(computeBadges({ record: null, sleep: null, calorie: null, exercise: null })).toEqual([]);
   });
 });

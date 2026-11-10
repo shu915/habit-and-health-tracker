@@ -276,6 +276,25 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", { timeout: 15_000 }, 
       await expect(daysModule.getMorningWeightBefore("2026-02-30")).rejects.toThrow("invalid date");
     });
 
+    it("直近の朝の記録の中央値: 自分の最新 5 日分だけ(他のユーザーと、6 件目より古い記録は使わない)。項目ごとに数える", async () => {
+      currentUser.id = USER_B;
+      await daysModule.saveDay("2026-10-20", { morningWeightKg: "50.00", morningBodyFatPercent: "10.0" });
+
+      currentUser.id = USER_A;
+      expect(await daysModule.getRecentMorningMeasures()).toEqual({ weight: null, bodyFat: null });
+
+      await daysModule.saveDay("2026-10-01", { morningWeightKg: "60.00" }); // 6 件目(古い): 使わない
+      const weights = ["98.00", "97.00", "101.00", "99.00", "98.50"];
+      for (const [i, weight] of weights.entries()) await daysModule.saveDay(`2026-10-${String(10 + i).padStart(2, "0")}`, { morningWeightKg: weight });
+      await daysModule.saveDay("2026-10-12", { morningWeightKg: "101.00", morningBodyFatPercent: "32.0" });
+      await daysModule.saveDay("2026-10-14", { morningBodyFatPercent: "31.0" });
+
+      expect(await daysModule.getRecentMorningMeasures()).toEqual({
+        weight: { value: "98.50", count: 5, from: "2026-10-10", to: "2026-10-14" },
+        bodyFat: { value: "31.5", count: 2, from: "2026-10-12", to: "2026-10-14" },
+      });
+    });
+
     it("その日より前の朝の体脂肪率: 自分の記録だけから、いちばん新しい日を返す(その日自身は含めない)", async () => {
       currentUser.id = USER_B;
       await daysModule.saveDay("2026-10-14", { morningBodyFatPercent: "10.0" });
@@ -1003,7 +1022,10 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", { timeout: 15_000 }, 
       const report = await reportsModule.getReport(started.result.ok ? started.result.id : -1);
       expect(report).toMatchObject({ kind: "quarterly", status: "done", periodStart: `${quarter.months[0]}-01` });
       expect(report?.periodEnd.slice(0, 7)).toBe(quarter.months[2]);
-      expect(report?.badges).toEqual([]); // 長期には、まだバッジを付けない
+      // 長期にも、短い期間と同じバッジが付く。ここでは、記録が 3 か月中 2 か月なので、継続は、記録のある日の割合(約 66%)でブロンズ
+      const record = report?.badges.find((badge) => badge.key === "record");
+      const [first, second, third] = quarter.months.map((month) => daysOfMonth(month).length);
+      expect(record).toEqual({ key: "record", tier: "bronze", passed: first + second, judged: first + second + third, unit: "day" });
 
       // 日記のある月(2 か月)の、テーマを保存した
       const rows = await dbModule.db.select().from(schema.monthThemes);
@@ -1840,7 +1862,37 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", { timeout: 15_000 }, 
 
   });
 
-  describe("AI の呼び出しの回数制限(lib/ai-limit.ts。食事の推定。1 日 10 回、03:00 区切り)", () => {
+  describe("日本時間の 03:00 区切り(lib/meal-day-sql.ts。DB の時計)", () => {
+    // 区切りの時刻を、UTC の壁時計("YYYY-MM-DD HH:MM")で受け取る(列 created_at と同じ形)
+    const startAt = async (nowUtc: string) => {
+      const { sql } = await import("drizzle-orm");
+      const { mealDayStartAt } = await import("./meal-day-sql");
+      const result = await dbModule.db.execute(sql`select to_char(${mealDayStartAt(sql`${nowUtc}::timestamptz`)}, 'YYYY-MM-DD HH24:MI') as start`);
+      return (result.rows[0] as { start: string }).start;
+    };
+
+    it("DB の接続のタイムゾーンは UTC(created_at を UTC の壁時計で比べる前提。違うと区切りが 9 時間ずれる)", async () => {
+      const { sql } = await import("drizzle-orm");
+      const result = await dbModule.db.execute(sql`select current_setting('TimeZone') as tz`);
+      expect((result.rows[0] as { tz: string }).tz).toMatch(/^(UTC|Etc\/UTC)$/);
+    });
+
+    it("日本時間の 03:00 が区切り(UTC では前日の 18:00)。日本時間の 02:59 は前の日、03:00 は新しい日", async () => {
+      // 日本時間 2026-11-10 02:59 = UTC 2026-11-09 17:59 → 区切りは、日本時間 11-09 03:00 = UTC 11-08 18:00
+      expect(await startAt("2026-11-09 17:59:00+00")).toBe("2026-11-08 18:00");
+      // 日本時間 2026-11-10 03:00 = UTC 2026-11-09 18:00 → 区切りは、日本時間 11-10 03:00 = UTC 11-09 18:00
+      expect(await startAt("2026-11-09 18:00:00+00")).toBe("2026-11-09 18:00");
+      // 日本時間の昼(UTC では同じ日の 03:00)でも、区切りは日本時間の 03:00(UTC の前日 18:00)
+      expect(await startAt("2026-11-10 03:00:00+00")).toBe("2026-11-09 18:00");
+    });
+
+    it("月・年をまたいでも、日本時間の 03:00", async () => {
+      // 日本時間 2027-01-01 01:00 = UTC 2026-12-31 16:00 → 区切りは、日本時間 2026-12-31 03:00 = UTC 12-30 18:00
+      expect(await startAt("2026-12-31 16:00:00+00")).toBe("2026-12-30 18:00");
+    });
+  });
+
+  describe("AI の呼び出しの回数制限(lib/ai-limit.ts。食事の推定。1 日 20 回、03:00 区切り)", () => {
     // n 件の記録を、今の食事の日の始まりから offset ずらした時刻に作る(DB の now() 基準。例: "-1 minute" は、前の食事の日の最後)
     const seed = async (userId: string, n: number, offset: string) => {
       const { sql } = await import("drizzle-orm");
@@ -1851,9 +1903,9 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", { timeout: 15_000 }, 
       const { eq } = await import("drizzle-orm");
       return (await dbModule.db.select().from(schema.aiRequests).where(eq(schema.aiRequests.userId, userId))).length;
     };
-    it("上限は 1 日 10 回(悪用を防ぐための保険)", async () => {
-      expect(aiLimitModule.AI_LIMITS.perDay).toBe(10);
-      expect(aiLimitModule.AI_LIMIT_MESSAGE).toContain("10 回まで");
+    it("上限は 1 日 20 回(悪用を防ぐための保険)", async () => {
+      expect(aiLimitModule.AI_LIMITS.perDay).toBe(20);
+      expect(aiLimitModule.AI_LIMIT_MESSAGE).toContain("20 回まで");
       expect(aiLimitModule.AI_LIMIT_MESSAGE).toContain("明日の 3:00 以降");
     });
 
@@ -1991,8 +2043,8 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", { timeout: 15_000 }, 
       it.each([
         ["文章も写真も無い", { text: "  " }],
         ["文章が長すぎる", { text: "あ".repeat(2001) }],
-        ["写真が偽物", { text: "x", imageDataUrls: ["data:image/png;base64,AAAA"] }],
-        ["写真が 5 枚(別々の写真)", { text: "x", imageDataUrls: Array.from({ length: 5 }, (_, n) => `data:image/png;base64,AAA${n}`) }],
+        ["写真が偽物", { text: "x", images: [{ dataUrl: "data:image/png;base64,AAAA" }] }],
+        ["写真が 5 枚(別々の写真)", { text: "x", images: Array.from({ length: 5 }, (_, n) => ({ dataUrl: `data:image/png;base64,AAA${n}` })) }],
         ["形が違う入力", { foo: 1 }],
         ["null", null],
         ["文字列", "焼鮭"],

@@ -18,9 +18,27 @@ export function reportTitle(kind: ReportKind, start: string, end: string): strin
   return `${REPORT_KIND_LABELS[kind]}(${periodLabel(start, end)})`;
 }
 
+// PDF で保存するときのファイル名の初期値(拡張子は、ブラウザが付ける)。「アプリ名_種類_期間」にそろえる(2026-11-09、利用者の決定)。
+// 月次 habit-health_月次_2026-10 / 四半期 habit-health_四半期_2026-Q3 / 年次 habit-health_年次_2026 / 随時 habit-health_随時_2026-10-10_2026-11-06。
+// 期間は、日付順に並ぶ形。ファイル名に使えない文字(/ : など)は含めない
+export function reportFileName(kind: ReportKind, start: string, end: string): string {
+  const prefix = "habit-health";
+  if (kind === "monthly") return `${prefix}_月次_${start.slice(0, 7)}`;
+  if (isLongTermReportKind(kind)) {
+    const id = longTermIdOf(kind as LongTermKind, start);
+    return `${prefix}_${kind === "yearly" ? "年次" : "四半期"}_${id ?? start}`;
+  }
+  return `${prefix}_随時_${start}_${end}`;
+}
+
 export const monthLabel = (month: string) => `${Number(month.slice(0, 4))} 年 ${Number(month.slice(5, 7))} 月`;
 
 export const badgeLabel = (badge: Badge) => `${BADGE_LABELS[badge.key]} ${BADGE_TIER_LABELS[badge.tier]}`;
 
-// 「収まった日」の説明(バッジの横に出す)。運動は週の数
-export const badgeDetail = (badge: Badge) => `${badge.judged} ${badge.unit === "day" ? "日" : "週"}のうち ${badge.passed} ${badge.unit === "day" ? "日" : "週"}`;
+// バッジの説明(バッジの横に出す)。「N 日のうち M 日が」+「範囲に収まりました」(運動は週。継続は「記録がありました」)の 2 つの塊。
+// 画面が、狭い幅で、塊のあいだだけで折り返すよう、2 つに分けて返す
+export function badgeSentence(badge: Badge): { count: string; result: string } {
+  const unit = badge.unit === "day" ? "日" : "週";
+  if (badge.key === "record") return { count: `${badge.judged} ${unit}のうち ${badge.passed} ${unit}に`, result: "記録がありました" };
+  return { count: `${badge.judged} ${unit}のうち ${badge.passed} ${unit}が`, result: "範囲に収まりました" };
+}

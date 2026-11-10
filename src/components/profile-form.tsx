@@ -8,6 +8,7 @@ import { saveProfileAction, type ProfileFormState } from "@/app/(app)/profile/ac
 import { PairInput, durationParts, timeParts } from "@/components/pair-input";
 import { joinMinutes, joinTimeOfDay } from "@/lib/duration";
 import { formatRange } from "@/lib/profile-limits";
+import type { RecentMeasure } from "@/lib/recent-measures";
 import { ACTIVITY_LEVEL_OPTIONS, GENDER_OPTIONS } from "@/lib/profile-options";
 import {
   energySummary,
@@ -72,20 +73,37 @@ type Draft = {
   values: FormValues;
   notes: SuggestResult["notes"];
   errors: SuggestResult["errors"];
+  cleared: ProfileField[]; // 「直近の記録から入れる」で値を入れた欄。保存に失敗したときのサーバーのエラーは、入れ直したあとは出さない(次に保存するまで)
   at: number;
 };
 
-export function ProfileForm({ initial }: { initial: ProfileFormInitial }) {
+// 直近の朝の記録の中央値(サーバーが計算して渡す。記録が無い項目は null)
+export type RecentMeasures = { weight: RecentMeasure | null; bodyFat: RecentMeasure | null };
+
+const shortDate = (date: string) => `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}`;
+const describeRecent = (measure: RecentMeasure) => `${measure.value}(${measure.count} 日分${measure.count > 1 ? `、${shortDate(measure.from)}〜${shortDate(measure.to)}` : `、${shortDate(measure.to)}`})`;
+
+// 「直近の記録から入れる」ボタンを置く欄
+type RecentKind = keyof RecentMeasures;
+const RECENT_FIELDS: Record<RecentKind, { name: ProfileField }> = {
+  weight: { name: "currentWeightKg" },
+  bodyFat: { name: "currentBodyFatPercent" },
+};
+
+export function ProfileForm({ initial, recent = { weight: null, bodyFat: null } }: { initial: ProfileFormInitial; recent?: RecentMeasures }) {
   const [state, formAction, isPending] = useActionState<ProfileFormState, FormData>(saveProfileAction, null);
   const [draft, setDraft] = useState<Draft | null>(null);
   // 消費カロリーの目安の表示に使う、フォームの今の入力値
   const [live, setLive] = useState<FormValues>(initial);
+  const [filled, setFilled] = useState<Partial<Record<RecentKind, string>>>({}); // 「直近の記録から入れる」で入れた値の知らせ(その欄を直したら消す)
   const formRef = useRef<HTMLFormElement>(null);
 
   // 表示する値: 保存に失敗したときは送った値を、提案したときは提案後の値を残す(新しいほうを使う)
   const draftIsLatest = draft !== null && draft.at > (state?.submittedAt ?? 0);
   const current: FormValues = draftIsLatest ? draft.values : (state?.values ?? initial);
   const valueOf = (name: ProfileField) => current[name] ?? initial[name];
+  // 表示するエラー: 保存に失敗したあとに、その欄を「直近の記録から入れる」で入れ直したなら、その欄の古いエラーは出さない
+  const serverErrors = draftIsLatest && state?.errors ? Object.fromEntries(Object.entries(state.errors).filter(([name]) => !draft.cleared.some((cleared) => cleared === name))) : state?.errors;
 
   // 「提案」ボタン: 押した項目だけを、フォームに今入力されている値から計算して、入力欄を埋める。
   // 保存はしない(本人が確認して直し、「保存」で確定する)。ほかの項目の提案の根拠は残す
@@ -103,15 +121,32 @@ export function ProfileForm({ initial }: { initial: ProfileFormInitial }) {
       values: next,
       notes: { ...notes, ...result.notes },
       errors: { ...errors, ...result.errors },
+      cleared: draft?.cleared ?? [],
       at: Date.now(),
     });
     setLive(next);
+  }
+
+  // 「直近の記録から入れる」ボタン(体重・体脂肪率の欄の隣): 押した欄を、直近 5 日分の中央値で埋める。保存はしない(本人が確認して「保存」)。
+  // ほかの欄と、提案の根拠は、そのまま残す
+  function handleFillRecent(kind: RecentKind) {
+    const measure = recent[kind];
+    if (!formRef.current || !measure) return;
+    const field = RECENT_FIELDS[kind];
+    const next: FormValues = { ...readValues(new FormData(formRef.current)), [field.name]: measure.value };
+    setDraft({ values: next, notes: { ...draft?.notes }, errors: { ...draft?.errors }, cleared: [...(draft?.cleared ?? []), field.name], at: Date.now() });
+    setLive(next);
+    setFilled((current) => ({ ...current, [kind]: `直近の記録の中央値を入れました: ${describeRecent(measure)}。まだ保存されていません。` }));
   }
 
   // 提案した値を本人が手で直したら、「提案の根拠」の表示は外す(今の値の根拠ではなくなるため)
   function handleChange(event: React.ChangeEvent<HTMLFormElement>) {
     if (!formRef.current) return;
     setLive(readValues(new FormData(formRef.current)));
+
+    for (const [kind, field] of Object.entries(RECENT_FIELDS)) {
+      if (event.target.name === field.name) setFilled((current) => ({ ...current, [kind]: undefined }));
+    }
 
     const edited = SUGGESTABLE_FIELDS.find((field) => field === event.target.name);
     if (draft && edited && (draft.notes[edited] || draft.errors[edited])) {
@@ -132,13 +167,24 @@ export function ProfileForm({ initial }: { initial: ProfileFormInitial }) {
           入力内容を確認してください。
         </p>
       )}
-      <Group title="ボディデータ" fields={BODY_FIELDS} valueOf={valueOf} errors={state?.errors} live={live} />
+      <Group
+        title="ボディデータ"
+        fields={BODY_FIELDS}
+        valueOf={valueOf}
+        errors={serverErrors}
+        live={live}
+        recentOf={(name) => {
+          const kind = (Object.keys(RECENT_FIELDS) as RecentKind[]).find((k) => RECENT_FIELDS[k].name === name);
+          return kind ? { available: recent[kind] !== null, note: filled[kind], onFill: () => handleFillRecent(kind) } : undefined;
+        }}
+        footer={<RecentNote recent={recent} />}
+      />
       <Group
         title="目標値"
         fields={[...GOAL_FIELDS, ...SLEEP_FIELDS]}
         gapBefore="targetSleepMinutes"
         valueOf={valueOf}
-        errors={state?.errors}
+        errors={serverErrors}
         live={live}
         draft={draft}
         onSuggest={handleSuggest}
@@ -163,6 +209,25 @@ export function ProfileForm({ initial }: { initial: ProfileFormInitial }) {
   );
 }
 
+// 体重・体脂肪率の「直近の記録から入れる」ボタンの説明(ボタンは各欄の隣)
+function RecentNote({ recent }: { recent: RecentMeasures }) {
+  const available = recent.weight !== null || recent.bodyFat !== null;
+  return (
+    <div className="flex flex-col gap-1 border-t border-line-soft pt-4 text-left text-xs leading-relaxed text-ink-muted">
+      {available ? (
+        <p>
+          「直近の記録から入れる」は、朝の体重・体脂肪率が入っている、新しい 5 日分の<strong className="font-medium text-ink">中央値</strong>を、その欄に入れます。まだ保存されません。確認して、「保存」を押してください。
+        </p>
+      ) : (
+        <p>朝の体重・体脂肪率の記録が、まだありません。日の記録に入れると、「直近の記録から入れる」で、ここに入れられます。</p>
+      )}
+      <p className="text-ink-subtle">
+        体組成計の値は、水分や食事で日ごとにぶれます。1 日の値より、直近の中央値のほうが、基礎代謝や目標の計算が安定します(平均にしないのは、飲み会の翌朝などの極端な日に引きずられないため)。5 日に満たないときは、あるだけで計算します。記録が無い欄は、変えません。
+      </p>
+    </div>
+  );
+}
+
 function Group({
   title,
   fields,
@@ -172,6 +237,7 @@ function Group({
   live,
   draft,
   onSuggest,
+  recentOf,
   footer,
 }: {
   title: string;
@@ -182,6 +248,7 @@ function Group({
   live: FormValues;
   draft?: Draft | null;
   onSuggest?: (field: SuggestableField) => void;
+  recentOf?: (name: ProfileField) => RecentFill | undefined;
   footer?: React.ReactNode;
 }) {
   return (
@@ -196,6 +263,7 @@ function Group({
               value={valueOf(field.name)}
               error={errors?.[field.name]}
               live={live}
+              recentFill={recentOf?.(field.name)}
               suggestion={
                 suggestable && onSuggest
                   ? {
@@ -214,6 +282,9 @@ function Group({
   );
 }
 
+// 「直近の記録から入れる」: 記録があるか(無ければボタンは押せない)、入れたあとの知らせ、押したときの動き
+type RecentFill = { available: boolean; note: string | undefined; onFill: () => void };
+
 type Suggestion = { note: string | undefined; error: string | undefined; onSuggest: () => void };
 
 function Field({
@@ -221,12 +292,14 @@ function Field({
   value,
   error,
   live,
+  recentFill,
   suggestion,
 }: {
   field: FieldDef;
   value: string;
   error: string | undefined;
   live: FormValues;
+  recentFill: RecentFill | undefined;
   suggestion: Suggestion | undefined;
 }) {
   const id = `profile-${field.name}`;
@@ -257,6 +330,17 @@ function Field({
             <>
               <input {...common} type="text" inputMode={field.inputMode} autoComplete="off" />
               {field.unit && <span className="text-ink-muted">{field.unit}</span>}
+              {recentFill && (
+                <button
+                  type="button"
+                  onClick={recentFill.onFill}
+                  disabled={!recentFill.available}
+                  aria-label={`${field.label}を直近の記録から入れる`}
+                  className={`sm:ml-2 ${buttonClass({ variant: "secondary", size: "sm" })}`}
+                >
+                  直近の記録から入れる
+                </button>
+              )}
               {suggestion && (
                 <button
                   type="button"
@@ -309,6 +393,11 @@ function Field({
             <span className="text-ink-subtle"> ({field.range})</span>
           )}
         </p>
+        {recentFill?.note && (
+          <p role="status" className="text-xs leading-relaxed text-accent">
+            {recentFill.note}
+          </p>
+        )}
         {suggestion?.note && (
           <p className="text-xs leading-relaxed text-accent">提案の根拠: {suggestion.note}</p>
         )}

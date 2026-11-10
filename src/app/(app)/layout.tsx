@@ -9,7 +9,7 @@ import { getCurrentUserId } from "@/lib/current-user";
 export default function AppLayout({ children }: LayoutProps<"/">) {
   return (
     <>
-      <header className="border-b border-line">
+      <header className="border-b border-line print:hidden">
         <nav className="mx-auto flex w-full max-w-4xl items-center justify-between px-4 py-4 sm:px-6">
           <Link href="/" className="flex items-center gap-2.5 font-bold">
             {/* ロゴ(512px の webp。next/image が表示の大きさ(28px)に縮めて出す。ログイン画面の大きい表示にも同じファイルを使う)。飾りなので alt は空。shrink-0: 横並びの中で潰れないように */}
@@ -25,7 +25,7 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
           </div>
         </nav>
       </header>
-      <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
+      <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-6 sm:px-6 sm:py-8 print:p-0">
         <Suspense fallback={<p className="text-ink-muted">読み込み中...</p>}>
           <AuthGate>{children}</AuthGate>
         </Suspense>

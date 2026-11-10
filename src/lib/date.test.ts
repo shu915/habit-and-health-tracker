@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { isRecordableDate, isValidDateString, shiftDate, todayString } from "./date";
+import { jst } from "@/test-utils/jst";
 
 describe("isValidDateString", () => {
   it("実在する日付を受け付ける", () => {
@@ -32,14 +33,14 @@ describe("isValidDateString", () => {
 });
 
 describe("todayString", () => {
-  it("ローカル時間の日付を、YYYY-MM-DD で返す(ゼロ埋め)", () => {
-    expect(todayString(new Date(2026, 0, 5, 9, 30))).toBe("2026-01-05");
-    expect(todayString(new Date(2026, 11, 31, 23, 59))).toBe("2026-12-31");
+  it("日本時間の日付を、YYYY-MM-DD で返す(ゼロ埋め)", () => {
+    expect(todayString(jst(2026, 1, 5, 9, 30))).toBe("2026-01-05");
+    expect(todayString(jst(2026, 12, 31, 23, 59))).toBe("2026-12-31");
   });
 
-  it("日本の朝(UTC では前日)でも、ローカルの日付になる", () => {
-    // ローカル時間で 2026-10-30 00:30 は、UTC に直すと前日になりうる。toISOString を使うと日付がずれる
-    expect(todayString(new Date(2026, 9, 30, 0, 30))).toBe("2026-10-30");
+  it("日本の朝(UTC では前日)でも、日本の日付になる", () => {
+    // 日本時間の 2026-10-30 00:30 は、UTC に直すと前日になる。toISOString を使うと日付がずれる
+    expect(todayString(jst(2026, 10, 30, 0, 30))).toBe("2026-10-30");
   });
 
   it("返す形は isValidDateString を通る", () => {
@@ -48,7 +49,7 @@ describe("todayString", () => {
 });
 
 describe("isRecordableDate", () => {
-  const now = new Date(2026, 9, 30, 9, 0); // ローカル時間の 2026-10-30
+  const now = jst(2026, 10, 30, 9, 0); // 日本時間の 2026-10-30
 
   it("今日までと過去は記録できる", () => {
     for (const date of ["2026-10-30", "2026-10-01", "2025-01-01", "1900-01-01"]) expect(isRecordableDate(date, now), date).toBe(true);
@@ -61,7 +62,7 @@ describe("isRecordableDate", () => {
   });
 
   it("月末・年末をまたぐ翌日を正しく扱う", () => {
-    const lastDay = new Date(2026, 11, 31, 23, 0);
+    const lastDay = jst(2026, 12, 31, 23, 0);
     expect(isRecordableDate("2027-01-01", lastDay)).toBe(true);
     expect(isRecordableDate("2027-01-02", lastDay)).toBe(false);
   });

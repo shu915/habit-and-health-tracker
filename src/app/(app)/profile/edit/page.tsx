@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { ProfileForm, type ProfileFormInitial } from "@/components/profile-form";
+import { getRecentMorningMeasures } from "@/lib/days";
 import { getProfile } from "@/lib/profiles";
 import { isProfileReady } from "@/lib/profile-ready";
 import { PROFILE_FIELDS } from "@/lib/profile-schema";
@@ -14,7 +15,7 @@ export default function ProfileEditPage() {
 }
 
 async function ProfileEditContent() {
-  const profile = await getProfile();
+  const [profile, recent] = await Promise.all([getProfile(), getRecentMorningMeasures()]);
   // DB の値(数値は文字列、null は空欄)を、フォームの初期値(文字列)にする。
   // Object.fromEntries は Record<string, string> を返すので、PROFILE_FIELDS の全キーがそろっていることを前提に型を付ける
   const initial = Object.fromEntries(
@@ -29,7 +30,7 @@ async function ProfileEditContent() {
           記録を始める前に、目標カロリーと活動係数を決めてください。目標カロリーは「提案」ボタンで入力欄を埋められます。保存したら、もう一度日付を選んでください。
         </p>
       )}
-      <ProfileForm initial={initial} />
+      <ProfileForm initial={initial} recent={recent} />
     </div>
   );
 }

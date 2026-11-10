@@ -5,7 +5,7 @@ import { highlightLines } from "@/components/chart-highlights";
 import { formatDuration } from "@/lib/duration";
 import { nightClock, sleepAxis, sleepMedians, type SleepPoint } from "@/lib/trend";
 
-// 睡眠の「浮いた棒」: 横軸は日付(起きた日)、縦軸は時刻(夜が上、朝が下)。帯の上端が就寝、下端が起床。細い線は、就寝と起床の真ん中(中間時刻)。
+// 睡眠の「浮いた棒」: 横軸は日付(起きた日)、縦軸は時刻(夜が下、朝が上。時間が進むほど上へ伸びる。ほかのグラフの「上ほど大きい」と向きがそろう)。帯の下端が就寝、上端が起床。細い線は、就寝と起床の真ん中(中間時刻)。
 // 睡眠時間だけの棒より、就寝・起床のぶれが見える。記録の無い日は帯も線も出さない(0 にしない)。
 // 高さを固定にするのは、サーバーが出す空の枠で場所を確保し、ブラウザで描かれてもレイアウトがずれないようにするため
 export const SLEEP_CHART_HEIGHT = 220;
@@ -22,8 +22,8 @@ export function SleepChart({ points, syncId, highlightDates = [] }: { points: Sl
         <ComposedChart data={points} syncId={syncId} margin={{ top: 8, right: 12, bottom: 0, left: 0 }}>
           <CartesianGrid vertical={false} stroke="var(--viz-grid)" />
           <XAxis dataKey="date" tickFormatter={shortDate} tick={{ fill: "var(--viz-text)", fontSize: 11 }} tickLine={false} axisLine={{ stroke: "var(--viz-grid)" }} minTickGap={24} />
-          {/* 縦軸は反転: 夜(前の夜の 18:00 側)が上、朝が下。目盛りは時刻で表す。interval={0} は、目盛りの間引きを止める(反転した軸では、いちばん上の目盛りが間引かれて消えた。目盛りの間隔は sleepAxis が 1〜2 時間で決めているので、重ならない) */}
-          <YAxis reversed domain={domain} ticks={ticks} interval={0} tickFormatter={nightClock} tick={{ fill: "var(--viz-text)", fontSize: 11 }} tickLine={false} axisLine={false} width={40} />
+          {/* 縦軸は、夜(前の夜の 18:00 側)が下、朝が上。目盛りは時刻で表す。interval={0} は、目盛りの間引きを止める(目盛りの間隔は sleepAxis が 1〜2 時間で決めているので、重ならない) */}
+          <YAxis domain={domain} ticks={ticks} interval={0} tickFormatter={nightClock} tick={{ fill: "var(--viz-text)", fontSize: 11 }} tickLine={false} axisLine={false} width={40} />
           <Tooltip content={<SleepTooltip />} cursor={{ stroke: "var(--viz-ring)", strokeWidth: 1 }} />
           {highlightLines(highlightDates)}
           {/* 帯(就寝〜起床)。細い棒(14px まで)、角は 4px 丸める */}

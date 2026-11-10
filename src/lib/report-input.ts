@@ -186,7 +186,7 @@ export function buildAnalysis(features: readonly Feature[]): Record<string, unkn
 // ---- 集計・バッジ・全体 ----
 export type ReportInput = {
   期間: { 開始: string; 終了: string; 日数: number };
-  バッジ: { 項目: string; 段階: string; 収まった数: number; 判定した数: number }[];
+  バッジ: ({ 項目: string; 段階: string; 判定した数: number } & ({ 収まった数: number } | { 記録のあった数: number }))[]; // 継続だけ「記録のあった数」(範囲に収まった数ではない)
   集計: Record<string, unknown>;
   日ごとの記録: DayRecord[];
   分析材料: Record<string, unknown>;
@@ -215,7 +215,11 @@ export function buildReportInput(args: {
   const diffs = records.flatMap((r) => (r.摂取マイナス消費 === null || r.データ不足 ? [] : [r.摂取マイナス消費]));
   return {
     期間: { 開始: period.start, 終了: period.end, 日数: period.days },
-    バッジ: badges.map((b) => ({ 項目: BADGE_LABELS[b.key], 段階: BADGE_TIER_LABELS[b.tier], 収まった数: b.passed, 判定した数: b.judged })),
+    // 継続は、範囲に収まった数ではなく、記録のあった日の数(AI が「範囲に収まった」と言い換えないよう、キー名を分ける)
+    バッジ: badges.map((b) => {
+      const base = { 項目: BADGE_LABELS[b.key], 段階: BADGE_TIER_LABELS[b.tier], 判定した数: b.judged };
+      return b.key === "record" ? { ...base, 記録のあった数: b.passed } : { ...base, 収まった数: b.passed };
+    }),
     集計: {
       記録のある日数: records.length,
       睡眠時間の中央値分: median(sleeps),
