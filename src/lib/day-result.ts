@@ -8,7 +8,7 @@ import { sparseReason, type SparseReason } from "@/lib/sparse-day";
 
 // 結果を出す日か: 「今の食事の日」より前の日だけ。今日(03:00 までは前日)と未来は、まだ記録が増えるので出さない。
 // 「今」は、食事の追加画面の初期値と同じ規則(defaultMealDayAndTime)で決める。
-// サーバーの時計で判定する(デプロイ先が UTC だと、日本の利用者には最大 9 時間遅れて出る。早く出ることはない)
+// 時計は日本時間に固定してある(lib/time-zone.ts)ので、サーバーのタイムゾーンによらず、日本の利用者の「今」で判定する
 export function isFinishedDay(date: string, now: Date = new Date()): boolean {
   return date < defaultMealDayAndTime(now).date;
 }

@@ -1859,7 +1859,37 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", { timeout: 15_000 }, 
 
   });
 
-  describe("AI の呼び出しの回数制限(lib/ai-limit.ts。食事の推定。1 日 10 回、03:00 区切り)", () => {
+  describe("日本時間の 03:00 区切り(lib/meal-day-sql.ts。DB の時計)", () => {
+    // 区切りの時刻を、UTC の壁時計("YYYY-MM-DD HH:MM")で受け取る(列 created_at と同じ形)
+    const startAt = async (nowUtc: string) => {
+      const { sql } = await import("drizzle-orm");
+      const { mealDayStartAt } = await import("./meal-day-sql");
+      const result = await dbModule.db.execute(sql`select to_char(${mealDayStartAt(sql`${nowUtc}::timestamptz`)}, 'YYYY-MM-DD HH24:MI') as start`);
+      return (result.rows[0] as { start: string }).start;
+    };
+
+    it("DB の接続のタイムゾーンは UTC(created_at を UTC の壁時計で比べる前提。違うと区切りが 9 時間ずれる)", async () => {
+      const { sql } = await import("drizzle-orm");
+      const result = await dbModule.db.execute(sql`select current_setting('TimeZone') as tz`);
+      expect((result.rows[0] as { tz: string }).tz).toMatch(/^(UTC|Etc\/UTC)$/);
+    });
+
+    it("日本時間の 03:00 が区切り(UTC では前日の 18:00)。日本時間の 02:59 は前の日、03:00 は新しい日", async () => {
+      // 日本時間 2026-11-10 02:59 = UTC 2026-11-09 17:59 → 区切りは、日本時間 11-09 03:00 = UTC 11-08 18:00
+      expect(await startAt("2026-11-09 17:59:00+00")).toBe("2026-11-08 18:00");
+      // 日本時間 2026-11-10 03:00 = UTC 2026-11-09 18:00 → 区切りは、日本時間 11-10 03:00 = UTC 11-09 18:00
+      expect(await startAt("2026-11-09 18:00:00+00")).toBe("2026-11-09 18:00");
+      // 日本時間の昼(UTC では同じ日の 03:00)でも、区切りは日本時間の 03:00(UTC の前日 18:00)
+      expect(await startAt("2026-11-10 03:00:00+00")).toBe("2026-11-09 18:00");
+    });
+
+    it("月・年をまたいでも、日本時間の 03:00", async () => {
+      // 日本時間 2027-01-01 01:00 = UTC 2026-12-31 16:00 → 区切りは、日本時間 2026-12-31 03:00 = UTC 12-30 18:00
+      expect(await startAt("2026-12-31 16:00:00+00")).toBe("2026-12-30 18:00");
+    });
+  });
+
+  describe("AI の呼び出しの回数制限(lib/ai-limit.ts。食事の推定。1 日 20 回、03:00 区切り)", () => {
     // n 件の記録を、今の食事の日の始まりから offset ずらした時刻に作る(DB の now() 基準。例: "-1 minute" は、前の食事の日の最後)
     const seed = async (userId: string, n: number, offset: string) => {
       const { sql } = await import("drizzle-orm");

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { defaultMealDayAndTime, mealLabel } from "./meal-time";
+import { jst } from "@/test-utils/jst";
 
 describe("mealLabel", () => {
   it.each([
@@ -33,8 +34,8 @@ describe("mealLabel", () => {
 });
 
 describe("defaultMealDayAndTime", () => {
-  // ローカル時間で作る(new Date(年, 月 - 1, 日, 時, 分))
-  const at = (month: number, day: number, hour: number, minute: number) => new Date(2026, month - 1, day, hour, minute);
+  // 日本時間で作る(jst(年, 月, 日, 時, 分))
+  const at = (month: number, day: number, hour: number, minute: number) => jst(2026, month, day, hour, minute);
 
   it("日中は、その日の今の時刻", () => {
     expect(defaultMealDayAndTime(at(10, 30, 12, 5))).toEqual({ date: "2026-10-30", time: "12:05" });
@@ -55,7 +56,7 @@ describe("defaultMealDayAndTime", () => {
 
   it("月初・年初の 0 時台は、前の月・前の年にさかのぼる", () => {
     expect(defaultMealDayAndTime(at(11, 1, 1, 0))).toEqual({ date: "2026-10-31", time: "25:00" });
-    expect(defaultMealDayAndTime(new Date(2027, 0, 1, 0, 30))).toEqual({ date: "2026-12-31", time: "24:30" });
+    expect(defaultMealDayAndTime(jst(2027, 1, 1, 0, 30))).toEqual({ date: "2026-12-31", time: "24:30" });
   });
 
   it("初期値の時刻は、必ずラベルが付く(形が正しい)", () => {

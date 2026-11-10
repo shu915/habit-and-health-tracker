@@ -14,6 +14,7 @@ import type { MealEstimate } from "@/lib/meal-estimate";
 import { MAX_PHOTOS, TEXT_MAX_LENGTH } from "@/lib/meal-limits";
 import { defaultMealDayAndTime, mealLabel, MEAL_DAY_START_HOUR } from "@/lib/meal-time";
 import { shiftDate, todayString } from "@/lib/date";
+import { zonedParts } from "@/lib/time-zone";
 
 // 食事を入力して、AI に推定させ、確認して、保存する画面。
 //   1. 食べた時刻・食べたもの(文章)・写真(任意)を入れて「AI で推定する」
@@ -53,7 +54,7 @@ export function MealForm({ date, mode, mealId, initial }: Props) {
     subscribeNothing,
     () => {
       const now = new Date();
-      return mode === "new" && now.getHours() < MEAL_DAY_START_HOUR && todayString(now) === date ? shiftDate(date, -1) : "";
+      return mode === "new" && zonedParts(now).hour < MEAL_DAY_START_HOUR && todayString(now) === date ? shiftDate(date, -1) : "";
     },
     () => "",
   );

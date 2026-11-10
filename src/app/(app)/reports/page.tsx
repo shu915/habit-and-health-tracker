@@ -12,6 +12,7 @@ import { getLongTermOptions } from "@/lib/long-term-options";
 import { getReportOptions } from "@/lib/report-options";
 import { pageOfReports } from "@/lib/report-pages";
 import { listReports } from "@/lib/reports";
+import { formatDateInAppZone } from "@/lib/time-zone";
 import { createReportAction, revokeConsentAction } from "./actions";
 
 // AI レポート(docs/ai-feedback.md)。随時(直近 4 週間。1 日 1 回まで)と、定期(月次。過去の、どの月でも選べる。同じ月は 1 回だけ)を作る。作ったレポートの一覧(随時は最新の 1 件、月次は月ごと)。
@@ -84,7 +85,7 @@ function ReportList({ reports }: { reports: Awaited<ReturnType<typeof listReport
             <Link href={`/reports/${report.id}`} className="font-semibold after:absolute after:inset-0">
               {reportTitle(report.kind, report.periodStart, report.periodEnd)}
             </Link>
-            <p className="text-xs text-ink-muted">{report.createdAt.toLocaleDateString("ja-JP")} に作成</p>
+            <p className="text-xs text-ink-muted">{formatDateInAppZone(report.createdAt)} に作成</p>
           </div>
           <p className="text-xs text-ink-muted">
             {report.status === "creating" ? "作成中" : report.status === "failed" ? "作れませんでした" : report.badges.length === 0 ? "" : report.badges.map(badgeLabel).join(" ・ ")}

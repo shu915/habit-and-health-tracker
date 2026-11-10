@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { MealEstimate } from "@/lib/meal-estimate";
 import { isBefore, isFirstChild, isLastChild } from "./dom-order";
 import { MealForm } from "./meal-form";
+import { jst } from "@/test-utils/jst";
 
 const actions = vi.hoisted(() => ({
   estimateMealAction: vi.fn(),
@@ -17,10 +18,10 @@ vi.mock("@/app/(app)/days/[date]/meals/actions", () => actions);
 const resize = vi.hoisted(() => ({ resizeImageToDataUrl: vi.fn() }));
 vi.mock("@/lib/image-resize", () => resize);
 
-// 今日を固定する(ローカル時間の 2026-10-30 12:05)。Date だけを偽物にして、user-event のタイマーには触らない
+// 今日を固定する(日本時間の 2026-10-30 12:05。月は 0 始まりで渡す)。Date だけを偽物にして、user-event のタイマーには触らない
 function setNow(...args: [number, number, number, number, number]) {
   vi.useFakeTimers({ toFake: ["Date"] });
-  vi.setSystemTime(new Date(...args));
+  vi.setSystemTime(jst(args[0], args[1] + 1, args[2], args[3], args[4]));
 }
 
 beforeEach(() => {

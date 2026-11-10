@@ -3,14 +3,15 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DayJumpForm } from "./day-jump-form";
+import { jst } from "@/test-utils/jst";
 
 const push = vi.hoisted(() => vi.fn());
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 
-// 今日を固定する(ローカル時間の 2026-10-30)。Date だけを偽物にして、user-event のタイマーには触らない
+// 今日を固定する(日本時間の 2026-10-30)。Date だけを偽物にして、user-event のタイマーには触らない
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
-  vi.setSystemTime(new Date(2026, 9, 30, 9, 0));
+  vi.setSystemTime(jst(2026, 10, 30, 9, 0));
 });
 afterEach(() => {
   cleanup();

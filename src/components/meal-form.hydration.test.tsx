@@ -4,6 +4,7 @@ import { hydrateRoot } from "react-dom/client";
 import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MealForm } from "./meal-form";
+import { jst } from "@/test-utils/jst";
 
 vi.mock("@/app/(app)/days/[date]/meals/actions", () => ({
   estimateMealAction: vi.fn(),
@@ -17,14 +18,14 @@ vi.mock("@/lib/image-resize", () => ({ resizeImageToDataUrl: vi.fn() }));
 // ブラウザだけで描画するテスト(render)では、この引き継ぎの切り替えを通らない
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
-  vi.setSystemTime(new Date(2026, 9, 30, 12, 5));
+  vi.setSystemTime(jst(2026, 10, 30, 12, 5));
 });
 afterEach(() => {
   vi.useRealTimers();
   document.body.innerHTML = "";
 });
 
-async function hydrate(date: string, now: Date = new Date(2026, 9, 30, 12, 5)) {
+async function hydrate(date: string, now: Date = jst(2026, 10, 30, 12, 5)) {
   vi.setSystemTime(now);
   const container = document.createElement("div");
   document.body.appendChild(container);
@@ -57,14 +58,14 @@ describe("MealForm: サーバーの HTML を引き継いだあとの、食べた
   });
 
   it("深夜(午前 3 時より前)は、前の日の食事として、24 時以降の時刻が入る: 01:30 → 前日の 25:30、夜食", async () => {
-    const { hours, minutes, container } = await hydrate("2026-10-29", new Date(2026, 9, 30, 1, 30));
+    const { hours, minutes, container } = await hydrate("2026-10-29", jst(2026, 10, 30, 1, 30));
     expect(hours().value).toBe("25");
     expect(minutes().value).toBe("30");
     expect(container.textContent).toContain("夜食");
   });
 
   it("深夜でも、今日(カレンダーの日付)の画面では、時刻は空のまま(その時刻は、前の日の食事のため)", async () => {
-    const { hours, minutes } = await hydrate("2026-10-30", new Date(2026, 9, 30, 1, 30));
+    const { hours, minutes } = await hydrate("2026-10-30", jst(2026, 10, 30, 1, 30));
     expect(hours().value).toBe("");
     expect(minutes().value).toBe("");
   });
@@ -72,7 +73,7 @@ describe("MealForm: サーバーの HTML を引き継いだあとの、食べた
   it("深夜の今日の画面では、引き継いだあとに、前の日に追加する案内が出る(サーバーの HTML には、まだ無い)", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
-    vi.setSystemTime(new Date(2026, 9, 30, 1, 30));
+    vi.setSystemTime(jst(2026, 10, 30, 1, 30));
     container.innerHTML = renderToString(<MealForm date="2026-10-30" mode="new" />);
     expect(container.querySelector('[role="note"]')).toBeNull(); // サーバーは、今の時刻を知らない
 
@@ -83,7 +84,7 @@ describe("MealForm: サーバーの HTML を引き継いだあとの、食べた
   });
 
   it("午前 3 時ちょうどからは、その日の食事(03:00)", async () => {
-    const { hours, minutes } = await hydrate("2026-10-30", new Date(2026, 9, 30, 3, 0));
+    const { hours, minutes } = await hydrate("2026-10-30", jst(2026, 10, 30, 3, 0));
     expect(hours().value).toBe("3");
     expect(minutes().value).toBe("0");
   });
