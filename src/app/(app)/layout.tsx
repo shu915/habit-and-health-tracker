@@ -21,7 +21,10 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
             <Suspense fallback={null}>
               <UserEmail />
             </Suspense>
-            <SignOutButton />
+            {/* 広い画面では、メールアドレスのメニュー(user-email.tsx)にログアウトがあるので、スマホ幅だけ出す */}
+            <div className="sm:hidden">
+              <SignOutButton />
+            </div>
           </div>
         </nav>
       </header>
