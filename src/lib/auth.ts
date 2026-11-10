@@ -2,6 +2,7 @@ import { after } from "next/server";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
+import { APIError, createAuthMiddleware } from "better-auth/api";
 import { magicLink } from "better-auth/plugins";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
@@ -9,6 +10,7 @@ import { isEmailAllowed } from "@/lib/allowlist";
 import { devLanAddresses } from "@/lib/dev-lan";
 import { describeEmailError, sendEmail } from "@/lib/email";
 import { loginEmail, MAGIC_LINK_EXPIRES_IN_SECONDS } from "@/lib/login-email";
+import { isLoginLinkRequestLimited } from "@/lib/login-rate-limit";
 
 // 本番は BETTER_AUTH_URL の 1 つに固定する。開発は、リクエストのホストから決める(Mac の localhost と、スマホから開く LAN のアドレスの両方で、ログインできるように)。
 // 許可するのは、localhost と、このマシン自身の LAN のアドレスだけ(dev-lan.ts)。開発では BETTER_AUTH_URL は使わない
@@ -29,6 +31,15 @@ export const auth = betterAuth({
   // 回数の記録はメモリではなく DB に置く(サーバーレスではリクエストごとにプロセスが違い、メモリでは数えられない)。
   // 既定は本番だけ有効なので、開発でも効かせる。rateLimit テーブルが auth-schema.ts にある
   rateLimit: { enabled: true, storage: "database" },
+  hooks: {
+    // ログインのメールの依頼を、メールアドレス単位でも制限する(IP 単位の制限は、IP を変えるとすり抜けられる)。
+    // 許可リストの内外を問わず、同じ判定・同じ応答(429)にする(login-rate-limit.ts)
+    before: createAuthMiddleware(async (ctx) => {
+      if (await isLoginLinkRequestLimited(ctx.path, ctx.body)) {
+        throw APIError.from("TOO_MANY_REQUESTS", { message: "Too many requests. Please try again later.", code: "LOGIN_LINK_RATE_LIMITED" });
+      }
+    }),
+  },
   databaseHooks: {
     user: {
       create: {

@@ -284,6 +284,27 @@ export const aiRequests = pgTable(
 );
 
 // ==========================================
+// 6b. Login Link Requests (ログインのメールの依頼の記録。メールアドレス単位の回数制限に使う)
+// ==========================================
+// ログインのメールを依頼するたびに 1 行を足し、同じアドレスへの連打を止める(lib/login-rate-limit.ts)。
+// **ログイン前の表なので、user_id を持たない**(全テーブルが user_id を持つ規則の、例外)。他人のアドレスを入れて嫌がらせをされうるので、
+// アドレスそのものではなく、ハッシュ(SHA-256)で持つ。許可リストの内でも外でも、同じように数える(数えること自体が、登録の有無を教えないため)。古い行は、足すときに消す
+export const loginLinkRequests = pgTable(
+  "login_link_requests",
+  {
+    id: serial("id").primaryKey(),
+    emailHash: text("email_hash").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    // アドレスごとの件数を数える
+    index("login_link_requests_hash_created_idx").on(table.emailHash, table.createdAt),
+    // 古い行を消す(created_at だけの範囲条件。これが無いと、足すたびに、表全体を走査する)
+    index("login_link_requests_created_idx").on(table.createdAt),
+  ],
+);
+
+// ==========================================
 // 7. AI Consents (AI フィードバックへの同意。docs/ai-feedback.md)
 // ==========================================
 // 日記・良かったこと・運動のメモを含む記録を、AI の提供元に送ることへの同意。1 人 1 行(同意していなければ、行が無い)。

@@ -12,9 +12,10 @@ Shu の生活習慣管理アプリ(友人にも使ってもらう)。食事・�
 
 ## 認証とデータの分離(いちばん大事)
 - Better Auth のマジックリンクが root。`user` は Better Auth のものを使い、独自の users は作らない
-- 全テーブルに `user_id`(`user.id` への外部キー、型は `text`、cascade)を持たせ、**クエリは必ず `user_id` で絞る**
+- 全テーブルに `user_id`(`user.id` への外部キー、型は `text`、cascade)を持たせ、**クエリは必ず `user_id` で絞る**(例外: ログイン前の表 `login_link_requests` は、ユーザーがいないので持たない。アドレスはハッシュで持つ)
 - `user_id` は `getCurrentUserId()` に集約する。未ログインなら `/login` へ `redirect()`(例外を投げる)ので、`try/catch` で囲まない。Route Handler 用には 401 を返す版を別に作る
 - 守りは 3 段: `proxy.ts` → `(app)/layout.tsx` の `AuthGate` → **データを扱う関数が `getCurrentUserId()` を最初に呼ぶ(本当の認可はここ)**。レイアウトだけに頼らない。日付は関数の中でも検証する。実 DB のテストで守る
+- ログインのメールの依頼は、IP 単位(Better Auth)に加えて、**メールアドレス単位**でも制限する(10 分に 3 回・1 日に 10 回。許可リストの内外を問わず同じ判定・同じ応答 429。開発は上限なし。`lib/login-rate-limit.ts`)
 - 新規登録は `ALLOWED_EMAILS` のホワイトリスト(空のとき、開発は全員許可・本番は誰も許可しない)。許可外でも応答は同じにする。外した人の `session` の行も消す
 - メールは `lib/email.ts`。開発・テストはコンソールに出し、本番は Resend の REST API で送る(`RESEND_API_KEY`・`MAIL_FROM` が必須。無ければエラー)。本番では、宛先・本文(ログインリンク)をログに出さない。文面は `lib/login-email.ts`
 
