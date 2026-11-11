@@ -16,7 +16,7 @@ Shu の生活習慣管理アプリ(友人にも使ってもらう)。食事・�
 - `user_id` は `getCurrentUserId()` に集約する。未ログインなら `/login` へ `redirect()`(例外を投げる)ので、`try/catch` で囲まない。Route Handler 用には 401 を返す版を別に作る
 - 守りは 3 段: `proxy.ts` → `(app)/layout.tsx` の `AuthGate` → **データを扱う関数が `getCurrentUserId()` を最初に呼ぶ(本当の認可はここ)**。レイアウトだけに頼らない。日付は関数の中でも検証する。実 DB のテストで守る
 - **Google でログインできるのは、アカウントのページ(`/account`)で連結した人だけ**。Google だけではユーザーを作れず(`disableSignUp`)、メールが一致しても勝手に連結しない(`disableImplicitLinking`。**外さない**。`trustedProviders` に、メールを確認しないプロバイダーを入れない)。連結・解除は 5 分以内にログインした人だけ
-- 新規登録は `ALLOWED_EMAILS` の許可リスト(空のとき、開発は全員許可・本番は誰も許可しない)。**セッションを作るときも、許可リストを確認する**(`lib/session-allowlist.ts`。どの経路でも。外した人が、連結済みの Google から入り直せないように)。許可リストから外した人は、`session` の行が残っていても入れない(`lib/current-user.ts` の `getSession` が、読むたびに許可リストを確かめる。行も消すのが望ましい)。許可外でも応答は同じにする
+- 新規登録は `ALLOWED_EMAILS` の許可リスト(空のとき、開発は全員許可・本番は誰も許可しない)。**セッションを作るときも、許可リストを確認する**(`lib/session-allowlist.ts`。どの経路でも。外した人が、連結済みの Google から入り直せないように)。許可リストから外した人は、`session` の行が残っていても入れない(`lib/current-user.ts` の `getSession` が、読むたびに許可リストを確かめる。ただし、**外すときは `session` の行も必ず消す**。残ると、Better Auth 自身の API を叩ける。`docs/auth.md`)。許可外でも応答は同じにする
 - ログインのメールは、IP 単位に加えて**メールアドレス単位**でも制限する(許可リストの内外を問わず同じ応答 429)。本番では、宛先・ログインリンクをログに出さない
 - 詳細は [`docs/auth.md`](docs/auth.md)(許可リスト・Google・メール・回数の制限)
 
@@ -31,7 +31,7 @@ Shu の生活習慣管理アプリ(友人にも使ってもらう)。食事・�
 ## 食事と AI の要点(詳細は `docs/meals-and-ai.md`)
 - **すべての食事は AI の推定**(手入力の経路は作らない)。合計と糖質は**コードで計算**する(AI に足し算させない)。保存のとき、サーバーは推定を zod で検証し直し、合計を内訳から計算し直す
 - **API キーを読むのは `openrouter.ts` だけ**。食事の内容と写真は健康情報なので `data_collection: "deny"`。**Google のモデルは、JSON スキーマの `minLength`・`maxLength`・`minimum`・`maximum`・`minItems`・`maxItems`・`additionalProperties` を 400 で拒否する**(スキーマからは外し、zod で検証)
-- 食事の推定の回数制限は、1 日 20 回(03:00 区切り。失敗は数えず、「食べ物でない」判定は数える。環境変数 `MEAL_ESTIMATE_DAILY_LIMIT` で変えられ、開発サーバーは指定が無ければ上限なし)。ユーザー単位の `pg_advisory_xact_lock` で「数える → 足す」を直列にする。AI レポートは別の決まり(`docs/ai-feedback.md`)
+- 食事の推定の回数制限は、1 日 20 回(03:00 区切り。**AI に届かなかった失敗(設定・接続・AI のエラー)だけ数えず**、AI が答えたあとの失敗(食べ物でない判定・読めない返事・合計が範囲外)は数える。戻すと、わざと失敗させて、上限なしに AI を呼べるため。環境変数 `MEAL_ESTIMATE_DAILY_LIMIT` で変えられ、開発サーバーは指定が無ければ上限なし)。ユーザー単位の `pg_advisory_xact_lock` で「数える → 足す」を直列にする。AI レポートは別の決まり(`docs/ai-feedback.md`)
 - 日記(良かったこと・今日の気づき・運動のメモ)は、**AI レポートを作るときだけ、利用者が同意したうえで**、全文を AI に送る(`docs/ai-feedback.md`)。ほかの場面では送らない。レポートの保存(スナップショット)には、文章を複製しない
 - 実際に AI を呼ぶ `*.live.test.ts` は `RUN_LIVE_AI=1` のときだけ動く(お金がかかる)
 
