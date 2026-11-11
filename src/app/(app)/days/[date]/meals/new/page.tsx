@@ -7,6 +7,9 @@ import { isRecordableDate } from "@/lib/date";
 import { requireRecordingProfile } from "@/lib/recording-gate";
 
 // 食事の追加。文章・写真から AI が推定し、確認してから保存する(保存は meals/actions.ts)
+// この画面から呼ぶ AI の推定は、1 回の試行の時間切れ 35 秒 × 2 回(openrouter.ts)で、最悪約 70 秒かかる。
+// 実行時間の上限が短い設定(Vercel の既定が 10〜15 秒の場合)だと、写真つきの推定が途中で切れるので、延ばしておく(デプロイのとき、プランの上限を確かめる。docs/release-checklist.md)
+export const maxDuration = 90;
 // params は Suspense の内側で読む(読み込み中の表示を先に出すため)
 export default function NewMealPage({ params }: PageProps<"/days/[date]/meals/new">) {
   return (

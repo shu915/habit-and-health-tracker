@@ -11,10 +11,13 @@ const amount = (max: number) => z.number().min(0).max(max);
 // refine は JSON スキーマには出ない(提供元が受け付けないキーワードを増やさない)
 const oneLine = (value: string) => !/[\r\n]/.test(value);
 const ONE_LINE_MESSAGE = "改行を含められません";
+// NUL 文字は PostgreSQL の text に入らず、保存で 500 になる(Server Action を直接呼ぶと送れる)ので、保存の前に弾く。品目・料理名・量・前提・説明のすべてに付ける
+const noNul = (value: string) => !value.includes("\u0000");
+const NO_NUL_MESSAGE = "使えない文字が含まれています";
 
 export const estimatedItemSchema = z.object({
-  name: z.string().trim().min(1).max(DISH_NAME_MAX_LENGTH).refine(oneLine, ONE_LINE_MESSAGE).describe("品目の名前（例: 焼鮭、白ご飯、みそ汁）"),
-  amount: z.string().trim().max(100).describe("量の目安（例: 1切れ 80g、茶碗1杯 150g）"),
+  name: z.string().trim().min(1).max(DISH_NAME_MAX_LENGTH).refine(oneLine, ONE_LINE_MESSAGE).refine(noNul, NO_NUL_MESSAGE).describe("品目の名前（例: 焼鮭、白ご飯、みそ汁）"),
+  amount: z.string().trim().max(100).refine(noNul, NO_NUL_MESSAGE).describe("量の目安（例: 1切れ 80g、茶碗1杯 150g）"),
   kcal: amount(MEAL_LIMITS.kcal.app.max).describe("エネルギー（kcal）"),
   proteinG: amount(MEAL_LIMITS.proteinG.app.max).describe("たんぱく質（g）"),
   fatG: amount(MEAL_LIMITS.fatG.app.max).describe("脂質（g）"),
@@ -27,6 +30,7 @@ export const estimatedItemSchema = z.object({
     .trim()
     .max(100)
     .refine(oneLine, ONE_LINE_MESSAGE)
+    .refine(noNul, NO_NUL_MESSAGE)
     .optional()
     .describe("この品目の数字の前提を、20〜30 文字ほどで短く。量や重さは書かない（例: フライパンで油を引くと仮定、ノンフライヤーで油を使わない、砂糖入りのたれと仮定）。調理法・油・砂糖の仮定が無ければ空文字"),
 });
@@ -38,8 +42,9 @@ export const mealEstimateSchema = z.object({
     .min(1)
     .max(DISH_NAME_MAX_LENGTH)
     .refine(oneLine, ONE_LINE_MESSAGE)
+    .refine(noNul, NO_NUL_MESSAGE)
     .describe("この食事全体の料理名。短い名前。調理法が分かるときは入れる（例: 焼鮭定食、ノンフライヤーの鶏もも肉、バター炒めの野菜）"),
-  description: z.string().trim().max(1000).describe("ユーザーが書いた内容（写真から読み取った内容を含む）を、意味を変えずに読みやすく整えた説明。再推定の入力になる"),
+  description: z.string().trim().max(1000).refine(noNul, NO_NUL_MESSAGE).describe("ユーザーが書いた内容（写真から読み取った内容を含む）を、意味を変えずに読みやすく整えた説明。再推定の入力になる"),
   items: z.array(estimatedItemSchema).min(1).max(30).describe("品目ごとの内訳"),
 });
 
@@ -49,7 +54,7 @@ export const mealEstimateSchema = z.object({
 export const mealEstimateAnswerSchema = z.object({
   isMeal: z.boolean().describe("人が食べる食べ物・飲み物の記録として扱えるときだけ true。食べ物でないもの、人や動物が写っているだけの写真などは false"),
   notMealReason: z.string().trim().max(200).describe("isMeal が false のとき、扱えない理由を短く（例: 食べ物ではないため）。true のときは空文字"),
-  dishName: z.string().trim().max(DISH_NAME_MAX_LENGTH).refine(oneLine, ONE_LINE_MESSAGE).describe(mealEstimateSchema.shape.dishName.description ?? ""),
+  dishName: z.string().trim().max(DISH_NAME_MAX_LENGTH).refine(oneLine, ONE_LINE_MESSAGE).refine(noNul, NO_NUL_MESSAGE).describe(mealEstimateSchema.shape.dishName.description ?? ""),
   description: mealEstimateSchema.shape.description,
   items: z.array(estimatedItemSchema).max(30).describe("品目ごとの内訳。isMeal が false のときは空の配列"),
 });

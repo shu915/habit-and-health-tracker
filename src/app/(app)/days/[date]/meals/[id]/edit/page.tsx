@@ -8,7 +8,11 @@ import { isMealId } from "@/lib/meal-limits";
 import type { MealEstimate } from "@/lib/meal-estimate";
 import { getMeal } from "@/lib/meals";
 
-// 食事を直す・消す。保存した内容から始めて、説明を直して推定し直すか、時刻・別名を直す
+// 食事を直す・消す。保存した内容から始めて、説明を直して推定し直すか、時刻を直す
+// この画面から呼ぶ AI の推定は、1 回の試行の時間切れ 35 秒 × 2 回(openrouter.ts)で、最悪約 70 秒かかる。
+// 実行時間の上限が短い設定(Vercel の既定が 10〜15 秒の場合)だと、写真つきの推定が途中で切れるので、延ばしておく(デプロイのとき、プランの上限を確かめる。docs/release-checklist.md)
+export const maxDuration = 90;
+
 export default function EditMealPage({ params }: PageProps<"/days/[date]/meals/[id]/edit">) {
   return (
     <Suspense fallback={<p className="text-ink-muted">読み込み中...</p>}>

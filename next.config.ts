@@ -15,7 +15,20 @@ const nextConfig: NextConfig = {
   // 断ると、ロボットがこのヘッダーを読めず、どこかにリンクが貼られた(公開リポジトリの README など)ときに、中身なしの URL だけが載ることがある。
   // 来てもらって、ヘッダーで「載せないで」と伝えるほうが確実
   async headers() {
-    return [{ source: "/:path*", headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] }];
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          { key: "X-Robots-Tag", value: "noindex, nofollow" },
+          // 別のサイトの枠(iframe)に入れさせない(クリックジャッキング)。このアプリは、どこにも埋め込まない
+          { key: "X-Frame-Options", value: "DENY" },
+          // ブラウザに、Content-Type を推測させない
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          // 別のサイトへ移るとき、URL(日付やレポートの id を含む)を、送らない
+          { key: "Referrer-Policy", value: "same-origin" },
+        ],
+      },
+    ];
   },
   turbopack: {
     rules: {

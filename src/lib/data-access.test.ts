@@ -696,6 +696,25 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", { timeout: 15_000 }, 
       for (const secret of ["秘密の日記", "秘密の良かったこと", "秘密の焼鮭定食"]) expect(snapshotText).not.toContain(secret);
     });
 
+    it("作成を始めたあと、裏の処理が走る前に同意を撤回されたら、日記を AI に送らず、失敗にする(月次・随時も、長期と同じ)", async () => {
+      currentUser.id = USER_A;
+      await readyProfile();
+      const dates = lastDays(28);
+      await recordDays(dates);
+      ai.complete.mockResolvedValue(reportJson(dates));
+
+      const started = await startCreate("four-weeks");
+      expect(started.result.ok).toBe(true);
+      if (!started.result.ok) return;
+      await reportConsentModule.revokeAiConsent(); // 裏の処理が走る前に、撤回する
+      await started.runTasks();
+
+      expect(ai.complete).not.toHaveBeenCalled(); // 日記を含む入力は、送らない
+      const failed = await reportsModule.getReport(started.result.id);
+      expect(failed).toMatchObject({ status: "failed" });
+      expect(failed?.errorMessage).toContain("同意が取り消された");
+    });
+
     it("随時レポート(直近 4 週間)は、1 日に 1 回まで。2 回目は、AI を呼ばず、行も作らずに断る", async () => {
       currentUser.id = USER_A;
       await readyProfile();
