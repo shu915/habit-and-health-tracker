@@ -28,7 +28,8 @@ export type AuthDeps = {
 // IP 単位の回数制限が、リクエストの IP を読むヘッダー(先に書いたものを優先)。
 // 指定が無いと、Better Auth は x-forwarded-for が 1 つの値のときだけ IP を採用し、複数の値(手前に Cloudflare などのプロキシがある)だと採用せず、
 // 全員が 1 つの枠(no-trusted-ip)を共有してしまう。外から 1 分に数回叩くだけで、全員のログインが止まる。
-// Vercel は x-vercel-forwarded-for に、接続元の IP だけを入れる(手前にプロキシがあっても、変わらない)。**デプロイ後に、実際に取れているかを確かめる**(docs/release-checklist.md)
+// Vercel は x-vercel-forwarded-for に、Vercel に接続してきた相手の IP を入れる。**手前に Cloudflare などのプロキシを置くと、その出口の IP になり、同じ出口を通る人が 1 つの枠を共有する**
+// (本当の接続元を示す cf-connecting-ip は、*.vercel.app を直接叩けば偽装できるので、信用しない)。なので、DNS だけにして、プロキシを通さない。**デプロイ後に、実際に取れているかを確かめる**(docs/release-checklist.md)
 export const IP_ADDRESS_HEADERS = ["x-vercel-forwarded-for", "x-forwarded-for"];
 
 export function createAuthOptions(deps: AuthDeps) {

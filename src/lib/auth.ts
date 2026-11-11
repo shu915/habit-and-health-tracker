@@ -56,7 +56,7 @@ const options = createAuthOptions({
     try {
       await db.insert(schema.profiles).values({ userId: user.id }).onConflictDoNothing();
     } catch (err) {
-      console.error("[auth] failed to create the profile row", err);
+      console.error("[auth] failed to create the profile row:", err instanceof Error ? err.name : "unknown"); // err そのものは出さない(DB のエラーには、接続先やユーザー ID が入りうるため)
     }
   },
 });
