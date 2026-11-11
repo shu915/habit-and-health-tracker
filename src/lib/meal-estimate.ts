@@ -16,8 +16,11 @@ export type MealTotals = {
 
 export type MealEstimate = MealEstimateResponse & { totals: MealTotals };
 
-// notMeal: AI が「食べ物でない」と判定した失敗(費用が出ていて、悪用の入口になるので、回数制限では、数える)。ほかの失敗(接続・AI のエラー・読めない返事)は、数えない
-export type ParseResult = { ok: true; estimate: MealEstimate } | { ok: false; message: string; notMeal?: true };
+// 回数制限(1 日 20 回)で、失敗を数えるかどうかは、「AI が答えたか」で決める(費用が出たかどうか)。
+// unreached: AI に届かなかった失敗(設定・接続・AI のエラー)。費用が出ていないので、数えた 1 回分を戻す。
+// それ以外の失敗(食べ物でないという判定、読めない返事、合計が範囲外)は、AI が答えたあとで費用が出ているので、**数える**
+// (戻すと、わざと範囲外の入力を繰り返して、上限なしに AI を呼べてしまう)。network は、時間切れで費用が出ていることもあるが、戻す(正当な人が損をするほうが大きい)
+export type ParseResult = { ok: true; estimate: MealEstimate } | { ok: false; message: string; unreached?: true };
 
 const round1 = (value: number) => Math.round(value * 10) / 10;
 
@@ -97,7 +100,7 @@ export function parseEstimate(content: string): ParseResult {
 
   const { isMeal, notMealReason, ...meal } = parsed.data;
   // 食事として扱えない入力(食べ物でないもの、人や動物の写真など)は、推定を作らず、理由を返す(何も保存されない)
-  if (!isMeal) return { ok: false, message: notMealMessage(notMealReason), notMeal: true };
+  if (!isMeal) return { ok: false, message: notMealMessage(notMealReason) };
   // 食事なのに、品目も料理名も無い返事は、使えない
   if (meal.items.length === 0 || meal.dishName === "") {
     console.error("[meal-estimate] 食事なのに品目か料理名が空");

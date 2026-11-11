@@ -23,6 +23,9 @@ export const MEAL_TIME_MAX_HOUR = 26;
 // 料理名(dish_name)の文字数の上限(列の長さと同じ)
 export const DISH_NAME_MAX_LENGTH = 100;
 
+// 1 日に記録できる食事の件数。1 人が DB の容量を埋められないための上限(AI の推定は 1 日 20 回までで、同じ数にそろえた。運動の上限と同じ形)
+export const MEAL_MAX_PER_DAY = 20;
+
 // 食事の推定に送る入力の上限(サーバーの検証と、ブラウザ側の写真の縮小で共有する)
 export const TEXT_MAX_LENGTH = 2000; // 食べたものの文章の文字数
 // 写真は、最大 4 枚(同じ食事の別の角度や、別の皿)。ブラウザ側で縮小して送る。

@@ -175,6 +175,29 @@ describe("estimateMeal", () => {
     }
   });
 
+  it.each([
+    ["config", true],
+    ["network", true],
+    ["http", true],
+    ["response", false], // 本文が読めない: AI が答えたあと。数える
+  ] as const)("回数制限のために、AI に届かなかった失敗かを、結果に付ける: %s は unreached=%s", async (kind, unreached) => {
+    const complete = vi.fn<Complete>(async () => {
+      throw new OpenRouterError(kind, "内部の理由");
+    });
+    const result = await estimateMeal({ text: "焼鮭" }, complete);
+    expect(result).toMatchObject({ ok: false });
+    expect(!result.ok && result.unreached === true).toBe(unreached);
+  });
+
+  it("AI が答えたあとの失敗(食べ物でない・検証を通らない・合計が範囲外)には、unreached を付けない(数える)", async () => {
+    const notMeal = JSON.stringify({ isMeal: false, notMealReason: "革靴", dishName: "", description: "", items: [] });
+    for (const reply of [notMeal, '{"dishName":"x"}', "JSON ではない"]) {
+      const result = await estimateMeal({ text: "焼鮭" }, fakeComplete(reply));
+      expect(result.ok).toBe(false);
+      expect(!result.ok && result.unreached).toBeUndefined();
+    }
+  });
+
   it("食べ物でない入力(AI が isMeal を false で返した)は、推定を返さず、理由つきの失敗にする", async () => {
     const reply = JSON.stringify({ isMeal: false, notMealReason: "革靴は食べ物ではないため", dishName: "", description: "", items: [] });
     const result = await estimateMeal({ text: "革靴を煮て食べた" }, fakeComplete(reply));

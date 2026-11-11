@@ -65,7 +65,7 @@ export function checkEstimateInput(input: { text: string; imageDataUrls?: readon
 
 export async function estimateMeal(input: EstimateInput, complete: Complete = completeJson): Promise<ParseResult> {
   const checked = checkEstimateInput(input);
-  if (!checked.ok) return checked;
+  if (!checked.ok) return { ...checked, unreached: true }; // AI は呼んでいない
 
   const userText = buildUserText(checked.text);
   const messages: ChatMessage[] = [
@@ -85,7 +85,8 @@ export async function estimateMeal(input: EstimateInput, complete: Complete = co
   } catch (error) {
     if (!(error instanceof OpenRouterError)) throw error; // 想定外の失敗（プログラムの誤り）は隠さない
     console.error(`[estimate-meal] ${error.kind}: ${error.message}`); // 詳しい理由は端末のログにだけ出す
-    return { ok: false, message: FAILURE_MESSAGES[error.kind] };
+    // 設定・接続・AI のエラーは、AI に届かなかった(または、使える答えが無かった)ので、数えない。本文が読めない(response)は、AI が答えたあとなので、数える
+    return { ok: false, message: FAILURE_MESSAGES[error.kind], ...(error.kind === "response" ? {} : { unreached: true as const }) };
   }
 
   return parseEstimate(content);

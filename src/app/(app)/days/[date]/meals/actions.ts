@@ -11,7 +11,7 @@ import { checkEstimateInput, estimateMeal } from "@/lib/estimate-meal";
 import { buildEstimate, type ParseResult } from "@/lib/meal-estimate";
 import { isMealId } from "@/lib/meal-limits";
 import { parseMealSave, type MealSaveErrors } from "@/lib/meal-schema";
-import { deleteMeal, getMeal, saveMeal, updateMeal, type MealInput } from "@/lib/meals";
+import { deleteMeal, getMeal, MealLimitError, saveMeal, updateMeal, type MealInput } from "@/lib/meals";
 
 // 食事の Server Action。どれも、最初に getCurrentUserId() で認証を確かめる(未ログインなら /login へ送られ、何も実行されない)。
 // 届く値は誰でも送れるので、unknown として受け、zod で検証する
@@ -34,7 +34,7 @@ export async function estimateMealAction(raw: unknown): Promise<ParseResult> {
 
   try {
     const result = await estimateMeal({ text: checked.text, imageDataUrls: checked.imageDataUrls });
-    if (!result.ok && !result.notMeal) await limit.release();
+    if (!result.ok && result.unreached) await limit.release(); // AI に届かなかった失敗だけ、戻す(答えが来たあとの失敗は、費用が出ているので数える)
     return result;
   } catch (error) {
     await limit.release(); // 想定外の失敗でも、数えた分は戻す
@@ -74,7 +74,12 @@ export async function saveMealAction(date: string, raw: unknown): Promise<SaveMe
   const result = toMealInput(raw);
   if (!result.ok) return result;
 
-  await saveMeal(date, result.input);
+  try {
+    await saveMeal(date, result.input);
+  } catch (error) {
+    if (error instanceof MealLimitError) return { ok: false, errors: { form: error.message } }; // 1 日の上限。画面に出す
+    throw error;
+  }
   revalidatePath("/");
   revalidatePath(`/days/${date}`);
   redirect(`/days/${date}`);
