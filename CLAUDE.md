@@ -15,10 +15,10 @@ Shu の生活習慣管理アプリ(友人にも使ってもらう)。食事・�
 - 全テーブルに `user_id`(`user.id` への外部キー、型は `text`、cascade)を持たせ、**クエリは必ず `user_id` で絞る**(例外: ログイン前の表 `login_link_requests` は、ユーザーがいないので持たない。アドレスはハッシュで持つ)
 - `user_id` は `getCurrentUserId()` に集約する。未ログインなら `/login` へ `redirect()`(例外を投げる)ので、`try/catch` で囲まない。Route Handler 用には 401 を返す版を別に作る
 - 守りは 3 段: `proxy.ts` → `(app)/layout.tsx` の `AuthGate` → **データを扱う関数が `getCurrentUserId()` を最初に呼ぶ(本当の認可はここ)**。レイアウトだけに頼らない。日付は関数の中でも検証する。実 DB のテストで守る
-- **Google でログインできるのは、アカウントのページ(`/account`。ヘッダーのメールから)で連結した人だけ**。Google だけではユーザーを作れず(`disableSignUp`)、メールが一致しても勝手に連結しない(`disableImplicitLinking`)。Google のメールは、アカウントのメールと違ってよい(ログイン中の本人だけが連結できるため)。連結・解除は 5 分以内にログインした人だけ(`freshAge`)、連結したら本人のメールに知らせる。解除してもマジックリンクで入れる。方針と守りは `lib/google-auth-options.ts`、テストは `google-auth.test.ts`(本物の Better Auth・メモリ上の DB・Google の通信だけ偽物)。GitHub や LINE を足すときも同じ形。メールが確認済みでないプロバイダーがあるので、`disableImplicitLinking` は外さず、`trustedProviders` にも、メールを確認しないプロバイダー(LINE など)を入れない
-- ログインのメールの依頼は、IP 単位(Better Auth)に加えて、**メールアドレス単位**でも制限する(10 分に 3 回・1 日に 10 回。許可リストの内外を問わず同じ判定・同じ応答 429。開発は上限なし。`lib/login-rate-limit.ts`)
-- 新規登録は `ALLOWED_EMAILS` のホワイトリスト(空のとき、開発は全員許可・本番は誰も許可しない)。許可外でも応答は同じにする。外した人の `session` の行も消す。**セッションを作るときも、許可リストを確認する**(`lib/session-allowlist.ts`。マジックリンクも Google も、どの経路でも。外した人が、連結済みの Google から入り直せないように)
-- メールは `lib/email.ts`。開発・テストはコンソールに出し、本番は Resend の REST API で送る(`RESEND_API_KEY`・`MAIL_FROM` が必須。無ければエラー)。本番では、宛先・本文(ログインリンク)をログに出さない。文面は `lib/login-email.ts`
+- **Google でログインできるのは、アカウントのページ(`/account`)で連結した人だけ**。Google だけではユーザーを作れず(`disableSignUp`)、メールが一致しても勝手に連結しない(`disableImplicitLinking`。**外さない**。`trustedProviders` に、メールを確認しないプロバイダーを入れない)。連結・解除は 5 分以内にログインした人だけ
+- 新規登録は `ALLOWED_EMAILS` の許可リスト(空のとき、開発は全員許可・本番は誰も許可しない)。**セッションを作るときも、許可リストを確認する**(`lib/session-allowlist.ts`。どの経路でも。外した人が、連結済みの Google から入り直せないように)。人を外すときは `session` の行も消す。許可外でも応答は同じにする
+- ログインのメールは、IP 単位に加えて**メールアドレス単位**でも制限する(許可リストの内外を問わず同じ応答 429)。本番では、宛先・ログインリンクをログに出さない
+- 詳細は [`docs/auth.md`](docs/auth.md)(許可リスト・Google・メール・回数の制限)
 
 ## データの要点(詳細は `docs/data-rules.md`)
 - 値の範囲は `lib/*-limits.ts` に集約(`app` = zod の現実的な範囲、`db` = CHECK の広い範囲。**app は db の内側**)
@@ -39,7 +39,7 @@ Shu の生活習慣管理アプリ(友人にも使ってもらう)。食事・�
 - 閲覧と編集は別のパス(`?mode=edit` は使わない)。保存は Server Action で、日付・id はページが bind する
 - ボタン: 決定する操作だけ深い緑(`accent`)、弱い操作はベージュのグレーの塗り(`neutral`)。新しく書く部分の色は `globals.css` の変数(`bg-surface-raised`・`text-ink-muted` など)を使う(日の詳細以外には、まだ zinc が残っている)。行は `FormActions`(「キャンセル、決定」の並び、決定が右)。新しいフォームもこの並びにする
 - グラフは、**高さを固定**してサーバーが場所を確保し、1 つの図に軸 2 本を作らない。各図に `aria-label` と、表の形の代替(カレンダーを除く)を付ける。グラフを書く前に `dataviz` スキルを読む
-- **赤は、失敗や入力の誤りなど、重要なことを知らせるときだけ**(`text-red-600`。トークンは作らない)。装飾や強調、注意を引くためには使わない(見た目が悪くなる)。待てば直る案内(回数制限など)は、赤にしない
+- **赤は、失敗や入力の誤りなど、重要なことを知らせるときだけ**(`text-red-600 dark:text-red-400`。トークンは作らない)。装飾や強調、注意を引くためには使わない(見た目が悪くなる)。待てば直る案内(回数制限など)は、赤にしない
 - 栄養の目標との比べは、**一般的な参考値で、医療上の指示ではない**と画面に出す
 
 ## 開発ルール(詳細は `docs/dev-notes.md`)
@@ -77,4 +77,6 @@ Shu の生活習慣管理アプリ(友人にも使ってもらう)。食事・�
 - [`docs/ai-feedback.md`](docs/ai-feedback.md): **AI フィードバック(レポート)**。期間と種類、同意、バッジ(成果型)、保存(スナップショット)、プロンプトの方針、実装の状態
 - [`docs/exercise-and-diary.md`](docs/exercise-and-diary.md): 運動(MET の式、1 日 5 件、いつもより多く動いた分だけ)、良かったこと(1 日 3 件、まとめて入れ替え)
 - [`docs/dev-notes.md`](docs/dev-notes.md): マイグレーションの書き直しの手順と落とし穴、ダミーデータ、依存を足す手順、環境変数の落とし穴
+- [`docs/auth.md`](docs/auth.md): 許可リスト、Google の連結とログイン、ログインのメール、回数の制限
+- [`docs/backlog.md`](docs/backlog.md): 急がない宿題・保留の案(優先度つき)
 - [`docs/release-checklist.md`](docs/release-checklist.md): 公開前に決めること(Resend・Vercel・Neon、タイムゾーン、プライバシー、許容している制約)
