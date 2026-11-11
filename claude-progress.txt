@@ -3,13 +3,12 @@ claude-progress.txt
 新しいセッションは、最初にこのファイルと CLAUDE.md を読む。作業の区切りごとに更新する。経緯は git の履歴、仕様は docs/、急がない案は docs/backlog.md。
 
 ## いまの状態
-- ブランチ `feat/user-menu`。**未コミット**(コミットと PR は、利用者が頼んでから。3 つに分けると見やすい):
-  1. UI の再設計(Claude Design の案): ヘッダーのアカウントのメニュー(押して開く)、ログインページ(1 枚のカード)、アカウントのページ(状態のタグと操作のボタンを分けた)。ログインの入力欄の見本は `name@example.com`
-  2. マイグレーションの整理: 12 本 → 10 本(旧 0009 を `0007_reports` に、旧 0010・0011 を `0009_login_link_requests` に統合)。**開発用・テスト用 DB は入れ直し済み**。本番は空なので影響なし
-  3. デモの人物を本番に入れられるようにした(`scripts/seed-demo.mts` の `--production --confirm-host`。実行は利用者)
-  4. 文書の整理(この作業。CLAUDE.md・docs・このファイル)
-- 検証済み: `npm run check`・全テスト(1372 件。実 DB を含む)が通っている。新しい UI の見た目(375px・ダークモード・エラーの出方)は、利用者が確かめる
-- **実 DB のテストは、同時に 2 つ動かさない**(同じテスト DB を共有しており、お互いの行を消して落ちる。hook・evaluator・手元が重なると起きる)
+- ブランチ `feat/user-menu`(main から 15 コミット先。PR は、利用者が作るときに声をかける。push もまだ)。作業ツリーはクリーン
+- 入っているもの: UI の再設計(メニュー・ログインページ・アカウントのページ)/ マイグレーションの整理(10 本)/ デモの本番投入 / 文書の整理と README / 認証の設定の切り出し(`lib/auth-options.ts`)/ 外部レビューと red team(2 回目まで)への対応
+- **レビューは終わった**: Fable のシニアエンジニアのレビューと、red team(2 回目)が、LGTM。`evaluator` も通っている
+- 検証済み: `npm run check`・全テスト(1407 件。実 DB を含む)が通る。UI の見た目(375px・ダークモード)は、利用者が確かめる
+- **実 DB のテストは、同時に 2 つ動かさない**(同じテスト DB を共有しており、お互いの行を消して落ちる)
+- 見送ったこと(理由は `docs/` と `docs/backlog.md`): 随時・月次レポートの失敗後の待ち(OpenRouter の月の上限が前提)/ マジックリンクの確認ページ(友人が「リンクが使えない」と言ってきたら最優先)/ ログインの 1 日の枠で締め出される件の対策
 
 ## 完了
 - 土台: hooks・evaluator、CI、Docker、Drizzle、main のブランチ保護
@@ -22,13 +21,10 @@ claude-progress.txt
 - 時計を日本時間に固定、ダミーデータ(3 人)とデモの人物(約 700 日)
 
 ## 次(利用者の順番)
-1. 未コミットの変更を、コミットして PR にする(上)
-2. 文書の整理の仕上げ → README を書く
-3. デプロイ前: 環境変数の一覧を作る / CI を充実させる / Fable でレビュー
-4. デプロイ(`docs/release-checklist.md` の順。**マイグレーションを先に当てる**)
-5. デプロイ後: DB のタイムゾーン(`SHOW timezone` が UTC)、`maxDuration`、ログインのメールが届くか、IP の取り方、本番での Google ログイン、OpenRouter の月の上限、バックアップ
-6. 1〜2 週間、自分で使って、精度と引っかかりを直す。AI のチューニング(利用者が手で主導。`docs/backlog.md`)
-7. ブログ
+1. **デプロイの準備**(利用者の作業): ① OpenRouter のキーの月の上限(**済み**: 月 10 ドル) ② Neon: `SHOW timezone` が UTC か確認 → direct の接続文字列で `db:migrate` → `drizzle.__drizzle_migrations` が 10 件か確認 ③ (Resend のドメイン認証は、デプロイの後。自分だけで確かめる間は `MAIL_FROM=onboarding@resend.dev`) ④ Vercel のプロジェクト(Preview に本番のキーを入れない。Neon の連携は Production だけ)⑤ 環境変数 ⑥ Google の承認済み URI ⑦ DNS は、Cloudflare を使うなら灰色の雲(プロキシなし)
+2. 自分だけ(`ALLOWED_EMAILS` に自分だけ)でデプロイして、`docs/release-checklist.md` の確認: IP の取り方(`rate_limit` の鍵)、ログインのメールが届くか、`maxDuration`、本番での Google ログイン
+3. **友人を入れる前に**、ログインのメール専用のサブドメインを切り、Resend で認証して、`MAIL_FROM` を変える(DNS の反映待ちがある)。そのあと、友人を 1 人ずつ `ALLOWED_EMAILS` に足す。1〜2 週間、使って、精度と引っかかりを直す。AI のチューニング(利用者が手で主導。`docs/backlog.md`)
+4. ブログ
 
 ## 運用の注意
 - 本番の環境変数: `RESEND_API_KEY`、`MAIL_FROM`、`MAIL_REPLY_TO`(任意)、`GOOGLE_CLIENT_ID`、`GOOGLE_CLIENT_SECRET`、`BETTER_AUTH_URL`(`https://hht.shu-digital-works.com`)、`BETTER_AUTH_SECRET`、`ALLOWED_EMAILS`、`OPENROUTER_API_KEY`
