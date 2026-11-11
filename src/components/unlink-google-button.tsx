@@ -6,40 +6,33 @@ import { buttonClass } from "@/components/button";
 import { authClient } from "@/lib/auth-client";
 import { unlinkErrorMessage } from "@/lib/linked-accounts";
 
-// Google の連結を解除する(アカウントのページ)。解除しても、メールのリンクでは、これまでどおりログインできる。解除は、Better Auth の連結の id を渡す
-export function UnlinkGoogleButton({ accountId }: { accountId: string }) {
+// Google の連結を解除する(アカウントのページ)。解除しても、メールのリンクでは、これまでどおりログインできる。解除は、Better Auth の連結の id を渡す。
+// 失敗の文は、ここでは出さず、onError で渡す(行の下に、全幅で出すため。google-link-controls.tsx)
+export function UnlinkGoogleButton({ accountId, onError }: { accountId: string; onError: (message: string | null) => void }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   async function onClick() {
     if (!window.confirm("Google の連結を解除しますか?解除しても、メールのリンクでは、これまでどおりログインできます。")) return;
     setBusy(true);
-    setError(null);
+    onError(null);
     try {
       const { error: failure } = await authClient.unlinkAccount({ accountId });
       if (failure) {
-        setError(unlinkErrorMessage(failure));
+        onError(unlinkErrorMessage(failure));
         setBusy(false);
         return;
       }
       router.refresh();
     } catch {
-      setError("通信に失敗しました。もう一度試してください。");
+      onError("通信に失敗しました。もう一度試してください。");
       setBusy(false);
     }
   }
 
   return (
-    <div className="flex flex-col items-start gap-2">
-      <button type="button" onClick={onClick} disabled={busy} className={buttonClass({ variant: "secondary" })}>
-        {busy ? "解除中..." : "連結を解除する"}
-      </button>
-      {error && (
-        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
-          {error}
-        </p>
-      )}
-    </div>
+    <button type="button" onClick={onClick} disabled={busy} className={buttonClass({ variant: "secondary" })}>
+      {busy ? "解除中..." : "連結を解除する"}
+    </button>
   );
 }
