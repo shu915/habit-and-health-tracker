@@ -69,9 +69,16 @@ describe("createAuthOptions: 設定の値", () => {
     const post = (path: string, body: object) =>
       auth.handler(new Request(`${BASE}/api/auth/${path}`, { method: "POST", headers: { "content-type": "application/json", origin: BASE, cookie: cookies }, body: JSON.stringify(body) }));
 
-    expect((await post("change-email", { newEmail: "stranger@example.com" })).status).toBeGreaterThanOrEqual(400);
-    expect((await post("delete-user", {})).status).toBeGreaterThanOrEqual(400);
-    expect((await post("update-user", { email: "stranger@example.com" })).status).toBe(400);
+    // 「400 以上」だけでは、セッションが古い・無いときの 401/403 でも通ってしまうので、無効であることを示す符号まで見る
+    const changeEmail = await post("change-email", { newEmail: "stranger@example.com" });
+    expect(changeEmail.status).toBe(400);
+    expect(await changeEmail.json()).toMatchObject({ code: "CHANGE_EMAIL_DISABLED" });
+    // 退会は、無効のとき、ルート自体が無い(存在しない道と同じ 404)
+    expect((await post("delete-user", {})).status).toBe(404);
+    expect((await post("no-such-route", {})).status).toBe(404);
+    const updateUser = await post("update-user", { email: "stranger@example.com" });
+    expect(updateUser.status).toBe(400);
+    expect(await updateUser.json()).toMatchObject({ code: "EMAIL_CAN_NOT_BE_UPDATED" });
   });
 
   it("ユーザーを作るときは、許可リストの外のアドレスでは作らず、中なら作る", async () => {

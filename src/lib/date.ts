@@ -22,12 +22,16 @@ export function todayString(now: Date = new Date()): string {
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
-// 記録できる日付か: 実在する日付で、未来すぎない(今日の翌日まで)。
+// 下限は、入口(Server Action とページ)で見る。データ層(record-kinds.ts、exercises.ts など)は、日付の形式だけを見る(isValidDateString)
+// 記録できる日付の、いちばん古い日。このアプリより前の日付を、1900 年から日数ぶん作って、DB を肥大させないようにする(止めるものではない。1 人が作れる日の行の数を、約 7 年ぶんに絞る)
+export const EARLIEST_RECORDABLE_DATE = "2020-01-01";
+
+// 記録できる日付か: 実在する日付で、2020-01-01 以降、未来すぎない(今日の翌日まで)。
 // 時計は日本時間に固定したので、「翌日まで」は、タイムゾーンのずれのためではなく、夜中の記録や時計の少しのずれに余裕を持たせるためのもの。
 // 画面(ダッシュボードの日付欄)は、今日までしか選べない
 export function isRecordableDate(value: string, now: Date = new Date()): boolean {
   if (!isValidDateString(value)) return false;
-  return value <= shiftDate(todayString(now), 1);
+  return value >= EARLIEST_RECORDABLE_DATE && value <= shiftDate(todayString(now), 1);
 }
 
 // "2026-10-30" の前日・翌日(days 日ずらした日付)を返す。カレンダー上の計算なので、タイムゾーンの影響を受けない(UTC で計算する)

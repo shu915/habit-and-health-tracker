@@ -53,6 +53,21 @@ describe("DayJumpForm", () => {
     expect(screen.getByRole("alert").textContent).toContain("未来の日付は選べません");
   });
 
+  it("記録できる日付の下限(2020-01-01)より前は、移動せずにエラーを出す(開いても 404 になる日付)。下限の日は開ける。入力欄にも下限を付ける", async () => {
+    const user = userEvent.setup();
+    render(<DayJumpForm />);
+    expect(dateInput().getAttribute("min")).toBe("2020-01-01");
+
+    fireEvent.change(dateInput(), { target: { value: "2019-12-31" } });
+    await user.click(submit());
+    expect(push).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert").textContent).toContain("2020-01-01 より前の日付は選べません");
+
+    fireEvent.change(dateInput(), { target: { value: "2020-01-01" } });
+    await user.click(submit());
+    expect(push).toHaveBeenCalledWith("/days/2020-01-01");
+  });
+
   it("日付が空なら、移動せずにエラーを出す。選び直せばエラーは消える", async () => {
     const user = userEvent.setup();
     render(<DayJumpForm />);

@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useSyncExternalStore } from "react";
 import { buttonClass } from "@/components/button";
-import { isValidDateString, todayString } from "@/lib/date";
+import { EARLIEST_RECORDABLE_DATE, isValidDateString, todayString } from "@/lib/date";
 
 // ダッシュボードの「日付を選んで開く」: 日を選んで、その日の詳細ページへ移動する(初期値は今日)。一覧に出ない古い日を、日付で指して開くための入口。
 // 記録のある日は詳細にまとまって見え、無い日は詳細の「記録する」から始める(同じ日を二重に作らない)。未来の日付は選べない
@@ -22,6 +22,10 @@ export function DayJumpForm() {
     event.preventDefault();
     if (!isValidDateString(date)) {
       setError("日付を選んでください。");
+      return;
+    }
+    if (date < EARLIEST_RECORDABLE_DATE) {
+      setError(`${EARLIEST_RECORDABLE_DATE} より前の日付は選べません。`); // 開いても 404 になる日付(記録できる日付の下限。lib/date.ts)
       return;
     }
     if (today !== "" && date > today) {
@@ -43,6 +47,7 @@ export function DayJumpForm() {
           id="day-jump-date"
           type="date"
           value={date}
+          min={EARLIEST_RECORDABLE_DATE}
           max={today || undefined}
           onChange={(event) => setChosen(event.target.value)}
           aria-invalid={error ? true : undefined}
