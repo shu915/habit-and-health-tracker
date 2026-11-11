@@ -32,7 +32,7 @@ claude-progress.txt
 
 ## 運用の注意
 - 本番の環境変数: `RESEND_API_KEY`、`MAIL_FROM`、`MAIL_REPLY_TO`(任意)、`GOOGLE_CLIENT_ID`、`GOOGLE_CLIENT_SECRET`、`BETTER_AUTH_URL`(`https://hht.shu-digital-works.com`)、`BETTER_AUTH_SECRET`、`ALLOWED_EMAILS`、`OPENROUTER_API_KEY`
-- `ALLOWED_EMAILS` から人を外すときは、その人の `session` の行も消す
+- `ALLOWED_EMAILS` から人を外すと、`getSession` が許可リストを確かめるので、`session` の行が残っていても入れない(行も消すのが望ましい)
 - 本番のデモの人物: `DATABASE_URL` を本番にして `npm run db:seed-demo -- --production --confirm-host=<ホスト名>`。データは入れた日で止まるので、古くなったら入れ直す。デモのメールは `ALLOWED_EMAILS` に足す
 - スマホで開発: `npx next dev -H 0.0.0.0`(許可するのは、このマシン自身の LAN のアドレスだけ。`lib/dev-lan.ts`)。スマホから Google は使えない(プライベート IP のリダイレクトを、Google が許さない)ので、メールのリンクで入る
 - AI のチューニングは、利用者が手で主導する(自動の評価の仕組みは作らない。メモリ「AI の調整は手動」)
