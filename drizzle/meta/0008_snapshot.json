@@ -1,6 +1,6 @@
 {
-  "id": "cb1ec7f6-2fa1-4e59-b999-9c8a368710ec",
-  "prevId": "2e6c49c4-b7e8-4953-b7a1-ae26e8369160",
+  "id": "a8eba2a8-d357-4fa5-8483-d2752fe8f6b7",
+  "prevId": "5dc1c002-7e09-4510-ac62-99b5b66b72e7",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1057,7 +1057,7 @@
       "checkConstraints": {
         "reports_kind_check": {
           "name": "reports_kind_check",
-          "value": "\"reports\".\"kind\" IN ('four-weeks', 'monthly')"
+          "value": "\"reports\".\"kind\" IN ('four-weeks', 'monthly', 'quarterly', 'yearly')"
         },
         "reports_status_check": {
           "name": "reports_status_check",

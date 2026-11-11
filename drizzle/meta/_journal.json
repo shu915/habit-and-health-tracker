@@ -5,85 +5,71 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1793853831509,
+      "when": 1793778302875,
       "tag": "0000_auth",
       "breakpoints": true
     },
     {
       "idx": 1,
       "version": "7",
-      "when": 1793853832475,
+      "when": 1793778303671,
       "tag": "0001_profiles",
       "breakpoints": true
     },
     {
       "idx": 2,
       "version": "7",
-      "when": 1793853833314,
+      "when": 1793778304513,
       "tag": "0002_days",
       "breakpoints": true
     },
     {
       "idx": 3,
       "version": "7",
-      "when": 1793853834147,
+      "when": 1793778305308,
       "tag": "0003_meals",
       "breakpoints": true
     },
     {
       "idx": 4,
       "version": "7",
-      "when": 1793853835054,
+      "when": 1793778306122,
       "tag": "0004_exercises",
       "breakpoints": true
     },
     {
       "idx": 5,
       "version": "7",
-      "when": 1793853836040,
+      "when": 1793778307115,
       "tag": "0005_positive_entries",
       "breakpoints": true
     },
     {
       "idx": 6,
       "version": "7",
-      "when": 1793853837047,
+      "when": 1793778308088,
       "tag": "0006_ai_requests",
       "breakpoints": true
     },
     {
       "idx": 7,
       "version": "7",
-      "when": 1793853846296,
+      "when": 1794356640401,
       "tag": "0007_reports",
       "breakpoints": true
     },
     {
       "idx": 8,
       "version": "7",
-      "when": 1794198682930,
+      "when": 1794356641666,
       "tag": "0008_month_themes",
       "breakpoints": true
     },
     {
       "idx": 9,
       "version": "7",
-      "when": 1794200322294,
-      "tag": "0009_long_term_report_kinds",
-      "breakpoints": true
-    },
-    {
-      "idx": 10,
-      "version": "7",
-      "when": 1794283546740,
-      "tag": "0010_login_link_requests",
-      "breakpoints": true
-    },
-    {
-      "idx": 11,
-      "version": "7",
-      "when": 1794283706692,
-      "tag": "0011_login_link_requests_created_idx",
+      "when": 1794356643991,
+      "tag": "0009_login_link_requests",
       "breakpoints": true
     }
   ]

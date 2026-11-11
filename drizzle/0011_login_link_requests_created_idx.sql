@@ -1,1 +1,0 @@
-CREATE INDEX "login_link_requests_created_idx" ON "login_link_requests" USING btree ("created_at");
