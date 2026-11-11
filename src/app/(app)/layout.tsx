@@ -1,7 +1,6 @@
 import { Suspense } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { SignOutButton } from "@/components/sign-out-button";
 import { UserEmail } from "@/components/user-email";
 import { getCurrentUserId } from "@/lib/current-user";
 
@@ -21,10 +20,6 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
             <Suspense fallback={null}>
               <UserEmail />
             </Suspense>
-            {/* 広い画面では、メールアドレスのメニュー(user-email.tsx)にログアウトがあるので、スマホ幅だけ出す */}
-            <div className="sm:hidden">
-              <SignOutButton />
-            </div>
           </div>
         </nav>
       </header>

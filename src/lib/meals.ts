@@ -8,7 +8,7 @@ import { insertDayIfMissing } from "@/lib/day-row";
 import { isValidDateString } from "@/lib/date";
 import { estimatedItemSchema, type EstimatedItem } from "@/lib/meal-estimate-schema";
 import type { MealTotals } from "@/lib/meal-estimate";
-import { isMealId } from "@/lib/meal-limits";
+import { isMealId, MEAL_MAX_PER_DAY } from "@/lib/meal-limits";
 import { z } from "zod";
 
 // 食事(1 食 = 1 行)の読み書き。どの関数も、最初に getCurrentUserId() でログイン中のユーザーを確かめ、
@@ -56,7 +56,17 @@ function columnsOf(input: MealInput) {
   };
 }
 
-// 食事を追加する。その日の days の行が無ければ、空で作る(あれば、そのまま使う)
+// その日の食事が、上限(MEAL_MAX_PER_DAY)に達していて、足せないとき
+export class MealLimitError extends Error {
+  constructor() {
+    super(`1 日に記録できる食事は ${MEAL_MAX_PER_DAY} 件までです。`);
+    this.name = "MealLimitError";
+  }
+}
+
+// 食事を追加する。その日の days の行が無ければ、空で作る(あれば、そのまま使う)。
+// その日がすでに上限(MEAL_MAX_PER_DAY 件)なら MealLimitError を投げる。
+// 「数える → 足す」の間に、同時に届いた要求がすり抜けないよう、その日の行をロックして(FOR UPDATE)直列にする(運動と同じ)
 export async function saveMeal(date: string, input: MealInput): Promise<Meal> {
   const userId = await getCurrentUserId();
   assertValidDate(date);
@@ -67,8 +77,15 @@ export async function saveMeal(date: string, input: MealInput): Promise<Meal> {
       .select({ id: days.id })
       .from(days)
       .where(and(eq(days.userId, userId), eq(days.date, date)))
-      .limit(1);
+      .limit(1)
+      .for("update");
     if (!day) throw new Error("days の行を作れませんでした");
+
+    const [{ n }] = await tx
+      .select({ n: count() })
+      .from(meals)
+      .where(and(eq(meals.userId, userId), eq(meals.dayId, day.id)));
+    if (n >= MEAL_MAX_PER_DAY) throw new MealLimitError();
 
     const [row] = await tx
       .insert(meals)

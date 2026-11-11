@@ -35,7 +35,7 @@ const CLOSED_PATHS = new Set(["/get-access-token", "/refresh-token", "/account-i
 // auth.ts の hooks.before から呼ぶ。連結まわりのエンドポイントの守り:
 //   - Google のトークンを返すエンドポイントは、閉じる
 //   - 連結を始める(/link-social)のは、最近ログインした人だけ(Better Auth は、解除には新しさを求めるが、連結には求めない)。
-//     新しさを確かめるのは、始めるときの 1 回。Google の画面から戻るコールバックは、始めたときの state(10 分、oauth_state の Cookie と結び付く)で完了する。
+//     新しさを確かめるのは、始めるときの 1 回。Google の画面から戻るコールバックは、始めたときの state(DB に 10 分。同じ値を署名つきの Cookie `state`(5 分)にも置き、両方を照合する)で完了する。
 //     つまり、始めたあと、10 分以内にログアウトしても、連結は完了する(別のブラウザが、他人の連結を完了させることは、できない)
 export async function guardAccountEndpoints(ctx: AuthMiddlewareContext): Promise<void> {
   if (CLOSED_PATHS.has(ctx.path)) {

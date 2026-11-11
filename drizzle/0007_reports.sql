@@ -18,7 +18,7 @@ CREATE TABLE "reports" (
 	"consent_version" integer NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	CONSTRAINT "reports_user_kind_period_unique" UNIQUE("user_id","kind","period_start"),
-	CONSTRAINT "reports_kind_check" CHECK ("reports"."kind" IN ('four-weeks', 'monthly')),
+	CONSTRAINT "reports_kind_check" CHECK ("reports"."kind" IN ('four-weeks', 'monthly', 'quarterly', 'yearly')),
 	CONSTRAINT "reports_status_check" CHECK ("reports"."status" IN ('creating', 'done', 'failed')),
 	CONSTRAINT "reports_done_has_content" CHECK ("reports"."status" <> 'done' OR "reports"."content" IS NOT NULL),
 	CONSTRAINT "reports_period_order" CHECK ("reports"."period_start" <= "reports"."period_end")

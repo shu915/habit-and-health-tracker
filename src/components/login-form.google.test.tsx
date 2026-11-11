@@ -32,6 +32,18 @@ describe("LoginForm の Google", () => {
     expect(screen.getByRole("status").textContent).toContain("まだ連結されていません");
   });
 
+  it("Google があるときだけ、メールと Google のあいだに「または」を出す(1 枚のカードの中に、縦に並ぶ)", () => {
+    const { container, rerender } = render(<LoginForm />);
+    expect(screen.queryByText("または")).toBeNull();
+    rerender(<LoginForm googleEnabled />);
+    expect(screen.getByText("または")).toBeTruthy();
+    // メールのフォームと、Google のボタンは、同じカードの中にある(カードは 1 枚)
+    const card = screen.getByRole("button", { name: "Google でログイン" }).closest("div.bg-surface-raised");
+    expect(card).not.toBeNull();
+    expect(card).toBe(screen.getByRole("button", { name: "ログインリンクを送る" }).closest("div.bg-surface-raised"));
+    expect(container.querySelectorAll("div.bg-surface-raised")).toHaveLength(1);
+  });
+
   it("通信が失敗しても、Google のボタンが押せないままにならない", async () => {
     client.signIn.social.mockRejectedValue(new Error("network"));
     render(<LoginForm googleEnabled />);

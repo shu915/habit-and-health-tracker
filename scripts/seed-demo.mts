@@ -2,10 +2,12 @@
 //   node scripts/seed-demo.mts             デモ用の人物を消して、入れ直す
 //   node scripts/seed-demo.mts --delete    デモ用の人物だけを消す
 //   node scripts/seed-demo.mts --dry-run   DB に入れずに、件数だけ出す
+//   本番の DB に入れる(または消す)ときは、DATABASE_URL を本番にして、--production --confirm-host=<接続先のホスト名> を付ける(ホスト名が合わなければ止まる)
 // メールアドレスと表示名は、scripts/demo.local.json(.gitignore で追跡しない)から読む。無ければ demo.example.json(ダミー)を使う。
 // このリポジトリは公開なので、本物のメールアドレスは、コミットするファイルに書かない。demo.local.json には、profile を足して、プロフィールの値を上書きできる。
 // 物語: 最初は夜食・体重・疲れの悩みが多く、運動はほとんどしない(活動係数 1.2)。少しずつ、夜食が減り、睡眠が整い、筋トレが習慣になる(活動係数 1.2 → 1.375。運動の記録は、そこに足される)。体重は約 96kg → 82kg(目標は 80kg)。物語の長さは 700 日で固定する(今日が伸びても、前の日の値は変わらない)。
-// 入れるのは開発用 DB(localhost:5433 の habit_health)だけ。それ以外の接続先では、何もせずに止まる(本番のデモの入口は、まだ無い)。
+// 既定では、入れるのは開発用 DB(localhost:5433 の habit_health)だけ。それ以外の接続先では、何もせずに止まる。本番に入れるときだけ、--production と --confirm-host を付ける(付け間違いで、本番に入らないための二重の確認)。
+// 本番でも、消すのは id が demo-user のユーザーだけ。同じメールアドレスの別ユーザーがいれば、消さずに止まる。データは、入れた日で止まる(毎日は伸びない)ので、古くなったら入れ直す。
 // 同じ日に実行すれば、同じデータができる(乱数の種を固定している)。ユーザーの id は "demo-user"。
 
 import { existsSync, readFileSync } from "node:fs";
@@ -59,12 +61,22 @@ function loadConfig(): { config: Config; source: string } {
   return { config: { email, name, profile: overrides }, source: path === local ? "demo.local.json" : "demo.example.json(ダミー)" };
 }
 
-// ---------- 接続先の確認(開発用 DB 以外には入れない) ----------
+// ---------- 接続先の確認(既定は開発用 DB だけ。本番は --production と --confirm-host が合うときだけ) ----------
 
 const connectionString = process.env.DATABASE_URL ?? "postgres://postgres:postgres@localhost:5433/habit_health";
 const client = new pg.Client({ connectionString });
-if (!DRY_RUN && (process.env.NODE_ENV === "production" || !["localhost", "127.0.0.1"].includes(client.host ?? "") || client.port !== 5433 || client.database !== "habit_health")) {
-  throw new Error(`開発用 DB(localhost:5433 の habit_health)以外には入れません: ${client.host ?? "(host なし)"}:${client.port}/${client.database ?? "(DB 名なし)"}`);
+const IS_DEV_DB = ["localhost", "127.0.0.1"].includes(client.host ?? "") && client.port === 5433 && client.database === "habit_health";
+const PRODUCTION = process.argv.includes("--production");
+const confirmedHost = process.argv.find((arg) => arg.startsWith("--confirm-host="))?.slice("--confirm-host=".length);
+const target = `${client.host ?? "(host なし)"}:${client.port}/${client.database ?? "(DB 名なし)"}`;
+if (!DRY_RUN) {
+  if (PRODUCTION) {
+    if (IS_DEV_DB) throw new Error(`--production は、開発用 DB には使えません: ${target}`);
+    if (!client.host || confirmedHost !== client.host) throw new Error(`--confirm-host が、接続先のホスト名と合いません。接続先: ${target}`);
+    console.log(`本番の DB に接続します: ${target}`);
+  } else if (process.env.NODE_ENV === "production" || !IS_DEV_DB) {
+    throw new Error(`開発用 DB(localhost:5433 の habit_health)以外には入れません: ${target}(本番なら --production --confirm-host=<ホスト名> を付ける)`);
+  }
 }
 
 // ---------- 物語 ----------
@@ -241,7 +253,7 @@ if (DRY_RUN) {
     if (!process.argv.includes("--delete")) {
       const counts = await seedPersona(client, persona, { days: DAYS, today });
       console.log(`${persona.email}: 日 ${counts.days} / 食事 ${counts.meals} / 運動 ${counts.exercises} / 良かったこと ${counts.positives}`);
-      console.log("ログインは、このメールでマジックリンクを送る(リンクは next dev の端末に出る)。ALLOWED_EMAILS を設定しているときは、このメールも足す");
+      console.log("ログインは、このメールでマジックリンクを送る(開発ではリンクが next dev の端末に出る)。ALLOWED_EMAILS を設定しているときは、このメールも足す");
     }
   } finally {
     await client.end();

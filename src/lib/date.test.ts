@@ -51,8 +51,15 @@ describe("todayString", () => {
 describe("isRecordableDate", () => {
   const now = jst(2026, 10, 30, 9, 0); // 日本時間の 2026-10-30
 
-  it("今日までと過去は記録できる", () => {
-    for (const date of ["2026-10-30", "2026-10-01", "2025-01-01", "1900-01-01"]) expect(isRecordableDate(date, now), date).toBe(true);
+  it("今日までと、2020-01-01 以降の過去は記録できる", () => {
+    for (const date of ["2026-10-30", "2026-10-01", "2025-01-01", "2020-01-01"]) expect(isRecordableDate(date, now), date).toBe(true);
+  });
+
+  it("2020-01-01 より前は記録できない(1900 年から日数ぶん日の行を作って、DB を肥大させないように)。実在する日付でも同じ", () => {
+    for (const date of ["2019-12-31", "1999-01-01", "1900-01-01"]) {
+      expect(isValidDateString(date), date).toBe(true); // 日付としては正しい
+      expect(isRecordableDate(date, now), date).toBe(false); // 記録の対象には、ならない
+    }
   });
 
   it("翌日までは許す(サーバーと利用者のタイムゾーンのずれ)が、それより先は記録できない", () => {

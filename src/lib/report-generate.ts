@@ -119,6 +119,21 @@ export const DAILY_LIMIT_MESSAGE = "随時レポートは、1 日に 1 回まで
 // 裏の処理: AI を呼んで、返事を検証して、保存する。どこで失敗しても、例外を外に出さず、「失敗」にして理由を残す(「作成中」のまま残さない)
 export async function runReport(args: { userId: string; reportId: number; period: ReportPeriod; input: ReportInput }): Promise<void> {
   const { userId, reportId, period, input } = args;
+  // 「作る」を押したあと、AI を呼ぶ前に同意が撤回されていたら、日記を AI に送らず、止める(長期と同じ確認)。
+  // 作成の入口で確かめたあと、裏の処理が走るまでの間に撤回できるため。AI の呼び出しの中での再試行の直前までは、確かめない(許容)。
+  // 確かめられないとき(DB のエラー)も、送らない。失敗の記録そのものが失敗しても、例外は外に出さない(「作成中」のまま残る分は、6 分後に失敗になる)
+  let consented: boolean | null = null;
+  try {
+    consented = await hasCurrentConsent(userId);
+  } catch (error) {
+    console.error("[report] 同意の確認に失敗", error instanceof Error ? error.name : "unknown");
+  }
+  if (consented !== true) {
+    await failReport(userId, reportId, consented === false ? FAILURE_MESSAGES.consent : FAILURE_MESSAGES.response).catch((error: unknown) => {
+      console.error("[report] 失敗の記録に失敗", error instanceof Error ? error.name : "unknown");
+    });
+    return;
+  }
   await callAndComplete({ userId, reportId, range: { start: period.start, end: period.end }, systemPrompt: REPORT_SYSTEM_PROMPT, input });
 }
 

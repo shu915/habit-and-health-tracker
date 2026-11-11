@@ -696,6 +696,25 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", { timeout: 15_000 }, 
       for (const secret of ["秘密の日記", "秘密の良かったこと", "秘密の焼鮭定食"]) expect(snapshotText).not.toContain(secret);
     });
 
+    it("作成を始めたあと、裏の処理が走る前に同意を撤回されたら、日記を AI に送らず、失敗にする(月次・随時も、長期と同じ)", async () => {
+      currentUser.id = USER_A;
+      await readyProfile();
+      const dates = lastDays(28);
+      await recordDays(dates);
+      ai.complete.mockResolvedValue(reportJson(dates));
+
+      const started = await startCreate("four-weeks");
+      expect(started.result.ok).toBe(true);
+      if (!started.result.ok) return;
+      await reportConsentModule.revokeAiConsent(); // 裏の処理が走る前に、撤回する
+      await started.runTasks();
+
+      expect(ai.complete).not.toHaveBeenCalled(); // 日記を含む入力は、送らない
+      const failed = await reportsModule.getReport(started.result.id);
+      expect(failed).toMatchObject({ status: "failed" });
+      expect(failed?.errorMessage).toContain("同意が取り消された");
+    });
+
     it("随時レポート(直近 4 週間)は、1 日に 1 回まで。2 回目は、AI を呼ばず、行も作らずに断る", async () => {
       currentUser.id = USER_A;
       await readyProfile();
@@ -1717,6 +1736,37 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", { timeout: 15_000 }, 
       await expect(mealsModule.listDailyIntake("2026-02-30", "2026-04-15")).rejects.toThrow("invalid date");
     });
 
+    it("1 日に追加できるのは 20 件まで。21 件目は MealLimitError で、保存されない。直すのは満杯でもでき、消すと 1 件空く。別の日・別のユーザーには影響しない", async () => {
+      const { MEAL_MAX_PER_DAY } = await import("@/lib/meal-limits");
+      expect(MEAL_MAX_PER_DAY).toBe(20);
+      currentUser.id = USER_A;
+      const saved = [];
+      for (let n = 0; n < MEAL_MAX_PER_DAY; n++) saved.push(await mealsModule.saveMeal(DATE, input()));
+
+      await expect(mealsModule.saveMeal(DATE, input())).rejects.toBeInstanceOf(mealsModule.MealLimitError);
+      expect(await mealsModule.listMealsOfDay(DATE)).toHaveLength(MEAL_MAX_PER_DAY);
+
+      await expect(mealsModule.saveMeal("2026-04-11", input())).resolves.toBeDefined(); // 別の日
+      currentUser.id = USER_B;
+      await expect(mealsModule.saveMeal(DATE, input())).resolves.toBeDefined(); // 別のユーザー
+
+      currentUser.id = USER_A;
+      await expect(mealsModule.updateMeal(saved[0].id, input({ dishName: "直した" }))).resolves.toMatchObject({ dishName: "直した" }); // 満杯でも直せる
+      await mealsModule.deleteMeal(saved[0].id);
+      await expect(mealsModule.saveMeal(DATE, input())).resolves.toBeDefined(); // 1 件空いた
+      await expect(mealsModule.saveMeal(DATE, input())).rejects.toBeInstanceOf(mealsModule.MealLimitError);
+    });
+
+    it("同時に届いた要求でも、1 日の食事の上限を超えない(その日の行のロックで直列にする)", async () => {
+      const { MEAL_MAX_PER_DAY } = await import("@/lib/meal-limits");
+      currentUser.id = USER_A;
+      const results = await Promise.allSettled(Array.from({ length: MEAL_MAX_PER_DAY + 8 }, () => mealsModule.saveMeal(DATE, input())));
+
+      expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(MEAL_MAX_PER_DAY);
+      for (const result of results) if (result.status === "rejected") expect(result.reason).toBeInstanceOf(mealsModule.MealLimitError);
+      expect(await mealsModule.listMealsOfDay(DATE)).toHaveLength(MEAL_MAX_PER_DAY);
+    });
+
     it("保存すると、その日の days の行が無ければ空で作られ、合計が列の形で入る", async () => {
       currentUser.id = USER_A;
       const meal = await mealsModule.saveMeal(DATE, input());
@@ -2235,22 +2285,45 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", { timeout: 15_000 }, 
         vi.unstubAllEnvs();
       });
 
-      it("AI の返事が読めない・形が違うときも、回数に数えない。想定外の例外のときも、数えた分を戻して、例外はそのまま投げる", async () => {
+      it("AI に届かなかった失敗(設定・接続・AI のエラー)は、数えた分を戻す。想定外の例外のときも戻して、例外はそのまま投げる", async () => {
         currentUser.id = USER_A;
-        ai.complete.mockResolvedValueOnce("これは JSON ではありません");
-        expect(await mealActionsModule.estimateMealAction({ text: "焼鮭定食" })).toMatchObject({ ok: false });
-        expect(await aiRequestsOf(USER_A)).toBe(0);
+        const { OpenRouterError } = await import("@/lib/openrouter");
+        for (const kind of ["config", "network", "http"] as const) {
+          ai.complete.mockRejectedValueOnce(new OpenRouterError(kind, "届かなかった"));
+          expect(await mealActionsModule.estimateMealAction({ text: "焼鮭定食" })).toMatchObject({ ok: false });
+          expect(await aiRequestsOf(USER_A)).toBe(0); // 費用が出ていないので、数えない
+        }
 
         ai.complete.mockRejectedValueOnce(new Error("想定外"));
         await expect(mealActionsModule.estimateMealAction({ text: "焼鮭定食" })).rejects.toThrow("想定外");
         expect(await aiRequestsOf(USER_A)).toBe(0);
       });
 
-      it("成功した推定は数える。失敗して戻した分は、また使える(上限いっぱいでも、最後の 1 回が失敗なら、もう 1 回できる)", async () => {
+      it("AI が答えたあとの失敗(読めない返事・形が違う・本文が無い・合計が範囲外)は、数える(費用が出ていて、戻すと、わざと失敗させて、上限なしに AI を呼べてしまう)", async () => {
         currentUser.id = USER_A;
+        const { OpenRouterError } = await import("@/lib/openrouter");
+        const hugeMeal = JSON.stringify({ isMeal: true, notMealReason: "", ...estimate, items: [{ ...item, kcal: 5000 }, { ...rice, kcal: 5000 }] }); // 合計が 1 回の食事の上限を超える(カツ丼 10 人前)
+        const replies: (() => void)[] = [
+          () => ai.complete.mockResolvedValueOnce("これは JSON ではありません"),
+          () => ai.complete.mockResolvedValueOnce(JSON.stringify({ unexpected: true })),
+          () => ai.complete.mockRejectedValueOnce(new OpenRouterError("response", "本文が無い")),
+          () => ai.complete.mockResolvedValueOnce(hugeMeal),
+        ];
+        let counted = 0;
+        for (const reply of replies) {
+          reply();
+          expect(await mealActionsModule.estimateMealAction({ text: "焼鮭定食" })).toMatchObject({ ok: false });
+          counted += 1;
+          expect(await aiRequestsOf(USER_A)).toBe(counted);
+        }
+      });
+
+      it("成功した推定は数える。AI に届かなかった失敗で戻した分は、また使える(上限いっぱいでも、最後の 1 回が届かなかったなら、もう 1 回できる)", async () => {
+        currentUser.id = USER_A;
+        const { OpenRouterError } = await import("@/lib/openrouter");
         for (let i = 0; i < aiLimitModule.AI_LIMITS.perDay - 1; i++) await aiLimitModule.consumeAiRequest();
-        ai.complete.mockResolvedValueOnce("これは JSON ではありません");
-        await mealActionsModule.estimateMealAction({ text: "焼鮭定食" }); // 失敗(数えない)
+        ai.complete.mockRejectedValueOnce(new OpenRouterError("network", "接続できない"));
+        await mealActionsModule.estimateMealAction({ text: "焼鮭定食" }); // 届かなかった失敗(数えない)
         expect(await aiRequestsOf(USER_A)).toBe(aiLimitModule.AI_LIMITS.perDay - 1);
         const ok = await mealActionsModule.estimateMealAction({ text: "焼鮭定食" }); // 成功(数える)
         expect(ok.ok).toBe(true);
@@ -2270,6 +2343,17 @@ describe.runIf(testDatabaseUrl)("データ操作(実 DB)", { timeout: 15_000 }, 
         const [meal] = await mealsOf(USER_A);
         expect(meal).toMatchObject({ dishName: "焼鮭定食", eatenTime: "12:30", kcal: 402, proteinG: "21.8" });
         expect(vi.mocked(revalidatePath).mock.calls.map(([path]) => path)).toEqual(["/", `/days/${DATE}`]);
+      });
+
+      it("1 日の上限(20 件)に達していたら、移動せず、画面に出す文言を返し、保存しない", async () => {
+        currentUser.id = USER_A;
+        const { MEAL_MAX_PER_DAY } = await import("@/lib/meal-limits");
+        for (let n = 0; n < MEAL_MAX_PER_DAY; n++) await mealsModule.saveMeal(DATE, { eatenTime: "12:30", dishName: "焼鮭定食", description: "", items: [], totals: { kcal: 400, proteinG: 20, fatG: 8, netCarbG: 50, fiberG: null, saltG: null } });
+
+        const result = await mealActionsModule.saveMealAction(DATE, payload());
+
+        expect(result).toEqual({ ok: false, errors: { form: `1 日に記録できる食事は ${MEAL_MAX_PER_DAY} 件までです。` } });
+        expect(await mealsOf(USER_A)).toHaveLength(MEAL_MAX_PER_DAY);
       });
 
       it("未ログインなら /login へ送られ、何も保存されない", async () => {

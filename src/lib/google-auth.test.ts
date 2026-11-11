@@ -1,10 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { betterAuth } from "better-auth";
 import { memoryAdapter } from "better-auth/adapters/memory";
-import { createAuthMiddleware } from "better-auth/api";
-import { magicLink } from "better-auth/plugins";
-import { FRESH_SESSION_SECONDS, googleAuthOptions, googleCredentialsFromEnv, guardAccountEndpoints, type LinkedNotice } from "@/lib/google-auth-options";
-import { sessionAllowlistHooks } from "@/lib/session-allowlist";
+import { createAuthOptions } from "@/lib/auth-options";
+import { FRESH_SESSION_SECONDS, googleCredentialsFromEnv, type LinkedNotice } from "@/lib/google-auth-options";
 
 // 本物の Better Auth(メモリ上の DB、本物のマジックリンクと OAuth のコールバックの処理)を動かし、Google のトークンを返す通信だけを偽物にする。
 // 「マジックリンクがユーザーを作る。Google は、ログイン中のユーザーだけが足せて、Google だけではユーザーを作れない」という方針を、固定する。
@@ -56,24 +54,25 @@ const mergeCookies = (...parts: string[]): string => parts.filter(Boolean).join(
 
 function createTestAuth(notify: (notice: LinkedNotice) => Promise<void> = async () => {}) {
   const notifyLinked = vi.fn(notify);
-  const options = googleAuthOptions({ clientId: "client-id", clientSecret: "client-secret" }, { notifyLinked });
   const tokens = new Map<string, string>();
+  const database = memoryAdapter({ user: [], session: [], account: [], verification: [] });
+  // 本物の設定(auth-options.ts。本番の auth.ts と同じ関数)を使う。差し替えるのは、DB(メモリ上)、メールの送信(リンクを取り出すだけ)、
+  // メールアドレス単位の回数制限(ここでは見ない)、プロフィールの作成だけ。許可リスト・セッションの確認・連結の守り・トークンのハッシュは、本物のまま
   const auth = betterAuth({
     baseURL: BASE,
     secret: "test-secret-test-secret-test-secret-123456",
-    database: memoryAdapter({ user: [], session: [], account: [], verification: [] }),
-    plugins: [
-      magicLink({
-        sendMagicLink: async ({ email, token }) => {
-          tokens.set(email, token);
-        },
-      }),
-    ],
-    ...options,
-    // auth.ts と同じ守り: セッションを作るのは、許可リストの中の人だけ(どの経路でも)
-    databaseHooks: { ...options.databaseHooks, session: sessionAllowlistHooks },
-    // auth.ts と同じ守り(連結まわりのエンドポイント)
-    hooks: { before: createAuthMiddleware(async (ctx) => guardAccountEndpoints(ctx)) },
+    ...createAuthOptions({
+      database,
+      google: { clientId: "client-id", clientSecret: "client-secret" },
+      notifyLinked,
+      deliverLoginLink: ({ to, url }) => {
+        const token = new URL(url).searchParams.get("token");
+        if (token) tokens.set(to, token);
+      },
+      isLoginLinkRequestLimited: async () => false,
+      onUserCreated: async () => {},
+    }),
+    rateLimit: { enabled: false }, // IP 単位の回数制限は、ここでは見ない(auth-options.test.ts で設定を確かめる)
   });
 
   // メールのリンクでログインする(ユーザーは、ここで作られる)。セッションの Cookie を返す

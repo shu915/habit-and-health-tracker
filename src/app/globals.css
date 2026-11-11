@@ -102,6 +102,9 @@
   --color-badge-snack-ink: var(--badge-snack-ink);
   --color-badge-night: var(--badge-night-bg);
   --color-badge-night-ink: var(--badge-night-ink);
+  /* 「オン・有効」の札(アカウントの「連結済み」など)。食事の間食のバッジと同じ緑だが、別の名前にして、間食の色を変えても巻き込まれないようにする */
+  --color-status-on: var(--badge-snack-bg);
+  --color-status-on-ink: var(--badge-snack-ink);
   /* 数字・英字は Geist、かな・漢字は Zen Kaku Gothic New(Geist に日本語の字は無いので、字ごとに使い分けられる)。どちらも無いときは端末の日本語フォント */
   --font-sans: var(--font-geist-sans), var(--font-zen-kaku), system-ui, "Hiragino Sans", "Yu Gothic", Meiryo, sans-serif;
   --font-mono: var(--font-geist-mono);

@@ -16,10 +16,10 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("SignOutButton", () => {
-  it.each(["header", "menu", "page"] as const)("%s の見た目でも、押すとログアウトして、ログイン画面へ移る", async (variant) => {
+  it.each(["menu", "page"] as const)("%s の見た目でも、押すとログアウトして、ログイン画面へ移る", async (variant) => {
     client.signOut.mockResolvedValue({ error: null });
     render(<SignOutButton variant={variant} />);
-    fireEvent.click(screen.getByRole("button", { name: "ログアウト" }));
+    fireEvent.click(screen.getByRole(variant === "menu" ? "menuitem" : "button", { name: "ログアウト" }));
     await vi.waitFor(() => expect(router.push).toHaveBeenCalledWith("/login"));
     expect(router.refresh).toHaveBeenCalled();
   });
@@ -27,8 +27,10 @@ describe("SignOutButton", () => {
   it("失敗したら、ログイン画面へは移らず、失敗を知らせる(赤。失敗は、重要な知らせ)。通信が失敗したときも同じ", async () => {
     client.signOut.mockResolvedValue({ error: { status: 500 } });
     const { unmount } = render(<SignOutButton variant="menu" />);
-    fireEvent.click(screen.getByRole("button", { name: "ログアウト" }));
-    expect((await screen.findByText("ログアウトに失敗しました")).className).toContain("text-red-600");
+    fireEvent.click(screen.getByRole("menuitem", { name: "ログアウト" }));
+    const alert = await screen.findByRole("alert"); // 読み上げにも、すぐ伝わる
+    expect(alert.textContent).toBe("ログアウトに失敗しました");
+    expect(alert.className).toContain("text-red-600");
     expect(router.push).not.toHaveBeenCalled();
     unmount();
 

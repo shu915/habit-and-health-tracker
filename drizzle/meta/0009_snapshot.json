@@ -1,6 +1,6 @@
 {
-  "id": "f623699f-e29e-4524-9544-a20bd669f08e",
-  "prevId": "cb1ec7f6-2fa1-4e59-b999-9c8a368710ec",
+  "id": "094ffb54-b66d-494b-9984-32f5557d3b9f",
+  "prevId": "a8eba2a8-d357-4fa5-8483-d2752fe8f6b7",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -404,6 +404,75 @@
           "value": "\"exercises\".\"start_time\" IS NULL OR \"exercises\".\"start_time\" ~ '^([01][0-9]|2[0-6]):[0-5][0-9]$'"
         }
       },
+      "isRLSEnabled": false
+    },
+    "public.login_link_requests": {
+      "name": "login_link_requests",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "email_hash": {
+          "name": "email_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "login_link_requests_hash_created_idx": {
+          "name": "login_link_requests_hash_created_idx",
+          "columns": [
+            {
+              "expression": "email_hash",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "login_link_requests_created_idx": {
+          "name": "login_link_requests_created_idx",
+          "columns": [
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.meals": {
