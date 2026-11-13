@@ -243,7 +243,7 @@ describe("MealForm: 推定", () => {
     expect(screen.getByRole("heading", { name: "焼鮭定食" })).toBeTruthy();
     expect(screen.getByText("402")).toBeTruthy();
     expect(screen.getByText("焼鮭")).toBeTruthy();
-    expect(screen.getByText("1切れ 約80g")).toBeTruthy();
+    expect(screen.getAllByText("1切れ 約80g")).toHaveLength(2); // 量の列(広い画面)と、品目の下(スマホ幅。量の列は隠れる)
     expect(field("説明").value).toBe("焼鮭1切れ、白ご飯、みそ汁"); // AI が整えた説明に置き換わる
     expect(button("この内容で保存").disabled).toBe(false);
     expect(button("推定し直す")).toBeTruthy();
@@ -265,9 +265,9 @@ describe("MealForm: 推定", () => {
     expect(headers).toEqual(["品目", "量の目安", "kcal", "たんぱく質", "脂質", "糖質", "食物繊維", "食塩"]);
     const salmon = within(table).getByText("焼鮭").closest("tr");
     expect(salmon).not.toBeNull();
-    expect(within(salmon as HTMLElement).getAllByRole("cell").map((cell) => cell.textContent)).toEqual(["焼鮭グリルで焼く。油は使わないと仮定", "1切れ 約80g", "150", "18", "8", "0", "0", "1.4"]);
+    expect(within(salmon as HTMLElement).getAllByRole("cell").map((cell) => cell.textContent)).toEqual(["焼鮭1切れ 約80gグリルで焼く。油は使わないと仮定", "1切れ 約80g", "150", "18", "8", "0", "0", "1.4"]);
     const rice = within(table).getByText("白ご飯").closest("tr");
-    expect(within(rice as HTMLElement).getAllByRole("cell").map((cell) => cell.textContent)).toEqual(["白ご飯", "約150g", "252", "3.8", "0.5", "55.2", "0.5", "0"]); // 糖質 = 炭水化物 55.7 − 食物繊維 0.5
+    expect(within(rice as HTMLElement).getAllByRole("cell").map((cell) => cell.textContent)).toEqual(["白ご飯約150g", "約150g", "252", "3.8", "0.5", "55.2", "0.5", "0"]); // 糖質 = 炭水化物 55.7 − 食物繊維 0.5
     expect(within(table).queryAllByRole("button")).toEqual([]); // 押して開く形にしない
   });
 

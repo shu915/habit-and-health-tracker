@@ -18,7 +18,6 @@
   --neutral: #ebe7e0;
   --neutral-hover: #e0dbd2;
   --chart-grid: #ece7df;
-  --scroll-shadow: rgb(0 0 0 / 0.22); /* 横にスクロールできる表の端の影(.scroll-shadow-x) */
   /* 時間帯のバッジ(塗りと文字を同じ色相でそろえる。文字との比はどれも 6.9:1 以上) */
   --badge-morning-bg: oklch(0.94 0.05 85);
   --badge-morning-ink: oklch(0.42 0.08 70);
@@ -62,7 +61,6 @@
     --neutral: #34312c;
     --neutral-hover: #3e3a34;
     --chart-grid: #34312c;
-    --scroll-shadow: rgb(255 255 255 / 0.28); /* 暗い面では、黒い影が見えないので、明るい影 */
     --badge-morning-bg: oklch(0.32 0.05 85);
     --badge-morning-ink: oklch(0.88 0.07 85);
     --badge-noon-bg: oklch(0.32 0.05 240);
@@ -185,16 +183,6 @@ body {
   textarea {
     font-size: 16px;
   }
-}
-
-/* 横にスクロールできる表の、「続きがある」印。端に隠れた分があるときだけ、その側に薄い影が出る(背景の 4 層: 内容と一緒に動く白い覆い 2 枚が、端まで
-   スクロールしたときに影を隠す)。覆いの色は、表を置く白いカードの色(--surface-raised)に合わせる。スマホは、影が分かりにくいので、表の上に一言も添える */
-.scroll-shadow-x {
-  background:
-    linear-gradient(to right, var(--surface-raised) 30%, transparent) left center / 2rem 100% no-repeat local,
-    linear-gradient(to left, var(--surface-raised) 30%, transparent) right center / 2rem 100% no-repeat local,
-    linear-gradient(to right, var(--scroll-shadow), transparent) left center / 0.75rem 100% no-repeat scroll,
-    linear-gradient(to left, var(--scroll-shadow), transparent) right center / 0.75rem 100% no-repeat scroll;
 }
 
 @media print {

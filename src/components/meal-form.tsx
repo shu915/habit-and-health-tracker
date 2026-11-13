@@ -425,14 +425,14 @@ function EstimateResult({ estimate, stale }: { estimate: MealEstimate; stale: bo
         <Total label="食塩相当量" value={nutrient(totals.saltG, "g")} />
       </dl>
       {/* 品目ごとの内訳。多い品目を探せるよう、栄養素の列も出す(押して開く形にはしない)。
-          数字の列は、同じ幅で、右にそろえる(品目と量の列だけが、残りの幅を使う)。狭い画面は、表の枠の中で横にスクロールする(品目の列は左に固定) */}
-      <p className="text-xs text-ink-muted sm:hidden">表は、右にスクロールすると、栄養素の続きが見られます →</p>
-      <div className="scroll-shadow-x overflow-x-auto">
-        <table className="w-full min-w-[42rem] text-left text-sm">
+          数字の列は、同じ幅で、右にそろえる(品目と量の列だけが、残りの幅を使う)。狭い画面は、表の枠の中で横にスクロールする(品目の列は左に固定。量の列は隠して、品目の下に出す) */}
+      <p className="text-xs whitespace-nowrap text-ink-muted sm:hidden">横にスクロールできます →</p>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[34rem] text-left text-sm sm:min-w-[42rem]">
           <thead className="text-xs text-ink-muted">
             <tr>
-              <th className="sticky left-0 bg-surface-raised py-2 pr-4 font-medium">品目</th>
-              <th className="py-2 pr-4 font-medium">量の目安</th>
+              <th className="sticky left-0 min-w-32 bg-surface-raised py-2 pr-4 font-medium sm:min-w-0">品目</th>
+              <th className="hidden py-2 pr-4 font-medium sm:table-cell">量の目安</th>
               {NUMBER_COLUMNS.map((column) => (
                 <th key={column.label} className={`${NUMBER_CELL} ${column.width} py-2 font-medium`}>
                   {column.label}
@@ -443,11 +443,13 @@ function EstimateResult({ estimate, stale }: { estimate: MealEstimate; stale: bo
           <tbody>
             {estimate.items.map((item, index) => (
               <tr key={`${item.name}-${index}`} className="border-t border-line-soft align-top">
-                <td className="sticky left-0 bg-surface-raised py-3 pr-4">
+                <td className="sticky left-0 min-w-32 bg-surface-raised py-3 pr-4 sm:min-w-0">
                   {item.name}
+                  {/* スマホ幅は、量の列を隠す(栄養素の列を見るために横へ動かすと、量が見えなくなるため、品目の下に出す) */}
+                  <span className="mt-0.5 block text-xs text-ink-muted sm:hidden">{item.amount}</span>
                   {item.assumption && <span className="mt-0.5 block text-xs text-ink-muted">{item.assumption}</span>}
                 </td>
-                <td className="py-3 pr-4 text-ink-muted">{item.amount}</td>
+                <td className="hidden py-3 pr-4 text-ink-muted sm:table-cell">{item.amount}</td>
                 {NUMBER_COLUMNS.map((column) => (
                   <td key={column.label} className={`${NUMBER_CELL} py-3`}>
                     {column.value(item)}
