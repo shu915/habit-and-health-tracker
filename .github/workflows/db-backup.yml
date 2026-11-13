@@ -1,0 +1,63 @@
+name: DB backup
+
+# 本番の DB(Neon)を、毎晩ダンプして、暗号化して、Cloudflare R2 に置く(手順と復元は docs/backup.md)。
+# 外部のアクションは使わない(供給網のリスクを避ける)。このリポジトリのコードも読まない(checkout なし)
+# 注意: 公開リポジトリは、60 日間、更新が無いと、定時実行(schedule)が自動で無効になる。止まったら、Actions のタブから有効に戻す
+on:
+  schedule:
+    - cron: "0 18 * * *" # UTC の 18:00 = 日本時間の 03:00(食事の「その日」の区切りと同じ。使われていない時間)
+  workflow_dispatch: # 手動でも動かせる(最初の確認と、復元の練習の前に)
+
+permissions: {}
+
+concurrency:
+  group: db-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      # pg_dump のバージョンは、Neon の PostgreSQL 以上にする(古いと、新しいサーバーのダンプを断る。新しい分には、古いサーバーも読める)
+      PG_IMAGE: postgres:18
+      BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+      BACKUP_AGE_PUBLIC_KEY: ${{ secrets.BACKUP_AGE_PUBLIC_KEY }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: auto # R2 は、リージョンが無い(S3 互換の決まりで、auto を入れる)
+      R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      R2_BUCKET: ${{ secrets.R2_BUCKET }}
+    steps:
+      - name: 設定がそろっているか確かめる
+        run: |
+          set -euo pipefail
+          for name in BACKUP_DATABASE_URL BACKUP_AGE_PUBLIC_KEY AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY R2_ENDPOINT R2_BUCKET; do
+            if [ -z "${!name}" ]; then echo "::error::Secret が足りません: $name"; exit 1; fi
+          done
+
+      - name: age を入れる
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq age
+
+      - name: ダンプして、暗号化する
+        run: |
+          set -euo pipefail
+          # 値(接続文字列・鍵)を、画面に出さない: set -x は使わない。環境変数のまま、コンテナへ渡す
+          docker pull -q "$PG_IMAGE" > /dev/null
+          docker run --rm -e BACKUP_DATABASE_URL "$PG_IMAGE" \
+            sh -c 'pg_dump --format=custom --no-owner --no-privileges --dbname="$BACKUP_DATABASE_URL"' \
+            | age --recipient "$BACKUP_AGE_PUBLIC_KEY" --output backup.dump.age
+          size=$(stat -c %s backup.dump.age)
+          echo "暗号化したダンプ: ${size} バイト"
+          # 空に近いファイルを、成功として置かない(接続の失敗で、ほぼ空になることがある)
+          if [ "$size" -lt 10000 ]; then echo "::error::ダンプが小さすぎます(${size} バイト)"; exit 1; fi
+
+      - name: R2 に置く
+        run: |
+          set -euo pipefail
+          key="hht-$(date -u +%Y-%m-%d).dump.age"
+          aws s3 cp backup.dump.age "s3://${R2_BUCKET}/${key}" --endpoint-url "$R2_ENDPOINT" --only-show-errors
+          aws s3api head-object --bucket "$R2_BUCKET" --key "$key" --endpoint-url "$R2_ENDPOINT" --query ContentLength --output text > uploaded.txt
+          echo "置いた: ${key}($(cat uploaded.txt) バイト)"
+          # 置いたファイルの大きさが、手元と同じか(途中で切れていないか)
+          if [ "$(cat uploaded.txt)" != "$(stat -c %s backup.dump.age)" ]; then echo "::error::置いたファイルの大きさが違います"; exit 1; fi
