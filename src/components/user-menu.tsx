@@ -88,7 +88,7 @@ export function UserMenu({ email }: { email: string }) {
         title={email}
         onClick={() => setOpen((current) => !current)}
         onKeyDown={onTriggerKeyDown}
-        className="flex items-center gap-2 rounded-lg bg-neutral px-3 py-2 text-sm text-ink-muted hover:bg-neutral-hover"
+        className="flex items-center gap-2 rounded-lg bg-neutral px-3 py-2 text-sm whitespace-nowrap text-ink-muted hover:bg-neutral-hover"
       >
         <span className="hidden max-w-60 truncate sm:inline">{email}</span>
         <span className="sm:hidden">アカウント</span>

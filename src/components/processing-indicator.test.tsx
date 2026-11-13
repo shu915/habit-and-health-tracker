@@ -16,9 +16,14 @@ describe("processingStage", () => {
     [0, false, "AI に送っています…"],
     [1, false, "AI に送っています…"],
     [2, false, "食事の内容を読み取っています…"],
-    [2, true, "写真を読み取っています…"],
+    [3, true, "AI に送っています…"], // 写真つきは、時間の進みが半分(1.5 秒)
     [4, true, "写真を読み取っています…"],
-    [5, true, "品目を見つけています…"],
+    [9, true, "写真を読み取っています…"],
+    [10, true, "品目を見つけています…"],
+    [20, true, "栄養素を計算しています…"],
+    [36, true, "もう少しで終わります。混み合っているかもしれません…"],
+    [79, true, "もう少しで終わります。混み合っているかもしれません…"],
+    [80, true, "時間がかかっています。そのまま、もう少しお待ちください…"],
     [9, false, "品目を見つけています…"],
     [10, false, "栄養素を計算しています…"],
     [17, false, "栄養素を計算しています…"],
@@ -56,17 +61,26 @@ describe("ProcessingPanel(食事の推定。ボタンの行の上に、最初か
     render(<ProcessingPanel active hasPhoto />);
     const status = () => screen.getByRole("status").textContent ?? "";
 
+    // 写真つきは、段階の切り替わりが 2 倍遅い(経過秒数は、そのまま数える)
     act(() => vi.advanceTimersByTime(3000));
     expect(status()).toContain("3 秒");
-    expect(status()).toContain("写真を読み取っています");
+    expect(status()).toContain("AI に送っています");
 
     act(() => vi.advanceTimersByTime(3000));
     expect(status()).toContain("6 秒");
-    expect(status()).toContain("品目を見つけています");
+    expect(status()).toContain("写真を読み取っています");
 
     act(() => vi.advanceTimersByTime(5000));
     expect(status()).toContain("11 秒");
-    expect(status()).toContain("栄養素を計算しています");
+    expect(status()).toContain("品目を見つけています");
+  });
+
+  it("写真つきのときは、枚数が多いほど時間がかかる、と目安の説明に出す。写真が無ければ、10 秒ほどの説明", () => {
+    const { container, rerender } = render(<ProcessingPanel active={false} hasPhoto />);
+    expect(container.textContent).toContain("1 分近くかかることもあります");
+    expect(container.textContent).not.toContain("10 秒ほどかかる");
+    rerender(<ProcessingPanel active={false} hasPhoto={false} />);
+    expect(container.textContent).toContain("10 秒ほどかかる");
   });
 
   it("終わる(使っていない状態に戻る)と、タイマーが止まり、案内に戻る。次に動かすと、0 秒からやり直す", () => {
@@ -86,20 +100,20 @@ describe("ProcessingPanel(食事の推定。ボタンの行の上に、最初か
   });
 });
 
-describe("reportProcessingStage(AI レポートの作成。30 秒ほど、長いときは 1〜2 分)", () => {
+describe("reportProcessingStage(AI レポートの作成。30 秒〜1 分ほど、年次は 1 分ほど、長いときは 2 分以上)", () => {
   it.each([
     [0, "記録を集めて、AI に送っています…"],
-    [2, "記録を集めて、AI に送っています…"],
-    [3, "日ごとの記録を読んでいます…"],
-    [7, "日ごとの記録を読んでいます…"],
-    [8, "睡眠・食事・運動のつながりを探しています…"],
-    [19, "睡眠・食事・運動のつながりを探しています…"],
-    [20, "気づきを文章にまとめています…"],
-    [44, "気づきを文章にまとめています…"],
-    [45, "時間がかかっています。そのまま、もう少しお待ちください…"],
-    [89, "時間がかかっています。そのまま、もう少しお待ちください…"],
-    [90, "混み合っているようです。まだ続けています。最長で 2 分ほどかかります…"],
-    [240, "混み合っているようです。まだ続けています。最長で 2 分ほどかかります…"],
+    [4, "記録を集めて、AI に送っています…"],
+    [5, "日ごとの記録を読んでいます…"],
+    [14, "日ごとの記録を読んでいます…"],
+    [15, "睡眠・食事・運動のつながりを探しています…"],
+    [34, "睡眠・食事・運動のつながりを探しています…"],
+    [35, "気づきを文章にまとめています…"],
+    [74, "気づきを文章にまとめています…"], // 年次が 1 分ほどかかっても、「時間がかかっています」が出ない
+    [75, "時間がかかっています。そのまま、もう少しお待ちください…"],
+    [119, "時間がかかっています。そのまま、もう少しお待ちください…"],
+    [120, "混み合っているようです。まだ続けています。数分かかることもあります…"],
+    [240, "混み合っているようです。まだ続けています。数分かかることもあります…"],
   ])("%i 秒は「%s」", (seconds, message) => {
     expect(reportProcessingStage(seconds)).toBe(message);
   });
@@ -111,13 +125,13 @@ describe("ReportProcessingIndicator", () => {
     const status = screen.getByRole("status");
     expect(status.textContent).toContain("記録を集めて、AI に送っています");
     expect(status.textContent).toContain("0 秒");
-    expect(status.textContent).toContain("30 秒ほどかかります");
+    expect(status.textContent).toContain("30 秒〜1 分ほどかかります");
     expect(status.textContent).toContain("ページを閉じても、作成は続きます"); // 裏で続くので、閉じてよい(あとで一覧から開ける)
     expect(status.textContent).not.toContain("%");
     act(() => {
-      vi.advanceTimersByTime(3000);
+      vi.advanceTimersByTime(5000);
     });
-    expect(screen.getByRole("status").textContent).toContain("3 秒");
+    expect(screen.getByRole("status").textContent).toContain("5 秒");
     expect(screen.getByRole("status").textContent).toContain("日ごとの記録を読んでいます");
   });
 });

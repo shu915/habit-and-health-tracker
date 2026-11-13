@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { BackLink } from "@/components/back-link";
 import { DayResult } from "@/components/day-result";
+import { DayJumpForm } from "@/components/day-jump-form";
 import { DayNavigation } from "@/components/day-navigation";
 import { DayVitals } from "@/components/day-vitals";
 import { ExerciseList } from "@/components/exercise-list";
@@ -34,7 +35,11 @@ async function DayContent({ params }: Pick<PageProps<"/days/[date]">, "params">)
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <BackLink href="/">ダッシュボードに戻る</BackLink>
+        {/* 戻るリンクと同じ行の右に、日付欄(前後の記録の日だけでなく、記録の無い日へも直接移れる) */}
+        <div className="flex flex-wrap items-start justify-between gap-x-4">
+          <BackLink href="/">ダッシュボードに戻る</BackLink>
+          <DayJumpForm initialDate={date} />
+        </div>
         <h1 className="text-[32px] leading-10 font-bold tabular-nums">{date}</h1>
         <DayNavigation previous={adjacent.previous} next={nextDate(date, adjacent.next, todayString())} hrefOf={(d) => `/days/${d}`} />
       </div>

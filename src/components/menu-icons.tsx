@@ -23,7 +23,7 @@ export function LogoutIcon() {
 // 開いているときは上向き、閉じているときは下向き
 export function ChevronIcon({ open }: { open: boolean }) {
   return (
-    <svg {...base} width={16} height={16} className={open ? "" : "rotate-180"}>
+    <svg {...base} width={16} height={16} className={open ? "shrink-0" : "shrink-0 rotate-180"}>
       <path d="M6 15l6-6 6 6" />
     </svg>
   );

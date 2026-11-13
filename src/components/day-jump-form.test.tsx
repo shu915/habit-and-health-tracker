@@ -81,4 +81,27 @@ describe("DayJumpForm", () => {
     expect(push).toHaveBeenCalledWith("/days/2026-10-29");
     expect(screen.queryByRole("alert")).toBeNull();
   });
+
+  it("initialDate を渡すと、初期値はその日になる(日のページ用)。上限は、今日のまま", () => {
+    render(<DayJumpForm initialDate="2026-10-12" />);
+    expect(dateInput().value).toBe("2026-10-12");
+    expect(dateInput().max).toBe("2026-10-30");
+  });
+
+  it('suffix が "/edit" なら、編集ページへ移動する', async () => {
+    const user = userEvent.setup();
+    render(<DayJumpForm initialDate="2026-10-12" suffix="/edit" />);
+    await user.click(submit());
+    expect(push).toHaveBeenCalledWith("/days/2026-10-12/edit");
+  });
+
+  it("いま開いている日が明日(サーバーは翌日まで許す)でも、その日のままなら移動できる。別の未来の日付は、エラー", async () => {
+    const user = userEvent.setup();
+    render(<DayJumpForm initialDate="2026-10-31" suffix="/edit" />);
+    await user.click(submit());
+    expect(push).toHaveBeenCalledWith("/days/2026-10-31/edit");
+    fireEvent.change(dateInput(), { target: { value: "2026-11-02" } });
+    await user.click(submit());
+    expect(screen.getByRole("alert").textContent).toContain("未来の日付は選べません");
+  });
 });

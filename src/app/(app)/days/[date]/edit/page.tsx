@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { BackLink } from "@/components/back-link";
+import { DayJumpForm } from "@/components/day-jump-form";
 import { DayNavigation } from "@/components/day-navigation";
 import { DayForm, type DayFormInitial } from "@/components/day-form";
 import { isRecordableDate, todayString } from "@/lib/date";
@@ -38,7 +39,11 @@ async function DayEditContent({ params }: Pick<PageProps<"/days/[date]/edit">, "
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-5">
       <div>
-        <BackLink href={`/days/${date}`}>{date} の詳細に戻る</BackLink>
+        {/* 戻るリンクと同じ行の右に、日付欄(移り先は編集ページ。入力中の値は捨てられる。前後のリンクと同じ) */}
+        <div className="flex flex-wrap items-start justify-between gap-x-4">
+          <BackLink href={`/days/${date}`}>{date} の詳細に戻る</BackLink>
+          <DayJumpForm initialDate={date} suffix="/edit" />
+        </div>
         <h1 className="text-[26px] leading-9 font-bold sm:text-[32px] sm:leading-10">{date} の{day ? "編集" : "記録"}</h1>
         <DayNavigation previous={adjacent.previous} next={nextDate(date, adjacent.next, todayString())} hrefOf={(d) => `/days/${d}/edit`} />
       </div>
