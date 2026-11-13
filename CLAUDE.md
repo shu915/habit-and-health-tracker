@@ -79,4 +79,5 @@ Shu の生活習慣管理アプリ(友人にも使ってもらう)。食事・�
 - [`docs/dev-notes.md`](docs/dev-notes.md): マイグレーションの書き直しの手順と落とし穴、ダミーデータ、依存を足す手順、環境変数の落とし穴
 - [`docs/auth.md`](docs/auth.md): 許可リスト、Google の連結とログイン、ログインのメール、回数の制限
 - [`docs/backlog.md`](docs/backlog.md): 急がない宿題・保留の案(優先度つき)
+- [`docs/backup.md`](docs/backup.md): DB のバックアップ(毎晩ダンプ → 暗号化 → Cloudflare R2。設定、復元の練習、60 日の注意)
 - [`docs/release-checklist.md`](docs/release-checklist.md): 公開前に決めること(Resend・Vercel・Neon、タイムゾーン、プライバシー、許容している制約)
