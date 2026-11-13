@@ -17,13 +17,13 @@ afterEach(() => {
 
 describe("ReportProgress(作成中のレポートの画面)", () => {
   it("経過秒数は、サーバーから渡された値の続きから数える(ページを開き直しても、0 秒に戻らない)", () => {
-    render(<ReportProgress elapsedSeconds={50} />);
-    expect(screen.getByRole("status").textContent).toContain("50 秒");
-    expect(screen.getByRole("status").textContent).toContain("時間がかかっています"); // 45 秒以上の段階
+    render(<ReportProgress elapsedSeconds={80} />);
+    expect(screen.getByRole("status").textContent).toContain("80 秒");
+    expect(screen.getByRole("status").textContent).toContain("時間がかかっています"); // 75 秒以上の段階
     act(() => {
       vi.advanceTimersByTime(3000);
     });
-    expect(screen.getByRole("status").textContent).toContain("53 秒");
+    expect(screen.getByRole("status").textContent).toContain("83 秒");
   });
 
   it("数秒おきに、サーバーに状態を見に行く(できた・失敗に変わったら、ページが切り替わる)。外れたら止まる", () => {

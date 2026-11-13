@@ -426,7 +426,8 @@ function EstimateResult({ estimate, stale }: { estimate: MealEstimate; stale: bo
       </dl>
       {/* 品目ごとの内訳。多い品目を探せるよう、栄養素の列も出す(押して開く形にはしない)。
           数字の列は、同じ幅で、右にそろえる(品目と量の列だけが、残りの幅を使う)。狭い画面は、表の枠の中で横にスクロールする(品目の列は左に固定) */}
-      <div className="overflow-x-auto">
+      <p className="text-xs text-ink-muted sm:hidden">表は、右にスクロールすると、栄養素の続きが見られます →</p>
+      <div className="scroll-shadow-x overflow-x-auto">
         <table className="w-full min-w-[42rem] text-left text-sm">
           <thead className="text-xs text-ink-muted">
             <tr>

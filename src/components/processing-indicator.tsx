@@ -2,12 +2,14 @@
 
 import { useEffect, useState } from "react";
 
-// AI の推定は 3〜15 秒ほどかかる。固まったと思わせないよう、動く帯と、段階的なメッセージ、経過秒数を出す。
+// AI の推定は、文章だけなら 3〜15 秒ほど、写真つき(最大 4 枚)だと、その倍近くかかる(本番で、写真 4 枚は、1 分近くかかることがあった)。固まったと思わせないよう、動く帯と、段階的なメッセージ、経過秒数を出す。
 // 実際の進み具合は分からないので、割合は出さない(嘘の進捗にしない)。待っている間に出す文言を、経過時間で切り替えるだけ。
 // 表示している間だけ、このコンポーネントを置く(置くと数え始め、外すと止まる)。
 
-// 経過秒数に応じた、いまの段階のメッセージ。写真があるときは、写真を読み取る段階を入れる
-export function processingStage(seconds: number, hasPhoto: boolean): string {
+// 経過秒数に応じた、いまの段階のメッセージ。写真があるときは、写真を読み取る段階を入れ、時間の進みを半分にみなす(切り替わりが 2 倍遅い。
+// 「もう少しで終わります」が、まだ半ばで出て、嘘にならないように)
+export function processingStage(rawSeconds: number, hasPhoto: boolean): string {
+  const seconds = hasPhoto ? rawSeconds / 2 : rawSeconds;
   if (seconds >= 40) return "時間がかかっています。そのまま、もう少しお待ちください…";
   if (seconds >= 18) return "もう少しで終わります。混み合っているかもしれません…";
   if (seconds >= 10) return "栄養素を計算しています…";
@@ -45,11 +47,12 @@ function Indicator({ stage, note, startSeconds = 0 }: { stage: (seconds: number)
   );
 }
 
-// 食事の推定(3〜15 秒)の、進み具合の枠。入力の下、ボタンの行のすぐ上に、最初から置いておく。
+// 食事の推定(文章だけなら 3〜15 秒、写真つきは 1 分近くまで)の、進み具合の枠。入力の下、ボタンの行のすぐ上に、最初から置いておく。
 // 動き出してから出すと、画面の下に隠れて気づかれず、出たときに画面もずれる。枠は、使っていない間も、同じ大きさで(高さが変わらない)、
 // 中身だけが変わる: 使っていない間は、案内の 1 行と空の帯、動いている間は、回る輪・段階のメッセージ・経過秒数・流れる帯。下の目安の説明は、いつも出す。
 // role="status" の領域は、最初からあるので、メッセージが変わったときに読み上げられる(案内の行と、経過秒数は、読み上げない)
 const PROCESSING_NOTE = "AI の推定には、10 秒ほどかかることがあります(写真は、もう少しかかります)。";
+const PROCESSING_NOTE_WITH_PHOTO = "写真つきの推定には、枚数が多いほど時間がかかり、1 分近くかかることもあります。そのまま、お待ちください。";
 
 export function ProcessingPanel({ active, hasPhoto }: { active: boolean; hasPhoto: boolean }) {
   return (
@@ -66,7 +69,7 @@ export function ProcessingPanel({ active, hasPhoto }: { active: boolean; hasPhot
       <div aria-hidden className="relative h-1.5 w-full overflow-hidden rounded-sm bg-neutral">
         {active && <div className="indeterminate-bar h-full w-1/3 rounded-sm bg-accent" />}
       </div>
-      <p className="text-xs leading-relaxed text-ink-muted">{PROCESSING_NOTE}</p>
+      <p className="text-xs leading-relaxed text-ink-muted">{hasPhoto ? PROCESSING_NOTE_WITH_PHOTO : PROCESSING_NOTE}</p>
     </div>
   );
 }
@@ -93,17 +96,17 @@ function ProcessingLine({ hasPhoto }: { hasPhoto: boolean }) {
   );
 }
 
-// AI レポートの作成(30 秒ほど。長いときは 1〜2 分)。割合は出さない(嘘の進捗にしない)。待っている間に出す文言を、経過時間で切り替えるだけ
+// AI レポートの作成(30 秒〜1 分ほど。年次は 1 分ほどかかった。長いときは 2 分以上)。割合は出さない(嘘の進捗にしない)。待っている間に出す文言を、経過時間で切り替えるだけ
 export function reportProcessingStage(seconds: number): string {
-  if (seconds >= 90) return "混み合っているようです。まだ続けています。最長で 2 分ほどかかります…";
-  if (seconds >= 45) return "時間がかかっています。そのまま、もう少しお待ちください…";
-  if (seconds >= 20) return "気づきを文章にまとめています…";
-  if (seconds >= 8) return "睡眠・食事・運動のつながりを探しています…";
-  if (seconds >= 3) return "日ごとの記録を読んでいます…";
+  if (seconds >= 120) return "混み合っているようです。まだ続けています。数分かかることもあります…";
+  if (seconds >= 75) return "時間がかかっています。そのまま、もう少しお待ちください…";
+  if (seconds >= 35) return "気づきを文章にまとめています…";
+  if (seconds >= 15) return "睡眠・食事・運動のつながりを探しています…";
+  if (seconds >= 5) return "日ごとの記録を読んでいます…";
   return "記録を集めて、AI に送っています…";
 }
 
 // startSeconds: すでに経過している秒数(ページを開き直したときに、続きから数える)
 export function ReportProcessingIndicator({ startSeconds = 0 }: { startSeconds?: number }) {
-  return <Indicator stage={reportProcessingStage} startSeconds={startSeconds} note="AI のレポートの作成には、30 秒ほどかかります(長いときは数分)。ページを閉じても、作成は続きます。あとで「AI レポート」から開けます。" />;
+  return <Indicator stage={reportProcessingStage} startSeconds={startSeconds} note="AI のレポートの作成には、30 秒〜1 分ほどかかります(年次や、記録が多いときは、もう少し)。ページを閉じても、作成は続きます。あとで「AI レポート」から開けます。" />;
 }

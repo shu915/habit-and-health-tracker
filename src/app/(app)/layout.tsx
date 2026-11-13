@@ -10,12 +10,13 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
     <>
       <header className="border-b border-line print:hidden">
         <nav className="mx-auto flex w-full max-w-4xl items-center justify-between px-4 py-4 sm:px-6">
-          <Link href="/" className="flex items-center gap-2.5 font-bold">
+          {/* 狭い幅(360〜375px)では、右のボタンを縮めず、タイトルが 2 行に折り返して幅を吸収する(min-w-0 で縮める側にし、leading-snug で 2 行の行間を詰める) */}
+          <Link href="/" className="flex min-w-0 items-center gap-2.5 leading-snug font-bold">
             {/* ロゴ(512px の webp。next/image が表示の大きさ(28px)に縮めて出す。ログイン画面の大きい表示にも同じファイルを使う)。飾りなので alt は空。shrink-0: 横並びの中で潰れないように */}
             <Image src="/logo.webp" alt="" width={28} height={28} priority className="shrink-0" />
             Habit and Health Tracker
           </Link>
-          <div className="flex items-center gap-4">
+          <div className="flex shrink-0 items-center gap-4">
             {/* セッションを読むので、Suspense の内側に置く */}
             <Suspense fallback={null}>
               <UserEmail />
