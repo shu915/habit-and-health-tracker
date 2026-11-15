@@ -426,7 +426,6 @@ function EstimateResult({ estimate, stale }: { estimate: MealEstimate; stale: bo
       </dl>
       {/* 品目ごとの内訳。多い品目を探せるよう、栄養素の列も出す(押して開く形にはしない)。
           数字の列は、同じ幅で、右にそろえる(品目と量の列だけが、残りの幅を使う)。狭い画面は、表の枠の中で横にスクロールする(品目の列は左に固定。量の列は隠して、品目の下に出す) */}
-      <p className="text-xs whitespace-nowrap text-ink-muted sm:hidden">横にスクロールできます →</p>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[34rem] text-left text-sm sm:min-w-[42rem]">
           <thead className="text-xs text-ink-muted">
@@ -460,6 +459,8 @@ function EstimateResult({ estimate, stale }: { estimate: MealEstimate; stale: bo
           </tbody>
         </table>
       </div>
+      {/* スマホは、スクロールバーが、触れるまで隠れる。表の下に、一言で教える(広い画面は、バーが見えるので出さない) */}
+      <p className="text-xs whitespace-nowrap text-ink-muted sm:hidden">栄養素は、横にスクロールできます →</p>
       <p className="text-xs leading-relaxed text-ink-muted">
         AI の推定です。約 1 割ずれることがあります(量が見えにくい写真や、書かれていない量・調理法は、もう少しずれます)。栄養素は g(食塩は食塩相当量)です。品目の下の小さな文字は、その数字の前提(調理法・油・砂糖の仮定)で、調理法が書かれていないときは、一般的な調理を仮定しています。違うときは、上の説明を直して「推定し直す」を押してください。
       </p>

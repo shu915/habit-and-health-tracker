@@ -8,6 +8,7 @@ export const EXERCISE_TYPES = [
   { key: "walk", label: "散歩" },
   { key: "indoor", label: "室内エクササイズ" },
   { key: "strength", label: "筋トレ" },
+  { key: "stretch_yoga", label: "ストレッチ・ヨガ" },
   { key: "other", label: "その他" },
 ] as const;
 
@@ -28,6 +29,8 @@ export const MET: Record<ExerciseType, Record<ExerciseIntensity, number>> = {
   walk: { light: 2.8, normal: 3.5, hard: 5.0 },
   indoor: { light: 2.5, normal: 3.8, hard: 6.0 },
   strength: { light: 3.0, normal: 3.5, hard: 6.0 },
+  // ストレッチ(軽め)・ゆっくりしたヨガ(普通)・動きの多いヨガ(ハード)。ほかの種類より、全体に低い
+  stretch_yoga: { light: 2.3, normal: 2.5, hard: 4.0 },
   other: { light: 3.0, normal: 4.0, hard: 6.0 },
 };
 

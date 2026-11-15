@@ -3,6 +3,7 @@ import Link from "next/link";
 import { buttonClass } from "@/components/button";
 import { DayList } from "@/components/day-list";
 import { ProfileSummary } from "@/components/profile-summary";
+import { ProfileSummarySkeleton } from "@/components/profile-summary-skeleton";
 import { TrendSection } from "@/components/trend-section";
 import { WaistReminder } from "@/components/waist-reminder";
 
@@ -14,7 +15,8 @@ export default function DashboardPage({ searchParams }: PageProps<"/">) {
       <Suspense fallback={null}>
         <WaistReminder />
       </Suspense>
-      <Suspense fallback={<p className="text-ink-muted">プロフィールを読み込み中...</p>}>
+      {/* 読み込み中は、本物と同じ大きさの場所取り(下の AI レポートのボタンが、読み込み後に押し下げられないように) */}
+      <Suspense fallback={<ProfileSummarySkeleton />}>
         <ProfileSummary />
       </Suspense>
       {/* AI レポートへの入り口(ボタン 1 つ。レポートは別ページ /reports。ダッシュボードは、いまのデータで縦に長いので、ここには置かない) */}
