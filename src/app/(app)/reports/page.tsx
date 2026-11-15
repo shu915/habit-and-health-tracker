@@ -35,6 +35,10 @@ export default function ReportsPage({ searchParams }: PageProps<"/reports">) {
       <Suspense fallback={<p className="text-ink-muted">読み込み中...</p>}>
         <ReportsContent searchParams={searchParams} />
       </Suspense>
+      {/* 縦に長いので、下まで読んだ人のために、上と同じ戻るリンクを置く(日の詳細・レポートの詳細と同じ) */}
+      <div>
+        <BackLink href="/">ダッシュボードに戻る</BackLink>
+      </div>
     </div>
   );
 }
