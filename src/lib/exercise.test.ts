@@ -13,8 +13,8 @@ import {
 } from "./exercise";
 
 describe("運動の種類・強さ", () => {
-  it("種類は 散歩・室内エクササイズ・筋トレ・その他、強さは 軽め・普通・ハード", () => {
-    expect(EXERCISE_TYPES.map((type) => type.label)).toEqual(["散歩", "室内エクササイズ", "筋トレ", "その他"]);
+  it("種類は 散歩・室内エクササイズ・筋トレ・ストレッチ・ヨガ・その他、強さは 軽め・普通・ハード", () => {
+    expect(EXERCISE_TYPES.map((type) => type.label)).toEqual(["散歩", "室内エクササイズ", "筋トレ", "ストレッチ・ヨガ", "その他"]);
     expect(EXERCISE_INTENSITIES.map((intensity) => intensity.label)).toEqual(["軽め", "普通", "ハード"]);
   });
 
@@ -53,6 +53,8 @@ describe("exerciseKcal(増えた分の消費 = (MET − 1) × 体重 × 時間)"
     expect(exerciseKcal("strength", "hard", 30, 60)).toBe(150);
     expect(exerciseKcal("walk", "light", 60, 60)).toBe(108); // 1.8 × 60
     expect(exerciseKcal("other", "normal", 60, 60)).toBe(180); // 3.0 × 60
+    expect(exerciseKcal("stretch_yoga", "normal", 30, 97.5)).toBe(73); // (2.5 − 1) × 97.5 × 0.5 = 73.125
+    expect(exerciseKcal("stretch_yoga", "light", 60, 60)).toBe(78); // 1.3 × 60
   });
 
   it("安静の 1 MET は引く(MET をそのまま掛けた値より小さい)", () => {

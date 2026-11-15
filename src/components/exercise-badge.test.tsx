@@ -6,7 +6,7 @@ import { ExerciseBadge } from "./exercise-badge";
 afterEach(cleanup);
 
 describe("ExerciseBadge", () => {
-  it("開始時刻から、午前・午後・夜を出す", () => {
+  it("開始時刻から、午前・午後・夜間を出す", () => {
     render(<ExerciseBadge time="07:00" />);
     expect(screen.getByText("午前")).toBeTruthy();
     cleanup();
@@ -14,10 +14,10 @@ describe("ExerciseBadge", () => {
     expect(screen.getByText("午後")).toBeTruthy();
     cleanup();
     render(<ExerciseBadge time="20:00" />);
-    expect(screen.getByText("夜")).toBeTruthy();
+    expect(screen.getByText("夜間")).toBeTruthy();
   });
 
-  it("食事のバッジと同じ時間帯の色(午前=朝食、午後=昼食、夜=夕食)", () => {
+  it("食事のバッジと同じ時間帯の色(午前=朝食、午後=昼食、夜間=夕食)", () => {
     render(<ExerciseBadge time="07:00" />);
     expect(screen.getByText("午前").className).toContain("bg-badge-morning");
     cleanup();
@@ -25,7 +25,7 @@ describe("ExerciseBadge", () => {
     expect(screen.getByText("午後").className).toContain("bg-badge-noon");
     cleanup();
     render(<ExerciseBadge time="20:00" />);
-    expect(screen.getByText("夜").className).toContain("bg-badge-evening");
+    expect(screen.getByText("夜間").className).toContain("bg-badge-evening");
   });
 
   it("開始時刻が無いときは、何も出さない", () => {
