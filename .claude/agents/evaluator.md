@@ -23,6 +23,7 @@ tsc・lint・テストは Stop hook(`.claude/hooks/stop-checks.sh`)が毎回実�
 - tsconfig や ESLint のルールを緩めて通している(`strict` を外す、ルールを `off` にする、など)
 - タイムアウト、上限値、許可リストなどが、理由なく緩められている
 - 実装を直さず、テスト側のモックや入力だけを変えて通している
+- 検証の仕組みそのものを弱めている: `.github/workflows/` から `npm test` / lint / typecheck / build の手順が消えている、`package.json` の `test` / `lint` / `check` スクリプトが空にされている、`vitest.config.mts` の `include` が狭められている。ガードでは検出できないので、`git diff` の `.github/` と `package.json` を必ず読む
 見つけたら、他の指摘より先に「高」として挙げ、元の内容(差分の該当箇所)を引用する。仕様変更が理由なら、その根拠が差分や説明にあるかを確認し、なければ指摘する。
 
 ## レビュー観点

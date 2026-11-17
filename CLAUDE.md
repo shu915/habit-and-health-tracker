@@ -65,7 +65,10 @@ Shu の生活習慣管理アプリ(友人にも使ってもらう)。食事・�
 
 ## コミットと hooks
 - 人が頼むまでコミットしない。コミットメッセージと PR(タイトル・本文)・コード中のコメントは日本語。PR の本文は「概要 / 確認したこと / 未確認・注意」の順で、確認していないことは分けて書く
-- `guard-pre.sh` がブロックする: `.env*` の読み書き(コマンドの文字列に環境ファイルのパスが入っているだけでも)、`git clean` / `reset --hard`、`rm -r`、`drizzle-kit push`、`drizzle/` と `package-lock.json` の編集、型や lint を黙らせる記述、テストや設定を弱める変更。ブロックされたら回避せず、理由を報告して指示を待つ
+- `guard-pre.sh` がブロックする: `.env*` の読み書き(コマンドの文字列に環境ファイルのパスが入っているだけでも。引用符の分割やワイルドカードも)、`git clean` / `reset --hard` / `checkout --` / `restore` / `stash` / `push --force`、`branch -D`、`rm -r`、`find -delete`、`docker compose down -v`、`drizzle-kit push`、`drizzle/` と `package-lock.json` の編集(Bash 経由も)、型や lint を黙らせる記述、テストや設定を弱める変更、`.claude/hooks/` と `.claude/settings.json` の編集(人が編集する)。ブロックされたら回避せず、理由を報告して指示を待つ。`down -v` などは、人が自分で実行する
+- **ガードは事故防止であって、悪意への防御ではない**。Bash は書き方を変えれば回避できる(変数の連結 `a=.en; cat ${a}v.local` など)。頼れるのは `.claude/settings.json` の `permissions.deny`(`.env*` の Read / Edit を拒否)と、秘密情報を人が管理することだけ。deny が Grep や Bash に効くかは確認できていないので、効く前提で書かない。`.env.local` の中身が会話に出たら、キーを作り直す
+- テスト改ざんの検出には穴がある(`toBeTruthy` への弱体化、`.github/` や `package.json` から `npm test` を外す変更)。`evaluator` が目視で確認する
+- コマンドを `&&` でつなぐと、別々の操作が1つの文字列として判定され、誤検知でブロックされることがある。分けて実行する
 - 新しいセッションは、最初にこのファイルと `claude-progress.txt` を読む。作業の区切りごとに `claude-progress.txt` を更新する
 
 ## 詳細な仕様(`docs/`)
